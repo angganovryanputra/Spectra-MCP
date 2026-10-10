@@ -218,11 +218,14 @@
         </button>
       </div>
 
-      <!-- Spawn Login Browser Button -->
-      <button @click="openLoginModal = true"
-        class="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-md text-xs font-medium transition shadow-md">
-        <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1.5"></i>
-        <span>Login</span>
+      <!-- Session & Cookie Config Button -->
+      <button @click="openSessionModal()"
+        class="flex items-center px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-700/70 text-amber-300 rounded-md text-xs font-semibold font-mono transition shadow-md"
+        title="Configure & Paste Session Cookies for AI Agent">
+        <i data-lucide="cookie" class="w-3.5 h-3.5 mr-1.5 text-amber-400"></i>
+        <span>Session & Cookies</span>
+        <span class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500 text-black font-bold"
+          x-text="stats.active_sessions || 0"></span>
       </button>
 
       <!-- Clear Logs Button -->
@@ -1376,192 +1379,139 @@
     </div>
   </div>
 
-  <!-- HITL Login & Session Handover Modal (3-Way: Host Browser / JS Snippet / Direct Paste) -->
+  <!-- SESSION & COOKIE MANAGER MODAL (Direct Paste & AI Auto-Injection) -->
   <div x-show="openLoginModal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-    <div @click.away="if (!loginSpawning) openLoginModal = false"
-      class="w-full max-w-xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl">
+    <div @click.away="openLoginModal = false"
+      class="w-full max-w-2xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl">
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
         <div class="flex items-center space-x-2.5">
-          <div class="p-2 bg-indigo-950/80 border border-indigo-700/60 rounded-lg text-indigo-400">
-            <i data-lucide="key" class="w-5 h-5"></i>
+          <div class="p-2 bg-amber-950/80 border border-amber-700/60 rounded-lg text-amber-400">
+            <i data-lucide="cookie" class="w-5 h-5"></i>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-slate-100">Manual Login & Session Handover (HITL)</h3>
-            <p class="text-[11px] text-slate-400">Capture authenticated sessions so AI pentest agents can test protected
-              endpoints</p>
+            <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+              <span>Session & Cookie Manager</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">AI Auto-Injection</span>
+            </h3>
+            <p class="text-[11px] text-slate-400">Paste cookie sesi browser Anda. AI Agent otomatis menyuntikkan cookie ini ke setiap request tanpa perlu prompting ulang.</p>
           </div>
         </div>
-        <button x-show="!loginSpawning" @click="openLoginModal = false"
-          class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
+        <button @click="openLoginModal = false" class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
       </div>
 
-      <!-- Navigation Tabs: Spawn Host Browser | JS Console / Bookmarklet | Direct Paste -->
-      <div class="flex bg-[#0B0F17] border border-[#1E293B] rounded-lg p-1 text-xs">
-        <button @click="authModalTab = 'spawn'"
-          :class="authModalTab === 'spawn' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
-          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
-          <i data-lucide="chrome" class="w-3.5 h-3.5"></i>
-          <span>1. Spawn Browser Host</span>
-        </button>
-        <button @click="authModalTab = 'js'"
-          :class="authModalTab === 'js' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
-          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
-          <i data-lucide="code" class="w-3.5 h-3.5 text-amber-400"></i>
-          <span>2. Pendekatan JS</span>
-        </button>
-        <button @click="authModalTab = 'paste'"
-          :class="authModalTab === 'paste' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
-          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
-          <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span>3. Direct Paste</span>
-        </button>
-      </div>
-
-      <!-- TAB 1: SPAWN HOST BROWSER -->
-      <div x-show="authModalTab === 'spawn'" class="space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="text-[11px] text-slate-300 font-semibold block mb-1">Pilih Browser Host:</label>
-            <select x-model="authForm.browserChoice" :disabled="loginSpawning"
-              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-2 text-xs font-mono text-indigo-300 font-bold focus:outline-none">
-              <option value="chrome">🔵 Google Chrome (Host Default)</option>
-              <option value="msedge">🟢 Microsoft Edge (Host Default)</option>
-              <option value="chromium">⚪ Playwright Chromium</option>
-              <option value="system">🚀 Buka di Browser OS Host</option>
-            </select>
-          </div>
-          <div>
-            <label class="text-[11px] text-slate-300 font-semibold block mb-1">Session Domain:</label>
-            <input type="text" x-model="authForm.domain" placeholder="www.example.com" :disabled="loginSpawning"
-              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
-          </div>
+      <!-- AI Auto-Injection Status Callout -->
+      <div class="p-3 bg-emerald-950/40 border border-emerald-700/50 rounded-xl flex items-start space-x-3">
+        <div class="p-1.5 bg-emerald-900/60 rounded-lg text-emerald-400 mt-0.5 shrink-0">
+          <i data-lucide="zap" class="w-4 h-4"></i>
         </div>
-
-        <div>
-          <label class="text-[11px] text-slate-300 font-semibold block mb-1">Target Application Login URL:</label>
-          <input type="text" x-model="authForm.loginUrl" placeholder="https://www.example.com/login"
-            :disabled="loginSpawning"
-            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
-        </div>
-
-        <!-- Live Active Session Monitoring State -->
-        <div x-show="loginSpawning" class="p-3 bg-indigo-950/40 border border-indigo-700/60 rounded-xl space-y-2.5">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-              <span class="relative flex h-2.5 w-2.5">
-                <span
-                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <span class="font-bold text-emerald-300">Browser Window Active on Desktop</span>
-            </div>
-            <span
-              class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold"
-              x-text="'🍪 ' + authLiveCookiesCount + ' Cookies Detected in Browser'"></span>
+        <div class="flex-1 text-[11px] leading-relaxed">
+          <div class="font-bold text-emerald-300 flex items-center space-x-2">
+            <span>AI AGENT READY & ZERO-PROMPT AUTO-INJECTION</span>
           </div>
-          <p class="text-[11px] text-slate-300 leading-relaxed">
-            Login di jendela browser yang terbuka. Cookie akan disinkronkan secara real-time. Jika selesai, klik tombol
-            konfirmasi di bawah atau tutup jendela browser.
+          <p class="text-slate-300 mt-0.5">
+            Saat AI Agent (Opencode / Hermes via MCP) memanggil tool <code class="text-amber-300 font-semibold">send_http_request</code> ke target domain yang tersimpan di bawah, header <code class="text-emerald-300 font-semibold">Cookie</code> langsung disuntikkan secara otomatis. Anda tidak perlu lagi login berulang kali ataupun menjawab prompt interaktif.
           </p>
-          <button @click="confirmManualAuth()"
-            class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition flex items-center justify-center space-x-2 shadow-lg">
-            <i data-lucide="check-circle" class="w-4 h-4"></i>
-            <span>Confirm & Sync Session Now</span>
-          </button>
-        </div>
-
-        <div class="flex justify-end space-x-2 pt-2 border-t border-[#1E293B]">
-          <button @click="openLoginModal = false; loginSpawning = false"
-            class="px-4 py-2 text-xs text-slate-400 hover:text-slate-200">
-            <span x-text="loginSpawning ? 'Dismiss Window' : 'Cancel'"></span>
-          </button>
-          <button x-show="!loginSpawning" @click="launchLoginBrowser()"
-            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-lg">
-            <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1"></i>
-            <span>Launch Browser</span>
-          </button>
         </div>
       </div>
 
-      <!-- TAB 2: PENDEKATAN JAVASCRIPT (BOOKMARKLET / DEVTOOLS CONSOLE) -->
-      <div x-show="authModalTab === 'js'" class="space-y-3">
-        <p class="text-slate-300 text-[11px] leading-relaxed">
-          Gunakan browser apa saja (Chrome, Firefox, Brave, Edge). Login seperti biasa di tab target, lalu jalankan
-          script berikut di <strong>DevTools Console (F12)</strong> untuk sinkronisasi otomatis ke Spectra MCP:
-        </p>
-
-        <div
-          class="relative bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-slate-200 font-mono text-[11px] leading-relaxed">
-          <pre class="overflow-x-auto whitespace-pre-wrap select-all">fetch("http://127.0.0.1:8000/api/auth/cookies/import", {
-  method: "POST",
-  headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({
-    project: "<span x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></span>",
-    domain: window.location.hostname,
-    raw_cookie: document.cookie
-  })
-}).then(r => r.json()).then(d => alert("✅ Berhasil sync " + d.cookie_count + " cookies ke Spectra MCP!"))
-.catch(e => {
-  navigator.clipboard.writeText(document.cookie);
-  alert("⚠️ Mixed-content: Cookie otomatis disalin ke clipboard! Paste di tab Direct Paste.");
-});</pre>
-        </div>
-
-        <div class="flex items-center space-x-2">
-          <button @click="copyJsSnippet()"
-            class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-bold transition flex items-center space-x-1 shadow">
-            <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i>
-            <span>Copy DevTools Console Script</span>
-          </button>
-          <button @click="copyBookmarkletUrl()"
-            class="px-3 py-1.5 bg-[#0B0F17] hover:bg-slate-700 text-slate-200 border border-[#1E293B] rounded font-bold transition flex items-center space-x-1">
-            <i data-lucide="bookmark" class="w-3.5 h-3.5 mr-1 text-amber-400"></i>
-            <span>Copy Bookmarklet Link</span>
-          </button>
-        </div>
-
-        <div
-          class="p-2.5 rounded bg-amber-950/30 border border-amber-800/40 text-[11px] text-amber-200 leading-relaxed">
-          💡 <strong>Tips Pentester (HttpOnly Cookie):</strong> Jika cookie autentikasi menggunakan flag
-          <code>HttpOnly</code> (tidak bisa dibaca oleh <code>document.cookie</code>), cukup buka tab
-          <strong>Network</strong> di DevTools, klik kanan salah satu request target &rarr; <em>Copy as cURL</em>, lalu
-          paste di tab <strong>3. Direct Paste</strong> di sebelah!
-        </div>
-      </div>
-
-      <!-- TAB 3: DIRECT PASTE (COOKIE / cURL / JSON) -->
-      <div x-show="authModalTab === 'paste'" class="space-y-3">
-        <div>
-          <label class="text-[11px] text-slate-300 font-semibold block mb-1">Target Domain (e.g.
-            dev01.asetrabook.com):</label>
-          <input type="text" x-model="importCookieForm.domain"
-            placeholder="dev01.asetrabook.com (Otomatis diekstrak jika kosong)"
-            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+      <!-- Paste Cookie Input Form -->
+      <div class="space-y-3 bg-[#0B0F17]/60 border border-[#1E293B] rounded-xl p-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          <div class="md:col-span-2">
+            <label class="text-[11px] text-slate-300 font-semibold block mb-1">
+              Target Domain (e.g. <span class="text-sky-400">target.example.com</span>):
+            </label>
+            <input type="text" x-model="importCookieForm.domain"
+              placeholder="target.example.com (Otomatis diekstrak jika kosong)"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500">
+          </div>
+          <div class="flex flex-col justify-end">
+            <span class="text-[11px] text-slate-400 mb-1">Target Project:</span>
+            <div class="px-3 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-400 font-bold truncate"
+              x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></div>
+          </div>
         </div>
 
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-[11px] text-slate-300 font-semibold">Paste Cookie / cURL / Headers / JSON:</label>
-            <span class="text-[10px] text-slate-500 font-mono">Mendukung HttpOnly & Session tokens</span>
+            <label class="text-[11px] text-slate-300 font-semibold flex items-center space-x-1.5">
+              <span>Paste Cookie / cURL / Headers / JSON:</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-slate-400">Supports HttpOnly & Raw</span>
+            </label>
+            <button @click="copyConsoleHelper()"
+              class="text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-mono transition"
+              title="Copy snippet copy(document.cookie); untuk ditempel di Console F12 browser target">
+              <i data-lucide="terminal" class="w-3 h-3"></i>
+              <span>Copy DevTools Console Helper</span>
+            </button>
           </div>
           <textarea x-model="importCookieForm.rawInput" rows="5"
-            placeholder="Contoh format yang didukung:&#10;1. Raw string: session=abc123xyz; laravel_session=...; XSRF-TOKEN=...&#10;2. Command cURL: curl 'https://...' -H 'Cookie: session=...'&#10;3. Header block: Cookie: token=...&#10;4. JSON dari extension Cookie-Editor"
-            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-200 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y"></textarea>
+            placeholder="Contoh format yang langsung didukung:&#10;1. Raw string: session=abc123xyz; token=eyJ...; auth=true&#10;2. Perintah cURL: curl 'https://target.example.com/app' -H 'Cookie: session=...'&#10;3. Request Header block: Cookie: token=...&#10;4. JSON Export dari browser extension Cookie-Editor"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y placeholder:text-slate-600"></textarea>
         </div>
 
-        <div class="flex justify-between items-center pt-2 border-t border-[#1E293B]">
-          <span class="text-[11px] text-slate-400">Target Project: <strong class="text-indigo-400"
-              x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></strong></span>
-          <div class="flex space-x-2">
+        <div class="flex justify-between items-center pt-2">
+          <div class="text-[10px] text-slate-500">
+            💡 Tips: Untuk HttpOnly cookie, salin command cURL dari tab Network di DevTools (F12) lalu paste langsung di sini.
+          </div>
+          <div class="flex space-x-2 shrink-0">
             <button @click="importCookieForm.rawInput = ''"
               class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">Clear</button>
             <button @click="importCookiesDirectly()"
-              class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition flex items-center space-x-1 shadow-lg">
-              <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i>
-              <span>Import & Save Session</span>
+              class="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white rounded-lg font-bold transition flex items-center space-x-1.5 shadow-lg">
+              <i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i>
+              <span>Simpan & Aktifkan Sesi</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Active Sessions in Database -->
+      <div class="border-t border-[#1E293B] pt-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-bold text-slate-300 flex items-center space-x-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>Daftar Sesi Aktif di Database Spectra (<span x-text="activeSessions.length"></span>)</span>
+          </div>
+          <button @click="fetchSessions()" class="text-[10px] text-sky-400 hover:text-sky-300 font-mono flex items-center space-x-1">
+            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+
+        <div class="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+          <template x-if="activeSessions.length === 0">
+            <div class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-center text-slate-500 text-[11px]">
+              Belum ada cookie tersimpan. Paste cookie di form atas untuk mengaktifkan sesi AI Agent.
+            </div>
+          </template>
+          <template x-for="s in activeSessions" :key="s.domain">
+            <div class="p-2.5 bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 rounded-lg flex items-center justify-between">
+              <div class="space-y-0.5">
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-sky-300 font-mono text-xs" x-text="s.domain"></span>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"
+                    x-text="s.cookie_count + ' cookies'"></span>
+                  <span class="text-[10px] text-indigo-400 font-mono" x-text="'[' + (s.project || 'default') + ']'"></span>
+                  <span class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+                    AI Injected
+                  </span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-mono truncate max-w-md"
+                  x-text="'Cookie Keys: ' + (s.cookie_names && s.cookie_names.length ? s.cookie_names.join(', ') : 'Active')"></div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-[9px] text-slate-500 font-mono" x-text="s.updated_at ? s.updated_at.split('T')[0] : ''"></span>
+                <button @click="deleteSession(s.domain)"
+                  class="px-2.5 py-1 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded text-[10px] transition font-semibold"
+                  title="Cabut & Hapus Sesi Cookie Ini">
+                  Revoke
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -1663,12 +1613,9 @@
         agentsList: ['primary_agent'],
         stats: { total_requests: 0, confirmed_findings: 0, potential_findings: 0, active_sessions: 0 },
 
-        // HITL Auth
+        // Session & Cookie Config
         openLoginModal: false,
-        loginSpawning: false,
-        authModalTab: 'spawn', // 'spawn' | 'js' | 'paste'
-        authLiveCookiesCount: 0,
-        authForm: { loginUrl: '', domain: '', browserChoice: 'chrome' },
+        activeSessions: [],
         importCookieForm: { domain: '', rawInput: '' },
         copiedCurl: false,
         toasts: [],
@@ -1682,6 +1629,7 @@
           this.fetchScopeConfig();
           this.fetchFuzzerPayloads();
           this.fetchKeepaliveStatus();
+          this.fetchSessions();
           this.connectWebSocket();
           this.$nextTick(() => lucide.createIcons());
         },
@@ -2215,96 +2163,44 @@
           await fetch(`/api/logs/clear${param}`, { method: 'POST' });
         },
 
-        async launchLoginBrowser() {
-          let url = (this.authForm.loginUrl || '').trim();
-          if (!url) {
-            this.showToast({ title: 'Input Required', message: 'Please enter a target login URL.' });
-            return;
-          }
-          if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            url = 'https://' + url;
-            this.authForm.loginUrl = url;
-          }
-          let domain = (this.authForm.domain || '').trim();
-          if (!domain) {
-            try {
-              domain = new URL(url).hostname;
-              this.authForm.domain = domain;
-            } catch (e) { }
-          }
-          this.loginSpawning = true;
-          this.authLiveCookiesCount = 0;
-          try {
-            const res = await fetch('/api/auth/spawn', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                project: this.selectedProject === 'ALL' ? 'default' : this.selectedProject,
-                login_url: url,
-                target_domain: domain || null,
-                browser_choice: this.authForm.browserChoice || 'chrome'
-              })
-            });
-            if (res.ok) {
-              this.showToast({
-                title: 'Browser Launched',
-                message: 'Chromium window opened on desktop. Complete login on screen.'
-              });
-            } else {
-              const err = await res.json();
-              this.loginSpawning = false;
-              alert(`Launch failed: ${err.detail || 'Browser could not start'}`);
-            }
-          } catch (e) {
-            this.loginSpawning = false;
-            alert(`Network error: ${String(e)}`);
-          }
+        openSessionModal() {
+          this.openLoginModal = true;
+          this.fetchSessions();
         },
 
-        async confirmManualAuth() {
+        async fetchSessions() {
+          const p = this.selectedProject === 'ALL' ? '' : `?project=${encodeURIComponent(this.selectedProject)}`;
           try {
-            const res = await fetch('/api/auth/confirm', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ domain: this.authForm.domain || null })
-            });
+            const res = await fetch(`/api/auth/session${p}`);
             if (res.ok) {
-              this.showToast({ title: 'Confirmation Sent', message: 'Syncing final browser session state...' });
+              const data = await res.json();
+              this.activeSessions = data.sessions || [];
             }
           } catch (e) { }
         },
 
-        copyJsSnippet() {
-          const p = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
-          const snippet = `fetch("http://127.0.0.1:8000/api/auth/cookies/import", {
-  method: "POST",
-  headers: {"Content-Type": "application/json"},
-  body: JSON.stringify({
-    project: "${p}",
-    domain: window.location.hostname,
-    raw_cookie: document.cookie
-  })
-}).then(r => r.json()).then(d => alert("✅ Spectra MCP: " + d.cookie_count + " cookies tersinkronisasi untuk " + d.domain + "!"))
-.catch(e => {
-  navigator.clipboard.writeText(document.cookie);
-  alert("⚠️ Mixed-content/CORS: Cookie otomatis disalin ke clipboard! Paste di tab Direct Paste Spectra.");
-});`;
-          navigator.clipboard.writeText(snippet);
-          this.showToast({ title: 'JS Snippet Copied', message: 'Paste into browser DevTools Console (F12) on target site!' });
+        async deleteSession(domain) {
+          if (!confirm(`Hapus dan cabut sesi cookie untuk domain '${domain}'?`)) return;
+          try {
+            const res = await fetch(`/api/auth/session/${encodeURIComponent(domain)}`, { method: 'DELETE' });
+            if (res.ok) {
+              this.showToast({ title: 'Sesi Dicabut', message: `Sesi cookie untuk ${domain} telah dihapus.` });
+              this.fetchSessions();
+              this.fetchStats();
+            }
+          } catch (e) { }
         },
 
-        copyBookmarkletUrl() {
-          const p = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
-          const bookmarklet = `javascript:(function(){const d=location.hostname;const c=document.cookie;fetch("http://127.0.0.1:8000/api/auth/cookies/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project:"${p}",domain:d,raw_cookie:c})}).then(r=>r.json()).then(data=>alert("✅ Spectra MCP: "+data.cookie_count+" cookies tersinkronisasi untuk "+d+"!")).catch(e=>{navigator.clipboard.writeText(c);alert("⚠️ Cookie disalin ke clipboard! Paste di tab Direct Paste Spectra.");});})();`;
-          navigator.clipboard.writeText(bookmarklet);
-          this.showToast({ title: 'Bookmarklet Copied', message: 'Bookmarklet URL copied! Add as browser bookmark.' });
+        copyConsoleHelper() {
+          navigator.clipboard.writeText('copy(document.cookie);');
+          this.showToast({ title: 'Tersalin!', message: 'Snippet "copy(document.cookie);" disalin ke clipboard.' });
         },
 
         async importCookiesDirectly() {
           let domain = (this.importCookieForm.domain || '').trim();
           const raw = (this.importCookieForm.rawInput || '').trim();
           if (!raw) {
-            this.showToast({ title: 'Input Required', message: 'Please paste cookie string, cURL, or JSON.' });
+            this.showToast({ title: 'Input Diperlukan', message: 'Silakan paste string cookie, cURL, atau JSON.' });
             return;
           }
           if (!domain) {
@@ -2312,10 +2208,10 @@
               const match = raw.match(/https?:\/\/([^\/\s"']+)/);
               if (match) domain = match[1].split(':')[0];
             } catch (e) { }
-            if (!domain && this.authForm.domain) domain = this.authForm.domain;
             if (!domain) domain = 'target.local';
             this.importCookieForm.domain = domain;
           }
+          domain = domain.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
           const proj = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
           try {
             const res = await fetch('/api/auth/cookies/import', {
@@ -2330,15 +2226,15 @@
             if (res.ok) {
               const data = await res.json();
               this.showToast({
-                title: 'Session Authenticated!',
-                message: `Successfully imported ${data.cookie_count} cookies for ${domain} into project '${proj}'.`
+                title: 'Sesi Aktif untuk AI Agent!',
+                message: `Berhasil mengaktifkan ${data.cookie_count} cookie untuk domain '${domain}'. AI Agent langsung menggunakannya!`
               });
               this.importCookieForm.rawInput = '';
-              this.openLoginModal = false;
+              this.fetchSessions();
               this.fetchStats();
             } else {
               const err = await res.json();
-              alert(`Import failed: ${err.detail || 'Could not parse cookie data'}`);
+              alert(`Gagal import cookie: ${err.detail || 'Format cookie tidak valid'}`);
             }
           } catch (e) {
             alert(`Network error: ${String(e)}`);

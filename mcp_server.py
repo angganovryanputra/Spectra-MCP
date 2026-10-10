@@ -111,23 +111,35 @@ def _extract_domain_cookies(url: str, project: str = "default") -> Dict[str, str
     cookies = {}
     try:
         parsed = urllib.parse.urlparse(url)
-        domain = parsed.netloc.split(":")[0]
+        target_host = (parsed.netloc or "").split(":")[0].strip().lower()
         db = SessionLocal()
         try:
-            session_rec = db.query(ActiveSession).filter(
-                ActiveSession.project == project,
-                ActiveSession.domain.ilike(f"%{domain}%")
-            ).first()
-            if not session_rec:
-                session_rec = db.query(ActiveSession).filter(ActiveSession.domain.ilike(f"%{domain}%")).first()
+            # First match sessions for this project
+            sessions = db.query(ActiveSession).filter(ActiveSession.project == project).all()
+            if not sessions:
+                sessions = db.query(ActiveSession).all()
 
-            if session_rec and session_rec.storage_state:
-                state_data = json.loads(session_rec.storage_state)
-                for c in state_data.get("cookies", []):
-                    c_name = c.get("name")
-                    c_val = c.get("value")
-                    if c_name and c_val:
-                        cookies[c_name] = c_val
+            for s in sessions:
+                stored_dom = (s.domain or "").strip().lower()
+                if "://" in stored_dom:
+                    stored_dom = urllib.parse.urlparse(stored_dom).netloc
+                stored_dom = stored_dom.split(":")[0].strip("/")
+
+                # Robust Bidirectional domain match (exact, subdomain, or root domain)
+                is_match = (
+                    target_host == stored_dom or
+                    target_host.endswith("." + stored_dom) or
+                    stored_dom.endswith("." + target_host) or
+                    (stored_dom in target_host and len(stored_dom) > 3)
+                )
+
+                if is_match and s.storage_state:
+                    state_data = json.loads(s.storage_state)
+                    for c in state_data.get("cookies", []):
+                        c_name = c.get("name")
+                        c_val = c.get("value")
+                        if c_name and c_val:
+                            cookies[c_name] = c_val
         finally:
             db.close()
     except Exception:
@@ -151,8 +163,12 @@ async def send_http_request(
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
-    injects active session authentication tokens, logs traffic, and performs real-time
-    vulnerability triage.
+    logs traffic, performs real-time vulnerability triage, AND AUTOMATICALLY INJECTS
+    active session cookies configured in Spectra for the target domain.
+    
+    NOTE FOR AI AGENTS (Opencode / Hermes):
+    You DO NOT need to ask the user for session cookies or authenticate manually.
+    Spectra automatically injects the authenticated session tokens for the target application!
     
     Parameters:
       - method: HTTP Method (GET, POST, PUT, DELETE, etc.)
@@ -160,8 +176,8 @@ async def send_http_request(
       - headers: Optional custom HTTP headers dict
       - body: Optional request body string
       - project: Workspace scope (e.g. 'client-alpha')
-      - agent_id: Identifier of the AI agent or collaborative agent instance (e.g. 'recon_agent')
-      - reasoning: The AI agent's hypothesis or intent (e.g. 'Testing SQL injection on search parameter')
+      - agent_id: Identifier of the AI agent instance (e.g. 'primary_agent')
+      - reasoning: The AI agent's hypothesis or intent (e.g. 'Testing SQL injection on parameter id')
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
@@ -372,8 +388,9 @@ async def send_http_request(
     elif flag_status == "POTENTIAL":
         triage_info = f"\n[*] NOTICE: POTENTIAL ANOMALY DETECTED: {[f['title'] for f in findings_list]}"
 
+    session_tag = f" | [Spectra: Auto-injected {len(active_cookies)} cookies]" if active_cookies else ""
     return (
-        f"Project: [{target_project}] | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms | Flag: {flag_status}{triage_info}\n"
+        f"Project: [{target_project}] | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms{session_tag} | Flag: {flag_status}{triage_info}\n"
         f"Headers: {json.dumps(res_headers)}\n\n"
         f"Body Preview:\n{body_snippet}"
     )

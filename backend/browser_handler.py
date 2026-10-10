@@ -233,15 +233,22 @@ def parse_cookie_input(raw_input: str, domain: str = "") -> List[Dict[str, Any]]
 
 def import_session_cookies(project: str, domain: str, raw_input: str) -> Dict[str, Any]:
     """Parses arbitrary cookie / cURL / JSON input and persists it into ActiveSession."""
-    cookies = parse_cookie_input(raw_input, domain=domain)
+    clean_domain = (domain or "").strip().lower()
+    if "://" in clean_domain:
+        clean_domain = urllib.parse.urlparse(clean_domain).netloc
+    clean_domain = clean_domain.split(":")[0].strip("/")
+    if not clean_domain:
+        clean_domain = "target.local"
+
+    cookies = parse_cookie_input(raw_input, domain=clean_domain)
     storage_state = {
         "cookies": cookies,
         "origins": []
     }
-    _save_session_cookies(project, domain, storage_state)
+    _save_session_cookies(project, clean_domain, storage_state)
     return {
         "status": "success",
-        "domain": domain,
+        "domain": clean_domain,
         "project": project,
         "cookie_count": len(cookies),
         "cookies": cookies
