@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPECTRA // Security Testing Gateway & Observability Platform</title>
-  
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -51,22 +54,28 @@
       width: 6px;
       height: 6px;
     }
+
     ::-webkit-scrollbar-track {
       background: #0B0F17;
     }
+
     ::-webkit-scrollbar-thumb {
       background: #1E293B;
       border-radius: 3px;
     }
+
     ::-webkit-scrollbar-thumb:hover {
       background: #334155;
     }
+
     .glow-rose {
       box-shadow: 0 0 15px rgba(244, 63, 94, 0.35);
     }
+
     .glow-sky {
       box-shadow: 0 0 12px rgba(14, 165, 233, 0.3);
     }
+
     .glow-amber {
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
     }
@@ -74,19 +83,19 @@
 </head>
 
 <body class="bg-[#0B0F17] text-slate-200 font-sans antialiased h-screen overflow-hidden flex flex-col select-none"
-      x-data="spectraApp()"
-      x-init="initApp()">
+  x-data="spectraApp()" x-init="initApp()">
 
   <!-- ========================================================================= -->
   <!-- TOP COMMAND BAR (HEADER)                                                  -->
   <!-- ========================================================================= -->
   <header class="h-14 bg-[#111827]/95 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 z-30">
-    
+
     <!-- Left: Branding & Main Navigation Tabs -->
     <div class="flex items-center space-x-4">
       <!-- Brand Logo -->
       <div class="flex items-center space-x-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-600 to-rose-500 p-0.5 flex items-center justify-center shadow-lg">
+        <div
+          class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-600 to-rose-500 p-0.5 flex items-center justify-center shadow-lg">
           <div class="w-full h-full bg-[#0B0F17] rounded-[7px] flex items-center justify-center">
             <i data-lucide="shield-alert" class="w-4 h-4 text-sky-400"></i>
           </div>
@@ -99,10 +108,13 @@
           </div>
           <div class="text-[9px] text-slate-400 flex items-center space-x-1">
             <span class="relative flex h-2 w-2">
-              <span x-show="wsConnected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2" :class="wsConnected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+              <span x-show="wsConnected"
+                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2"
+                :class="wsConnected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
             </span>
-            <span x-text="wsConnected ? 'LIVE FEED' : 'OFFLINE'" class="font-mono font-semibold" :class="wsConnected ? 'text-emerald-400' : 'text-rose-400'"></span>
+            <span x-text="wsConnected ? 'LIVE FEED' : 'OFFLINE'" class="font-mono font-semibold"
+              :class="wsConnected ? 'text-emerald-400' : 'text-rose-400'"></span>
           </div>
         </div>
       </div>
@@ -111,43 +123,43 @@
       <nav class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-lg p-0.5 font-mono text-xs">
         <!-- Proxy Tab -->
         <button @click="currentAppTab = 'proxy'"
-                :class="currentAppTab === 'proxy' ? 'bg-[#1E293B] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                class="px-3 py-1.5 rounded transition flex items-center">
+          :class="currentAppTab === 'proxy' ? 'bg-[#1E293B] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center">
           <i data-lucide="activity" class="w-3.5 h-3.5 mr-1.5"></i>
           Proxy Traffic
         </button>
 
         <!-- Intercept Tab -->
         <button @click="currentAppTab = 'intercept'"
-                :class="currentAppTab === 'intercept' ? 'bg-[#1E293B] text-rose-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                class="px-3 py-1.5 rounded transition flex items-center relative">
+          :class="currentAppTab === 'intercept' ? 'bg-[#1E293B] text-rose-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center relative">
           <i data-lucide="crosshair" class="w-3.5 h-3.5 mr-1.5"></i>
           Intercept
           <span x-show="interceptPending.length > 0"
-                class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-600 text-white font-bold animate-pulse"
-                x-text="interceptPending.length"></span>
+            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-600 text-white font-bold animate-pulse"
+            x-text="interceptPending.length"></span>
         </button>
 
         <!-- Repeater Tab -->
         <button @click="currentAppTab = 'repeater'"
-                :class="currentAppTab === 'repeater' ? 'bg-[#1E293B] text-amber-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                class="px-3 py-1.5 rounded transition flex items-center">
+          :class="currentAppTab === 'repeater' ? 'bg-[#1E293B] text-amber-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center">
           <i data-lucide="repeat" class="w-3.5 h-3.5 mr-1.5"></i>
           Repeater
         </button>
 
         <!-- Fuzzer Tab -->
         <button @click="currentAppTab = 'fuzzer'"
-                :class="currentAppTab === 'fuzzer' ? 'bg-[#1E293B] text-purple-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                class="px-3 py-1.5 rounded transition flex items-center">
+          :class="currentAppTab === 'fuzzer' ? 'bg-[#1E293B] text-purple-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center">
           <i data-lucide="zap" class="w-3.5 h-3.5 mr-1.5"></i>
           Fuzzer
         </button>
 
         <!-- Scope & Guardrails Tab -->
         <button @click="currentAppTab = 'scope'"
-                :class="currentAppTab === 'scope' ? 'bg-[#1E293B] text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                class="px-3 py-1.5 rounded transition flex items-center">
+          :class="currentAppTab === 'scope' ? 'bg-[#1E293B] text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center">
           <i data-lucide="shield-check" class="w-3.5 h-3.5 mr-1.5"></i>
           Scope Guardrails
         </button>
@@ -157,10 +169,9 @@
       <div class="flex items-center space-x-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1">
         <i data-lucide="folder-git-2" class="w-3.5 h-3.5 text-indigo-400"></i>
         <div class="text-[10px] text-slate-400 font-mono uppercase mr-1">Project:</div>
-        
-        <select x-model="selectedProject"
-                @change="onProjectChange()"
-                class="bg-transparent text-xs text-sky-300 font-mono font-semibold focus:outline-none cursor-pointer">
+
+        <select x-model="selectedProject" @change="onProjectChange()"
+          class="bg-transparent text-xs text-sky-300 font-mono font-semibold focus:outline-none cursor-pointer">
           <option value="ALL">🌐 ALL PROJECTS</option>
           <template x-for="p in projects" :key="p.id">
             <option :value="p.name" x-text="p.name + ' (' + p.requests_count + ')'"></option>
@@ -168,8 +179,7 @@
         </select>
 
         <button @click="openNewProjectModal = true"
-                class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white transition"
-                title="Create New Project">
+          class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white transition" title="Create New Project">
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
         </button>
       </div>
@@ -179,29 +189,30 @@
     <div class="flex items-center space-x-2">
       <!-- INTERCEPT ON/OFF TOGGLE SWITCH -->
       <button @click="toggleIntercept()"
-              :class="interceptEnabled ? 'bg-rose-950 border-rose-600 text-rose-300 glow-rose' : 'bg-[#0B0F17] border-[#1E293B] text-slate-400 hover:text-slate-200'"
-              class="px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition flex items-center shadow-md">
-        <span class="w-2 h-2 rounded-full mr-2" :class="interceptEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'"></span>
+        :class="interceptEnabled ? 'bg-rose-950 border-rose-600 text-rose-300 glow-rose' : 'bg-[#0B0F17] border-[#1E293B] text-slate-400 hover:text-slate-200'"
+        class="px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition flex items-center shadow-md">
+        <span class="w-2 h-2 rounded-full mr-2"
+          :class="interceptEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'"></span>
         <span x-text="interceptEnabled ? 'INTERCEPT IS ON' : 'INTERCEPT IS OFF'"></span>
       </button>
 
       <!-- EXPORT DROPDOWN BUTTONS -->
       <div class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs">
         <button @click="exportHar()"
-                class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
-                title="Export Traffic to HAR 1.2 (Burp Suite / ZAP)">
+          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
+          title="Export Traffic to HAR 1.2 (Burp Suite / ZAP)">
           <i data-lucide="download" class="w-3.5 h-3.5 mr-1 text-sky-400"></i>
           <span>HAR</span>
         </button>
         <button @click="exportReport()"
-                class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
-                title="Generate Executive Markdown Report">
+          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
+          title="Generate Executive Markdown Report">
           <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1 text-emerald-400"></i>
           <span>Report</span>
         </button>
         <button @click="exportOpenAPI()"
-                class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center"
-                title="Generate Auto-Reverse OpenAPI 3.0 / Swagger">
+          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center"
+          title="Generate Auto-Reverse OpenAPI 3.0 / Swagger">
           <i data-lucide="file-code" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>
           <span>OpenAPI</span>
         </button>
@@ -209,15 +220,15 @@
 
       <!-- Spawn Login Browser Button -->
       <button @click="openLoginModal = true"
-              class="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-md text-xs font-medium transition shadow-md">
+        class="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-md text-xs font-medium transition shadow-md">
         <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1.5"></i>
         <span>Login</span>
       </button>
 
       <!-- Clear Logs Button -->
       <button @click="clearLogs()"
-              class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-rose-800 hover:text-rose-400 text-slate-400 transition"
-              title="Clear Logs">
+        class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-rose-800 hover:text-rose-400 text-slate-400 transition"
+        title="Clear Logs">
         <i data-lucide="trash-2" class="w-4 h-4"></i>
       </button>
     </div>
@@ -235,16 +246,13 @@
       <div class="p-2.5 bg-[#111827]/70 border-b border-[#1E293B] flex items-center space-x-2 shrink-0">
         <div class="relative flex-1">
           <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
-          <input type="text"
-                 x-model="searchQuery"
-                 @input.debounce.250ms="filterLogs()"
-                 placeholder="Filter URL, path, host, or keyword..."
-                 class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
+          <input type="text" x-model="searchQuery" @input.debounce.250ms="filterLogs()"
+            placeholder="Filter URL, path, host, or keyword..."
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
         </div>
 
-        <select x-model="selectedMethod"
-                @change="filterLogs()"
-                class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500 font-mono">
+        <select x-model="selectedMethod" @change="filterLogs()"
+          class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500 font-mono">
           <option value="ALL">ALL METHODS</option>
           <option value="GET">GET</option>
           <option value="POST">POST</option>
@@ -253,9 +261,8 @@
         </select>
 
         <!-- Multi-Agent Filter -->
-        <select x-model="selectedAgent"
-                @change="filterLogs()"
-                class="bg-[#0B0F17] border border-[#1E293B] text-purple-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-purple-500 font-mono">
+        <select x-model="selectedAgent" @change="filterLogs()"
+          class="bg-[#0B0F17] border border-[#1E293B] text-purple-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-purple-500 font-mono">
           <option value="ALL">ALL AGENTS</option>
           <template x-for="ag in agentsList" :key="ag">
             <option :value="ag" x-text="ag"></option>
@@ -264,19 +271,20 @@
 
         <div class="flex bg-[#0B0F17] border border-[#1E293B] rounded-md p-0.5 text-[11px] font-mono">
           <button @click="selectedFlag = 'ALL'; filterLogs()"
-                  :class="selectedFlag === 'ALL' ? 'bg-[#1E293B] text-slate-100 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-2 py-1 rounded transition">ALL</button>
+            :class="selectedFlag === 'ALL' ? 'bg-[#1E293B] text-slate-100 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+            class="px-2 py-1 rounded transition">ALL</button>
           <button @click="selectedFlag = 'CONFIRMED'; filterLogs()"
-                  :class="selectedFlag === 'CONFIRMED' ? 'bg-rose-900/60 text-rose-300 font-semibold' : 'text-slate-400 hover:text-rose-400'"
-                  class="px-2 py-1 rounded transition">CONFIRMED</button>
+            :class="selectedFlag === 'CONFIRMED' ? 'bg-rose-900/60 text-rose-300 font-semibold' : 'text-slate-400 hover:text-rose-400'"
+            class="px-2 py-1 rounded transition">CONFIRMED</button>
           <button @click="selectedFlag = 'POTENTIAL'; filterLogs()"
-                  :class="selectedFlag === 'POTENTIAL' ? 'bg-amber-900/50 text-amber-300 font-semibold' : 'text-slate-400 hover:text-amber-400'"
-                  class="px-2 py-1 rounded transition">POTENTIAL</button>
+            :class="selectedFlag === 'POTENTIAL' ? 'bg-amber-900/50 text-amber-300 font-semibold' : 'text-slate-400 hover:text-amber-400'"
+            class="px-2 py-1 rounded transition">POTENTIAL</button>
         </div>
       </div>
 
       <!-- Traffic Table Header -->
-      <div class="grid grid-cols-12 bg-[#111827] border-b border-[#1E293B] px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0">
+      <div
+        class="grid grid-cols-12 bg-[#111827] border-b border-[#1E293B] px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0">
         <div class="col-span-1">ID</div>
         <div class="col-span-2">Flag</div>
         <div class="col-span-2">Project / Agent</div>
@@ -291,32 +299,32 @@
       <div id="logsTableContainer" class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
         <template x-for="log in filteredLogs" :key="log.id">
           <div @click="selectLog(log.id)"
-               :class="selectedLogId === log.id ? 'bg-[#1E293B]/80 ring-1 ring-sky-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
-               class="grid grid-cols-12 px-3 py-2 cursor-pointer transition items-center">
-            
+            :class="selectedLogId === log.id ? 'bg-[#1E293B]/80 ring-1 ring-sky-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
+            class="grid grid-cols-12 px-3 py-2 cursor-pointer transition items-center">
+
             <div class="col-span-1 text-slate-500 text-[11px]" x-text="'#' + log.id"></div>
 
             <div class="col-span-2 flex items-center">
               <span x-show="log.flag_status === 'CONFIRMED'"
-                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-950 border border-rose-800 text-rose-300 flex items-center space-x-1">
+                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-950 border border-rose-800 text-rose-300 flex items-center space-x-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
                 <span>CONFIRMED</span>
               </span>
               <span x-show="log.flag_status === 'POTENTIAL'"
-                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-950 border border-amber-800 text-amber-300">POTENTIAL</span>
+                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-950 border border-amber-800 text-amber-300">POTENTIAL</span>
               <span x-show="log.flag_status === 'BLOCKED'"
-                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-950 border border-purple-800 text-purple-300">BLOCKED</span>
+                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-950 border border-purple-800 text-purple-300">BLOCKED</span>
               <span x-show="log.flag_status === 'CLEAN'"
-                    class="px-1.5 py-0.5 text-[9px] font-medium rounded bg-slate-800/80 text-slate-400">CLEAN</span>
+                class="px-1.5 py-0.5 text-[9px] font-medium rounded bg-slate-800/80 text-slate-400">CLEAN</span>
             </div>
 
             <div class="col-span-2 truncate flex items-center space-x-1">
-              <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
-                    x-text="log.project || 'default'"></span>
+              <span
+                class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
+                x-text="log.project || 'default'"></span>
               <span x-show="log.agent_id && log.agent_id !== 'primary_agent'"
-                    class="px-1 py-0.2 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
-                    :title="'Agent: ' + log.agent_id"
-                    x-text="log.agent_id"></span>
+                class="px-1 py-0.2 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
+                :title="'Agent: ' + log.agent_id" x-text="log.agent_id"></span>
             </div>
 
             <div class="col-span-1 font-semibold">
@@ -332,14 +340,12 @@
               <span x-show="log.source === 'FUZZER'" class="text-[8px] text-purple-400 block">(FUZZ)</span>
             </div>
 
-            <div class="col-span-1 text-center font-bold"
-                 :class="{
+            <div class="col-span-1 text-center font-bold" :class="{
                    'text-emerald-400': log.status_code >= 200 && log.status_code < 300,
                    'text-sky-400': log.status_code >= 300 && log.status_code < 400,
                    'text-amber-400': log.status_code >= 400 && log.status_code < 500,
                    'text-rose-400': log.status_code >= 500 || !log.status_code
-                 }"
-                 x-text="log.status_code || 'ERR'">
+                 }" x-text="log.status_code || 'ERR'">
             </div>
 
             <div class="col-span-3 truncate text-slate-200" :title="log.url">
@@ -360,41 +366,38 @@
       <div class="h-10 bg-[#0B0F17] border-b border-[#1E293B] px-3 flex items-center justify-between shrink-0">
         <div class="flex space-x-1 text-xs font-mono">
           <button @click="inspectorTab = 'request'"
-                  :class="inspectorTab === 'request' ? 'border-b-2 border-sky-400 text-sky-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-2 transition">Request</button>
+            :class="inspectorTab === 'request' ? 'border-b-2 border-sky-400 text-sky-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
+            class="px-3 py-2 transition">Request</button>
           <button @click="inspectorTab = 'response'"
-                  :class="inspectorTab === 'response' ? 'border-b-2 border-sky-400 text-sky-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-2 transition">Response</button>
+            :class="inspectorTab === 'response' ? 'border-b-2 border-sky-400 text-sky-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
+            class="px-3 py-2 transition">Response</button>
           <button @click="inspectorTab = 'triage'"
-                  :class="inspectorTab === 'triage' ? 'border-b-2 border-rose-500 text-rose-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
-                  class="px-3 py-2 transition flex items-center">
+            :class="inspectorTab === 'triage' ? 'border-b-2 border-rose-500 text-rose-300 font-semibold bg-[#111827]' : 'text-slate-400 hover:text-slate-200'"
+            class="px-3 py-2 transition flex items-center">
             <span>Triage & Vulns</span>
             <span x-show="selectedLogDetail && selectedLogDetail.findings && selectedLogDetail.findings.length > 0"
-                  class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-600 text-white font-bold"
-                  x-text="selectedLogDetail ? selectedLogDetail.findings.length : 0"></span>
+              class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-600 text-white font-bold"
+              x-text="selectedLogDetail ? selectedLogDetail.findings.length : 0"></span>
           </button>
         </div>
 
         <div class="flex items-center space-x-2">
           <!-- Send to Repeater Button -->
-          <button x-show="selectedLogDetail"
-                  @click="sendSelectedToRepeater()"
-                  class="px-2 py-1 rounded bg-amber-950/80 border border-amber-700/60 hover:bg-amber-900 text-amber-300 text-[11px] font-mono flex items-center transition">
+          <button x-show="selectedLogDetail" @click="sendSelectedToRepeater()"
+            class="px-2 py-1 rounded bg-amber-950/80 border border-amber-700/60 hover:bg-amber-900 text-amber-300 text-[11px] font-mono flex items-center transition">
             <i data-lucide="repeat" class="w-3 h-3 mr-1"></i>
             <span>Repeater</span>
           </button>
 
           <!-- Send to Fuzzer Button -->
-          <button x-show="selectedLogDetail"
-                  @click="sendSelectedToFuzzer()"
-                  class="px-2 py-1 rounded bg-purple-950/80 border border-purple-700/60 hover:bg-purple-900 text-purple-300 text-[11px] font-mono flex items-center transition">
+          <button x-show="selectedLogDetail" @click="sendSelectedToFuzzer()"
+            class="px-2 py-1 rounded bg-purple-950/80 border border-purple-700/60 hover:bg-purple-900 text-purple-300 text-[11px] font-mono flex items-center transition">
             <i data-lucide="zap" class="w-3 h-3 mr-1"></i>
             <span>Fuzzer</span>
           </button>
 
-          <button x-show="inspectorTab === 'request' && selectedLogDetail"
-                  @click="copyCurl()"
-                  class="px-2 py-1 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center transition">
+          <button x-show="inspectorTab === 'request' && selectedLogDetail" @click="copyCurl()"
+            class="px-2 py-1 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center transition">
             <i data-lucide="copy" class="w-3 h-3 mr-1"></i>
             <span x-text="copiedCurl ? 'Copied cURL!' : 'Copy cURL'"></span>
           </button>
@@ -408,7 +411,8 @@
             <!-- TAB 1: REQUEST -->
             <div x-show="inspectorTab === 'request'" class="space-y-4">
               <!-- AI Reasoning Card -->
-              <div x-show="selectedLogDetail.reasoning" class="p-3 rounded-lg bg-indigo-950/40 border border-indigo-700/60">
+              <div x-show="selectedLogDetail.reasoning"
+                class="p-3 rounded-lg bg-indigo-950/40 border border-indigo-700/60">
                 <div class="text-[11px] font-bold text-indigo-300 mb-1 flex items-center">
                   <i data-lucide="brain" class="w-4 h-4 mr-1.5 text-indigo-400"></i>
                   AI Agent Hypothesis & Reasoning
@@ -428,26 +432,29 @@
                   <div class="text-[11px] uppercase text-slate-400 font-semibold flex items-center">
                     <span>Request Headers</span>
                     <span class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-sky-300 font-mono"
-                          x-text="Object.keys(selectedLogDetail.request_headers || {}).length"></span>
+                      x-text="Object.keys(selectedLogDetail.request_headers || {}).length"></span>
                   </div>
                   <div class="flex items-center space-x-1.5 text-[10px]">
                     <button @click="reqHeadersView = 'table'"
-                            :class="reqHeadersView === 'table' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
+                      :class="reqHeadersView === 'table' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
                     <button @click="reqHeadersView = 'raw'"
-                            :class="reqHeadersView === 'raw' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
+                      :class="reqHeadersView === 'raw' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
                     <button @click="copyText(formatRawHeaders(selectedLogDetail.request_headers))"
-                            class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Headers">Copy</button>
+                      class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+                      title="Copy Headers">Copy</button>
                   </div>
                 </div>
                 <!-- Table View -->
-                <div x-show="reqHeadersView === 'table'" class="bg-[#0B0F17] border border-[#1E293B] rounded-md overflow-hidden max-h-[350px] overflow-y-auto">
+                <div x-show="reqHeadersView === 'table'"
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md overflow-hidden max-h-[350px] overflow-y-auto">
                   <table class="w-full text-left border-collapse">
                     <tbody>
                       <template x-for="(val, header) in selectedLogDetail.request_headers" :key="header">
                         <tr class="border-b border-[#1E293B]/60 hover:bg-[#1E293B]/40">
-                          <td class="px-3 py-1.5 text-sky-300 font-semibold w-1/3 select-text align-top" x-text="header"></td>
+                          <td class="px-3 py-1.5 text-sky-300 font-semibold w-1/3 select-text align-top"
+                            x-text="header"></td>
                           <td class="px-3 py-1.5 text-slate-300 break-all select-text font-mono" x-text="val"></td>
                         </tr>
                       </template>
@@ -456,8 +463,8 @@
                 </div>
                 <!-- Raw View -->
                 <div x-show="reqHeadersView === 'raw'"
-                     class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-sky-200 whitespace-pre-wrap max-h-[350px] overflow-y-auto"
-                     x-text="formatRawHeaders(selectedLogDetail.request_headers)"></div>
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-sky-200 whitespace-pre-wrap max-h-[350px] overflow-y-auto"
+                  x-text="formatRawHeaders(selectedLogDetail.request_headers)"></div>
               </div>
 
               <!-- Request Body -->
@@ -465,39 +472,43 @@
                 <div class="flex items-center justify-between mb-1.5">
                   <div class="text-[11px] uppercase text-slate-400 font-semibold flex items-center space-x-2">
                     <span>Request Body</span>
-                    <span class="px-2 py-0.2 rounded text-[10px] font-bold"
-                          :class="{
+                    <span class="px-2 py-0.2 rounded text-[10px] font-bold" :class="{
                             'bg-emerald-950 text-emerald-300 border border-emerald-800': detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers) === 'JSON',
                             'bg-orange-950 text-orange-300 border border-orange-800': detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers) === 'HTML' || detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers) === 'XML',
                             'bg-indigo-950 text-indigo-300 border border-indigo-800': detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers) === 'FORM',
                             'bg-slate-800 text-slate-400': !['JSON', 'HTML', 'XML', 'FORM'].includes(detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers))
                           }"
-                          x-text="detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers)"></span>
-                    <span class="text-[10px] text-slate-500" x-text="'(' + formatBytes((selectedLogDetail.request_body || '').length) + ')'"></span>
+                      x-text="detectContentType(selectedLogDetail.request_body, selectedLogDetail.request_headers)"></span>
+                    <span class="text-[10px] text-slate-500"
+                      x-text="'(' + formatBytes((selectedLogDetail.request_body || '').length) + ')'"></span>
                   </div>
                   <div class="flex items-center space-x-1.5 text-[10px]">
                     <button @click="reqBodyBeautified = true"
-                            :class="reqBodyBeautified ? 'bg-sky-950 text-sky-300 border-sky-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition flex items-center">
+                      :class="reqBodyBeautified ? 'bg-sky-950 text-sky-300 border-sky-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition flex items-center">
                       <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-sky-400"></i>
                       <span>✨ Beautified</span>
                     </button>
                     <button @click="reqBodyBeautified = false"
-                            :class="!reqBodyBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition">Raw</button>
+                      :class="!reqBodyBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition">Raw</button>
                     <button @click="reqBodyExpanded = !reqBodyExpanded"
-                            :class="reqBodyExpanded ? 'bg-sky-950 text-sky-300 font-bold border-sky-700' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition"
-                            :title="reqBodyExpanded ? 'Collapse Height' : 'Expand Full Body'">
+                      :class="reqBodyExpanded ? 'bg-sky-950 text-sky-300 font-bold border-sky-700' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition"
+                      :title="reqBodyExpanded ? 'Collapse Height' : 'Expand Full Body'">
                       <span x-text="reqBodyExpanded ? 'Collapse' : 'Expand All'"></span>
                     </button>
-                    <button @click="copyText(reqBodyBeautified ? beautifyText(selectedLogDetail.request_body, null, selectedLogDetail.request_headers) : selectedLogDetail.request_body)"
-                            class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Body">Copy</button>
+                    <button
+                      @click="copyText(reqBodyBeautified ? beautifyText(selectedLogDetail.request_body, null, selectedLogDetail.request_headers) : selectedLogDetail.request_body)"
+                      class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+                      title="Copy Body">Copy</button>
                   </div>
                 </div>
-                <div class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
-                     :class="reqBodyExpanded ? 'max-h-none' : 'max-h-[500px]'"
-                     x-text="reqBodyBeautified ? beautifyText(selectedLogDetail.request_body, null, selectedLogDetail.request_headers) : (selectedLogDetail.request_body || '[Empty Request Body]')"></div>
+                <div
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
+                  :class="reqBodyExpanded ? 'max-h-none' : 'max-h-[500px]'"
+                  x-text="reqBodyBeautified ? beautifyText(selectedLogDetail.request_body, null, selectedLogDetail.request_headers) : (selectedLogDetail.request_body || '[Empty Request Body]')">
+                </div>
               </div>
             </div>
 
@@ -508,8 +519,8 @@
                 <div class="flex items-center space-x-2">
                   <span class="text-slate-400 text-xs font-semibold">STATUS:</span>
                   <span class="px-2.5 py-0.5 rounded text-xs font-bold font-mono"
-                        :class="selectedLogDetail.status_code >= 200 && selectedLogDetail.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
-                        x-text="selectedLogDetail.status_code || 'ERR'"></span>
+                    :class="selectedLogDetail.status_code >= 200 && selectedLogDetail.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
+                    x-text="selectedLogDetail.status_code || 'ERR'"></span>
                 </div>
                 <div class="flex items-center space-x-3 text-slate-400 text-xs font-mono">
                   <div>
@@ -518,7 +529,8 @@
                   </div>
                   <div>
                     <span>Size: </span>
-                    <span class="text-slate-200 font-semibold" x-text="formatBytes((selectedLogDetail.response_body || '').length)"></span>
+                    <span class="text-slate-200 font-semibold"
+                      x-text="formatBytes((selectedLogDetail.response_body || '').length)"></span>
                   </div>
                 </div>
               </div>
@@ -529,26 +541,29 @@
                   <div class="text-[11px] uppercase text-slate-400 font-semibold flex items-center">
                     <span>Response Headers</span>
                     <span class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-emerald-300 font-mono"
-                          x-text="Object.keys(selectedLogDetail.response_headers || {}).length"></span>
+                      x-text="Object.keys(selectedLogDetail.response_headers || {}).length"></span>
                   </div>
                   <div class="flex items-center space-x-1.5 text-[10px]">
                     <button @click="resHeadersView = 'table'"
-                            :class="resHeadersView === 'table' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
+                      :class="resHeadersView === 'table' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
                     <button @click="resHeadersView = 'raw'"
-                            :class="resHeadersView === 'raw' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
+                      :class="resHeadersView === 'raw' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
                     <button @click="copyText(formatRawHeaders(selectedLogDetail.response_headers))"
-                            class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Response Headers">Copy</button>
+                      class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+                      title="Copy Response Headers">Copy</button>
                   </div>
                 </div>
                 <!-- Table View -->
-                <div x-show="resHeadersView === 'table'" class="bg-[#0B0F17] border border-[#1E293B] rounded-md overflow-hidden max-h-[350px] overflow-y-auto">
+                <div x-show="resHeadersView === 'table'"
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md overflow-hidden max-h-[350px] overflow-y-auto">
                   <table class="w-full text-left border-collapse">
                     <tbody>
                       <template x-for="(val, header) in selectedLogDetail.response_headers" :key="header">
                         <tr class="border-b border-[#1E293B]/60 hover:bg-[#1E293B]/40">
-                          <td class="px-3 py-1.5 text-emerald-300 font-semibold w-1/3 select-text align-top" x-text="header"></td>
+                          <td class="px-3 py-1.5 text-emerald-300 font-semibold w-1/3 select-text align-top"
+                            x-text="header"></td>
                           <td class="px-3 py-1.5 text-slate-300 break-all select-text font-mono" x-text="val"></td>
                         </tr>
                       </template>
@@ -557,8 +572,8 @@
                 </div>
                 <!-- Raw View -->
                 <div x-show="resHeadersView === 'raw'"
-                     class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-emerald-200 whitespace-pre-wrap max-h-[350px] overflow-y-auto"
-                     x-text="formatRawHeaders(selectedLogDetail.response_headers)"></div>
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-emerald-200 whitespace-pre-wrap max-h-[350px] overflow-y-auto"
+                  x-text="formatRawHeaders(selectedLogDetail.response_headers)"></div>
               </div>
 
               <!-- Response Body (Full Display with Auto-Beautify) -->
@@ -566,38 +581,42 @@
                 <div class="flex items-center justify-between mb-1.5">
                   <div class="text-[11px] uppercase text-slate-400 font-semibold flex items-center space-x-2">
                     <span>Response Body</span>
-                    <span class="px-2 py-0.2 rounded text-[10px] font-bold"
-                          :class="{
+                    <span class="px-2 py-0.2 rounded text-[10px] font-bold" :class="{
                             'bg-emerald-950 text-emerald-300 border border-emerald-800': detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers) === 'JSON',
                             'bg-orange-950 text-orange-300 border border-orange-800': detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers) === 'HTML' || detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers) === 'XML',
                             'bg-slate-800 text-slate-400': !['JSON', 'HTML', 'XML'].includes(detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers))
                           }"
-                          x-text="detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers)"></span>
-                    <span class="text-[10px] text-slate-500" x-text="'(' + formatBytes((selectedLogDetail.response_body || '').length) + ')'"></span>
+                      x-text="detectContentType(selectedLogDetail.response_body, selectedLogDetail.response_headers)"></span>
+                    <span class="text-[10px] text-slate-500"
+                      x-text="'(' + formatBytes((selectedLogDetail.response_body || '').length) + ')'"></span>
                   </div>
                   <div class="flex items-center space-x-1.5 text-[10px]">
                     <button @click="resBodyBeautified = true"
-                            :class="resBodyBeautified ? 'bg-emerald-950 text-emerald-300 border-emerald-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition flex items-center">
+                      :class="resBodyBeautified ? 'bg-emerald-950 text-emerald-300 border-emerald-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition flex items-center">
                       <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-emerald-400"></i>
                       <span>✨ Beautified</span>
                     </button>
                     <button @click="resBodyBeautified = false"
-                            :class="!resBodyBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition">Raw</button>
+                      :class="!resBodyBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition">Raw</button>
                     <button @click="resBodyExpanded = !resBodyExpanded"
-                            :class="resBodyExpanded ? 'bg-emerald-950 text-emerald-300 font-bold border-emerald-700' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                            class="px-2 py-0.5 rounded border transition"
-                            :title="resBodyExpanded ? 'Collapse Height' : 'Expand Full Body'">
+                      :class="resBodyExpanded ? 'bg-emerald-950 text-emerald-300 font-bold border-emerald-700' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+                      class="px-2 py-0.5 rounded border transition"
+                      :title="resBodyExpanded ? 'Collapse Height' : 'Expand Full Body'">
                       <span x-text="resBodyExpanded ? 'Collapse' : 'Expand All'"></span>
                     </button>
-                    <button @click="copyText(resBodyBeautified ? beautifyText(selectedLogDetail.response_body, null, selectedLogDetail.response_headers) : selectedLogDetail.response_body)"
-                            class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Response Body">Copy</button>
+                    <button
+                      @click="copyText(resBodyBeautified ? beautifyText(selectedLogDetail.response_body, null, selectedLogDetail.response_headers) : selectedLogDetail.response_body)"
+                      class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+                      title="Copy Response Body">Copy</button>
                   </div>
                 </div>
-                <div class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
-                     :class="resBodyExpanded ? 'max-h-none' : 'max-h-[600px]'"
-                     x-text="resBodyBeautified ? beautifyText(selectedLogDetail.response_body, null, selectedLogDetail.response_headers) : (selectedLogDetail.response_body || '[Empty Response Body]')"></div>
+                <div
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
+                  :class="resBodyExpanded ? 'max-h-none' : 'max-h-[600px]'"
+                  x-text="resBodyBeautified ? beautifyText(selectedLogDetail.response_body, null, selectedLogDetail.response_headers) : (selectedLogDetail.response_body || '[Empty Response Body]')">
+                </div>
               </div>
             </div>
 
@@ -605,18 +624,20 @@
             <div x-show="inspectorTab === 'triage'" class="space-y-4">
               <template x-for="finding in selectedLogDetail.findings" :key="finding.id">
                 <div class="p-4 rounded-lg bg-[#0B0F17] border space-y-3"
-                     :class="finding.severity === 'CRITICAL' || finding.severity === 'HIGH' ? 'border-rose-800/80 glow-rose' : 'border-amber-800/60'">
+                  :class="finding.severity === 'CRITICAL' || finding.severity === 'HIGH' ? 'border-rose-800/80 glow-rose' : 'border-amber-800/60'">
                   <div class="flex items-center justify-between">
                     <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                          :class="finding.severity === 'CRITICAL' || finding.severity === 'HIGH' ? 'bg-rose-950 text-rose-300' : 'bg-amber-950 text-amber-300'"
-                          x-text="finding.severity"></span>
+                      :class="finding.severity === 'CRITICAL' || finding.severity === 'HIGH' ? 'bg-rose-950 text-rose-300' : 'bg-amber-950 text-amber-300'"
+                      x-text="finding.severity"></span>
                     <h4 class="text-sm font-bold text-slate-100 flex-1 ml-2" x-text="finding.title"></h4>
                   </div>
                   <p class="text-xs text-slate-300" x-text="finding.description"></p>
-                  <div x-show="finding.evidence" class="p-2.5 rounded bg-black/60 border border-rose-900/60 text-xs text-rose-300 overflow-x-auto whitespace-pre-wrap"
-                       x-text="finding.evidence"></div>
-                  <div x-show="finding.remediation" class="p-2.5 rounded bg-sky-950/30 border border-sky-800/40 text-xs text-slate-300"
-                       x-text="'Remediation: ' + finding.remediation"></div>
+                  <div x-show="finding.evidence"
+                    class="p-2.5 rounded bg-black/60 border border-rose-900/60 text-xs text-rose-300 overflow-x-auto whitespace-pre-wrap"
+                    x-text="finding.evidence"></div>
+                  <div x-show="finding.remediation"
+                    class="p-2.5 rounded bg-sky-950/30 border border-sky-800/40 text-xs text-slate-300"
+                    x-text="'Remediation: ' + finding.remediation"></div>
                 </div>
               </template>
             </div>
@@ -640,7 +661,7 @@
       <div class="flex items-center space-x-2">
         <span class="text-xs font-mono text-slate-400">Status:</span>
         <span class="px-2.5 py-1 rounded text-xs font-mono font-bold"
-              :class="interceptEnabled ? 'bg-rose-950 border border-rose-700 text-rose-300 glow-rose' : 'bg-slate-900 text-slate-400'">
+          :class="interceptEnabled ? 'bg-rose-950 border border-rose-700 text-rose-300 glow-rose' : 'bg-slate-900 text-slate-400'">
           <span x-text="interceptEnabled ? 'TRAP ACTIVE' : 'PASSTHROUGH (OFF)'"></span>
         </span>
       </div>
@@ -650,7 +671,8 @@
     <div class="flex-1 flex overflow-hidden space-x-4">
       <!-- Left list of paused requests -->
       <div class="w-1/3 bg-[#111827] border border-[#1E293B] rounded-xl flex flex-col overflow-hidden">
-        <div class="p-3 bg-[#0B0F17] border-b border-[#1E293B] font-mono text-xs text-slate-400 font-semibold flex justify-between">
+        <div
+          class="p-3 bg-[#0B0F17] border-b border-[#1E293B] font-mono text-xs text-slate-400 font-semibold flex justify-between">
           <span>PAUSED REQUESTS</span>
           <span class="text-rose-400" x-text="interceptPending.length"></span>
         </div>
@@ -658,8 +680,8 @@
         <div class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
           <template x-for="item in interceptPending" :key="item.id">
             <div @click="activeInterceptItem = item"
-                 :class="activeInterceptItem && activeInterceptItem.id === item.id ? 'bg-[#1E293B] ring-1 ring-rose-500' : 'hover:bg-[#1E293B]/50'"
-                 class="p-3 cursor-pointer transition space-y-1">
+              :class="activeInterceptItem && activeInterceptItem.id === item.id ? 'bg-[#1E293B] ring-1 ring-rose-500' : 'hover:bg-[#1E293B]/50'"
+              class="p-3 cursor-pointer transition space-y-1">
               <div class="flex items-center justify-between">
                 <span class="font-bold text-sky-400" x-text="item.method"></span>
                 <span class="text-[10px] text-slate-500" x-text="'#' + item.id"></span>
@@ -672,7 +694,8 @@
           <div x-show="interceptPending.length === 0" class="p-12 text-center text-slate-500">
             <i data-lucide="check-circle-2" class="w-8 h-8 mx-auto mb-2 opacity-30 text-emerald-400"></i>
             <p>No paused requests in trap.</p>
-            <p class="text-[11px] text-slate-600 mt-1">When Intercept is ON, agent requests will pause here for inspection.</p>
+            <p class="text-[11px] text-slate-600 mt-1">When Intercept is ON, agent requests will pause here for
+              inspection.</p>
           </div>
         </div>
       </div>
@@ -685,12 +708,12 @@
             <div class="flex items-center justify-between bg-[#0B0F17] p-2.5 rounded-lg border border-[#1E293B]">
               <div class="flex items-center space-x-2">
                 <button @click="resolveIntercept(activeInterceptItem.id, 'forward')"
-                        class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold transition flex items-center">
+                  class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-semibold transition flex items-center">
                   <i data-lucide="play" class="w-3.5 h-3.5 mr-1.5"></i>
                   Forward Request
                 </button>
                 <button @click="resolveIntercept(activeInterceptItem.id, 'drop')"
-                        class="px-4 py-1.5 bg-rose-700 hover:bg-rose-600 text-white rounded font-semibold transition flex items-center">
+                  class="px-4 py-1.5 bg-rose-700 hover:bg-rose-600 text-white rounded font-semibold transition flex items-center">
                   <i data-lucide="x-circle" class="w-3.5 h-3.5 mr-1.5"></i>
                   Drop Request
                 </button>
@@ -700,7 +723,8 @@
             </div>
 
             <!-- AI Reasoning Display -->
-            <div x-show="activeInterceptItem.reasoning" class="p-2.5 rounded bg-indigo-950/40 border border-indigo-700/60">
+            <div x-show="activeInterceptItem.reasoning"
+              class="p-2.5 rounded bg-indigo-950/40 border border-indigo-700/60">
               <span class="text-indigo-300 font-bold">🧠 Agent Intent: </span>
               <span class="text-slate-200" x-text="activeInterceptItem.reasoning"></span>
             </div>
@@ -708,15 +732,14 @@
             <!-- Method & URL -->
             <div class="flex space-x-2">
               <select x-model="activeInterceptItem.method"
-                      class="bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-sky-400 font-bold focus:outline-none">
+                class="bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-sky-400 font-bold focus:outline-none">
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
                 <option value="PUT">PUT</option>
                 <option value="DELETE">DELETE</option>
               </select>
-              <input type="text"
-                     x-model="activeInterceptItem.url"
-                     class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-rose-500">
+              <input type="text" x-model="activeInterceptItem.url"
+                class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-rose-500">
             </div>
 
             <!-- Body Edit -->
@@ -724,24 +747,22 @@
               <div class="flex items-center justify-between mb-1">
                 <div class="flex items-center space-x-2">
                   <label class="text-[11px] text-slate-400">Request Body (Editable):</label>
-                  <span class="px-2 py-0.2 rounded text-[10px] font-bold"
-                        :class="{
+                  <span class="px-2 py-0.2 rounded text-[10px] font-bold" :class="{
                           'bg-emerald-950 text-emerald-300 border border-emerald-800': detectContentType(activeInterceptItem.body) === 'JSON',
                           'bg-orange-950 text-orange-300 border border-orange-800': detectContentType(activeInterceptItem.body) === 'HTML' || detectContentType(activeInterceptItem.body) === 'XML',
                           'bg-indigo-950 text-indigo-300 border border-indigo-800': detectContentType(activeInterceptItem.body) === 'FORM',
                           'bg-slate-800 text-slate-400': !['JSON', 'HTML', 'XML', 'FORM'].includes(detectContentType(activeInterceptItem.body))
-                        }"
-                        x-text="detectContentType(activeInterceptItem.body)"></span>
+                        }" x-text="detectContentType(activeInterceptItem.body)"></span>
                 </div>
                 <button @click="activeInterceptItem.body = beautifyText(activeInterceptItem.body)"
-                        class="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition flex items-center font-bold text-[10px]"
-                        title="Beautify paused request body">
+                  class="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition flex items-center font-bold text-[10px]"
+                  title="Beautify paused request body">
                   <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-emerald-400"></i>
                   <span>✨ Beautify Body</span>
                 </button>
               </div>
               <textarea x-model="activeInterceptItem.body"
-                        class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-rose-500 resize-none leading-relaxed"></textarea>
+                class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-rose-500 resize-none leading-relaxed"></textarea>
             </div>
           </div>
         </template>
@@ -756,7 +777,8 @@
   <!-- VIEW 3: REPEATER (MANUAL REPLAY CONSOLE) -->
   <div x-show="currentAppTab === 'repeater'" class="flex-1 flex p-6 space-x-4 overflow-hidden bg-[#0B0F17]">
     <!-- Left: Request Composer -->
-    <div class="w-1/2 bg-[#111827] border border-[#1E293B] rounded-xl flex flex-col p-4 space-y-3 font-mono text-xs overflow-hidden">
+    <div
+      class="w-1/2 bg-[#111827] border border-[#1E293B] rounded-xl flex flex-col p-4 space-y-3 font-mono text-xs overflow-hidden">
       <!-- Composer Top Bar -->
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-2">
         <h3 class="font-bold text-amber-400 flex items-center">
@@ -765,13 +787,12 @@
         </h3>
         <div class="flex items-center space-x-2">
           <button @click="sendRepeaterToFuzzer()"
-                  class="px-2.5 py-1.5 bg-purple-950/80 hover:bg-purple-900 border border-purple-700/60 text-purple-300 rounded font-semibold transition flex items-center">
+            class="px-2.5 py-1.5 bg-purple-950/80 hover:bg-purple-900 border border-purple-700/60 text-purple-300 rounded font-semibold transition flex items-center">
             <i data-lucide="zap" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>
             <span>Send to Fuzzer</span>
           </button>
-          <button @click="sendRepeaterRequest()"
-                  :disabled="repeaterLoading"
-                  class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold transition flex items-center shadow-lg disabled:opacity-50">
+          <button @click="sendRepeaterRequest()" :disabled="repeaterLoading"
+            class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold transition flex items-center shadow-lg disabled:opacity-50">
             <i data-lucide="send" class="w-3.5 h-3.5 mr-1.5"></i>
             <span x-text="repeaterLoading ? 'Sending...' : 'Send Request'"></span>
           </button>
@@ -781,7 +802,7 @@
       <!-- Method & URL -->
       <div class="flex space-x-2">
         <select x-model="repeaterForm.method"
-                class="bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-amber-300 font-bold focus:outline-none">
+          class="bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-amber-300 font-bold focus:outline-none">
           <option value="GET">GET</option>
           <option value="POST">POST</option>
           <option value="PUT">PUT</option>
@@ -790,10 +811,8 @@
           <option value="OPTIONS">OPTIONS</option>
           <option value="HEAD">HEAD</option>
         </select>
-        <input type="text"
-               x-model="repeaterForm.url"
-               placeholder="https://target.local/endpoint"
-               class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono">
+        <input type="text" x-model="repeaterForm.url" placeholder="https://target.local/endpoint"
+          class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono">
       </div>
 
       <!-- Request Headers (Full Display & Beautify) -->
@@ -804,20 +823,19 @@
           </label>
           <div class="flex items-center space-x-1.5 text-[10px]">
             <button @click="beautifyRepeaterHeaders()"
-                    class="px-2 py-0.5 rounded bg-sky-950/80 hover:bg-sky-900 text-sky-300 border border-sky-700/60 transition flex items-center font-bold"
-                    title="Automatically beautify headers into formatted JSON">
+              class="px-2 py-0.5 rounded bg-sky-950/80 hover:bg-sky-900 text-sky-300 border border-sky-700/60 transition flex items-center font-bold"
+              title="Automatically beautify headers into formatted JSON">
               <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-sky-400"></i>
               <span>✨ Beautify Headers</span>
             </button>
             <button @click="copyText(repeaterForm.headersRaw)"
-                    class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-300 border border-[#1E293B] transition"
-                    title="Copy headers">Copy</button>
+              class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-300 border border-[#1E293B] transition"
+              title="Copy headers">Copy</button>
           </div>
         </div>
-        <textarea x-model="repeaterForm.headersRaw"
-                  rows="4"
-                  placeholder='{\n  "User-Agent": "SpectraRepeater/1.3",\n  "Accept": "*/*"\n}'
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-sky-200 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-y"></textarea>
+        <textarea x-model="repeaterForm.headersRaw" rows="4"
+          placeholder='{\n  "User-Agent": "SpectraRepeater/1.3",\n  "Accept": "*/*"\n}'
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-sky-200 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-y"></textarea>
       </div>
 
       <!-- Request Body Payload (Full Display, Format Detection & Beautify) -->
@@ -825,39 +843,38 @@
         <div class="flex items-center justify-between mb-1.5">
           <div class="flex items-center space-x-2">
             <label class="text-[11px] text-slate-300 font-semibold">Request Body Payload:</label>
-            <span class="px-2 py-0.2 rounded text-[10px] font-bold"
-                  :class="{
+            <span class="px-2 py-0.2 rounded text-[10px] font-bold" :class="{
                     'bg-emerald-950 text-emerald-300 border border-emerald-800': detectContentType(repeaterForm.body) === 'JSON',
                     'bg-orange-950 text-orange-300 border border-orange-800': detectContentType(repeaterForm.body) === 'HTML' || detectContentType(repeaterForm.body) === 'XML',
                     'bg-indigo-950 text-indigo-300 border border-indigo-800': detectContentType(repeaterForm.body) === 'FORM',
                     'bg-slate-800 text-slate-400': !['JSON', 'HTML', 'XML', 'FORM'].includes(detectContentType(repeaterForm.body))
-                  }"
-                  x-text="detectContentType(repeaterForm.body)"></span>
-            <span class="text-[10px] text-slate-500" x-text="'(' + formatBytes((repeaterForm.body || '').length) + ')'"></span>
+                  }" x-text="detectContentType(repeaterForm.body)"></span>
+            <span class="text-[10px] text-slate-500"
+              x-text="'(' + formatBytes((repeaterForm.body || '').length) + ')'"></span>
           </div>
           <div class="flex items-center space-x-1.5 text-[10px]">
             <button @click="beautifyRepeaterBody()"
-                    class="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition flex items-center font-bold"
-                    title="Automatically beautify request body based on format (JSON, HTML, XML, FORM)">
+              class="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition flex items-center font-bold"
+              title="Automatically beautify request body based on format (JSON, HTML, XML, FORM)">
               <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-emerald-400"></i>
               <span>✨ Beautify Body</span>
             </button>
             <button @click="repeaterForm.body = ''"
-                    class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-[#1E293B] transition"
-                    title="Clear body">Clear</button>
+              class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-[#1E293B] transition"
+              title="Clear body">Clear</button>
             <button @click="copyText(repeaterForm.body)"
-                    class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-300 border border-[#1E293B] transition"
-                    title="Copy body">Copy</button>
+              class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-300 border border-[#1E293B] transition"
+              title="Copy body">Copy</button>
           </div>
         </div>
-        <textarea x-model="repeaterForm.body"
-                  placeholder="Payload string, JSON, XML, or form body..."
-                  class="flex-1 w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"></textarea>
+        <textarea x-model="repeaterForm.body" placeholder="Payload string, JSON, XML, or form body..."
+          class="flex-1 w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"></textarea>
       </div>
     </div>
 
     <!-- Right: Repeater Response Pane (Sub-Tabs: Body | Headers | Diff) -->
-    <div class="w-1/2 bg-[#111827] border border-[#1E293B] rounded-xl flex flex-col p-4 space-y-3 font-mono text-xs overflow-hidden">
+    <div
+      class="w-1/2 bg-[#111827] border border-[#1E293B] rounded-xl flex flex-col p-4 space-y-3 font-mono text-xs overflow-hidden">
       <!-- Response Top Bar -->
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-2">
         <div class="flex items-center space-x-3">
@@ -869,22 +886,25 @@
           <!-- Sub-Tab Navigation -->
           <div class="flex bg-[#0B0F17] border border-[#1E293B] rounded p-0.5 text-[10px]">
             <button @click="repeaterSubTab = 'body'"
-                    :class="repeaterSubTab === 'body' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-2.5 py-1 rounded flex items-center space-x-1">
+              :class="repeaterSubTab === 'body' ? 'bg-[#1E293B] text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+              class="px-2.5 py-1 rounded flex items-center space-x-1">
               <span>Response Body</span>
-              <span x-show="repeaterResponse" class="text-[9px] opacity-75" x-text="'(' + formatBytes((repeaterResponse?.response_body || '').length) + ')'"></span>
+              <span x-show="repeaterResponse" class="text-[9px] opacity-75"
+                x-text="'(' + formatBytes((repeaterResponse?.response_body || '').length) + ')'"></span>
             </button>
             <button @click="repeaterSubTab = 'headers'"
-                    :class="repeaterSubTab === 'headers' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-2.5 py-1 rounded flex items-center space-x-1">
+              :class="repeaterSubTab === 'headers' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+              class="px-2.5 py-1 rounded flex items-center space-x-1">
               <span>Response Headers</span>
-              <span x-show="repeaterResponse" class="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-emerald-300" x-text="Object.keys(repeaterResponse?.response_headers || {}).length"></span>
+              <span x-show="repeaterResponse" class="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-emerald-300"
+                x-text="Object.keys(repeaterResponse?.response_headers || {}).length"></span>
             </button>
             <button @click="repeaterSubTab = 'diff'"
-                    :class="repeaterSubTab === 'diff' ? 'bg-amber-900/60 text-amber-300 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-2.5 py-1 rounded flex items-center space-x-1">
+              :class="repeaterSubTab === 'diff' ? 'bg-amber-900/60 text-amber-300 font-bold' : 'text-slate-400 hover:text-slate-200'"
+              class="px-2.5 py-1 rounded flex items-center space-x-1">
               <span>Diff Mode</span>
-              <span x-show="repeaterBaselineResponse" class="text-[9px] text-amber-400" x-text="(repeaterDeltaValue > 0 ? '+' : '') + repeaterDeltaValue + ' B'"></span>
+              <span x-show="repeaterBaselineResponse" class="text-[9px] text-amber-400"
+                x-text="(repeaterDeltaValue > 0 ? '+' : '') + repeaterDeltaValue + ' B'"></span>
             </button>
           </div>
         </div>
@@ -894,8 +914,8 @@
           <template x-if="repeaterResponse">
             <div class="flex items-center space-x-2">
               <span class="px-2.5 py-0.5 rounded text-xs font-bold font-mono"
-                    :class="repeaterResponse.status_code >= 200 && repeaterResponse.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
-                    x-text="repeaterResponse.status_code || 'ERR'"></span>
+                :class="repeaterResponse.status_code >= 200 && repeaterResponse.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
+                x-text="repeaterResponse.status_code || 'ERR'"></span>
               <span class="text-slate-400 text-[11px]" x-text="repeaterResponse.duration_ms + 'ms'"></span>
             </div>
           </template>
@@ -910,65 +930,74 @@
       </div>
 
       <!-- SUB-TAB 1: RESPONSE BODY (ENTIRE DISPLAY & AUTOMATION BEAUTIFY) -->
-      <div x-show="repeaterResponse && repeaterSubTab === 'body'" class="flex-1 flex flex-col overflow-hidden space-y-2">
+      <div x-show="repeaterResponse && repeaterSubTab === 'body'"
+        class="flex-1 flex flex-col overflow-hidden space-y-2">
         <div class="flex items-center justify-between shrink-0">
           <div class="flex items-center space-x-2">
             <span class="text-[11px] uppercase text-slate-400 font-semibold">Format:</span>
-            <span class="px-2 py-0.2 rounded text-[10px] font-bold"
-                  :class="{
+            <span class="px-2 py-0.2 rounded text-[10px] font-bold" :class="{
                     'bg-emerald-950 text-emerald-300 border border-emerald-800': detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers) === 'JSON',
                     'bg-orange-950 text-orange-300 border border-orange-800': detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers) === 'HTML' || detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers) === 'XML',
                     'bg-indigo-950 text-indigo-300 border border-indigo-800': detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers) === 'FORM',
                     'bg-slate-800 text-slate-400': !['JSON', 'HTML', 'XML', 'FORM'].includes(detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers))
                   }"
-                  x-text="detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers)"></span>
-            <span class="text-[10px] text-slate-500" x-text="'Total ' + formatBytes((repeaterResponse?.response_body || '').length)"></span>
+              x-text="detectContentType(repeaterResponse?.response_body, repeaterResponse?.response_headers)"></span>
+            <span class="text-[10px] text-slate-500"
+              x-text="'Total ' + formatBytes((repeaterResponse?.response_body || '').length)"></span>
           </div>
           <div class="flex items-center space-x-1.5 text-[10px]">
             <button @click="repeaterResBeautified = true"
-                    :class="repeaterResBeautified ? 'bg-sky-950 text-sky-300 border-sky-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                    class="px-2 py-0.5 rounded border transition flex items-center">
+              :class="repeaterResBeautified ? 'bg-sky-950 text-sky-300 border-sky-700 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+              class="px-2 py-0.5 rounded border transition flex items-center">
               <i data-lucide="sparkles" class="w-2.5 h-2.5 mr-1 text-sky-400"></i>
               <span>✨ Beautified</span>
             </button>
             <button @click="repeaterResBeautified = false"
-                    :class="!repeaterResBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
-                    class="px-2 py-0.5 rounded border transition">Raw</button>
-            <button @click="copyText(repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : repeaterResponse.response_body)"
-                    class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Response Body">Copy</button>
+              :class="!repeaterResBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
+              class="px-2 py-0.5 rounded border transition">Raw</button>
+            <button
+              @click="copyText(repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : repeaterResponse.response_body)"
+              class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+              title="Copy Response Body">Copy</button>
           </div>
         </div>
-        <div class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
-             x-text="repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : (repeaterResponse.response_body || '[Empty Response Body]')"></div>
+        <div
+          class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
+          x-text="repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : (repeaterResponse.response_body || '[Empty Response Body]')">
+        </div>
       </div>
 
       <!-- SUB-TAB 2: RESPONSE HEADERS (ENTIRE DISPLAY & TABLE/RAW VIEW) -->
-      <div x-show="repeaterResponse && repeaterSubTab === 'headers'" class="flex-1 flex flex-col overflow-hidden space-y-2">
+      <div x-show="repeaterResponse && repeaterSubTab === 'headers'"
+        class="flex-1 flex flex-col overflow-hidden space-y-2">
         <div class="flex items-center justify-between shrink-0">
           <div class="text-[11px] uppercase text-slate-400 font-semibold flex items-center">
             <span>Response Headers</span>
             <span class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-emerald-300 font-mono"
-                  x-text="Object.keys(repeaterResponse?.response_headers || {}).length"></span>
+              x-text="Object.keys(repeaterResponse?.response_headers || {}).length"></span>
           </div>
           <div class="flex items-center space-x-1.5 text-[10px]">
             <button @click="repeaterResHeadersView = 'table'"
-                    :class="repeaterResHeadersView === 'table' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
+              :class="repeaterResHeadersView === 'table' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+              class="px-2 py-0.5 rounded border border-[#1E293B] transition">Table</button>
             <button @click="repeaterResHeadersView = 'raw'"
-                    :class="repeaterResHeadersView === 'raw' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
-                    class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
+              :class="repeaterResHeadersView === 'raw' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
+              class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
             <button @click="copyText(formatRawHeaders(repeaterResponse.response_headers))"
-                    class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition" title="Copy Response Headers">Copy</button>
+              class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
+              title="Copy Response Headers">Copy</button>
           </div>
         </div>
 
         <!-- Table View -->
-        <div x-show="repeaterResHeadersView === 'table'" class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md">
+        <div x-show="repeaterResHeadersView === 'table'"
+          class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md">
           <table class="w-full text-left border-collapse">
             <tbody>
               <template x-for="(val, header) in repeaterResponse.response_headers" :key="header">
                 <tr class="border-b border-[#1E293B]/60 hover:bg-[#1E293B]/40">
-                  <td class="px-3 py-1.5 text-emerald-300 font-semibold w-1/3 select-text align-top" x-text="header"></td>
+                  <td class="px-3 py-1.5 text-emerald-300 font-semibold w-1/3 select-text align-top" x-text="header">
+                  </td>
                   <td class="px-3 py-1.5 text-slate-300 break-all select-text font-mono" x-text="val"></td>
                 </tr>
               </template>
@@ -978,25 +1007,29 @@
 
         <!-- Raw View -->
         <div x-show="repeaterResHeadersView === 'raw'"
-             class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-emerald-200 whitespace-pre-wrap"
-             x-text="formatRawHeaders(repeaterResponse.response_headers)"></div>
+          class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-emerald-200 whitespace-pre-wrap"
+          x-text="formatRawHeaders(repeaterResponse.response_headers)"></div>
       </div>
 
       <!-- SUB-TAB 3: DIFF MODE (SMART DIFFERENTIAL BENCHMARK) -->
-      <div x-show="repeaterResponse && repeaterSubTab === 'diff'" class="flex-1 flex flex-col overflow-hidden space-y-2">
+      <div x-show="repeaterResponse && repeaterSubTab === 'diff'"
+        class="flex-1 flex flex-col overflow-hidden space-y-2">
         <div class="flex items-center justify-between shrink-0">
           <button @click="setRepeaterBaseline()"
-                  class="px-3 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition flex items-center"
-                  title="Store current response as baseline for differential comparison">
+            class="px-3 py-1 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition flex items-center"
+            title="Store current response as baseline for differential comparison">
             <i data-lucide="bookmark" class="w-3 h-3 mr-1 text-sky-400"></i>
             <span>Set Current as Baseline</span>
           </button>
           <template x-if="repeaterBaselineResponse">
             <span class="text-slate-400 text-[11px]">
-              Baseline: <span class="text-sky-400 font-bold" x-text="(repeaterBaselineResponse.response_body ? repeaterBaselineResponse.response_body.length : 0) + ' B'"></span> |
-              Current: <span class="text-purple-400 font-bold" x-text="(repeaterResponse.response_body ? repeaterResponse.response_body.length : 0) + ' B'"></span> |
+              Baseline: <span class="text-sky-400 font-bold"
+                x-text="(repeaterBaselineResponse.response_body ? repeaterBaselineResponse.response_body.length : 0) + ' B'"></span>
+              |
+              Current: <span class="text-purple-400 font-bold"
+                x-text="(repeaterResponse.response_body ? repeaterResponse.response_body.length : 0) + ' B'"></span> |
               Delta: <span :class="repeaterDeltaValue !== 0 ? 'text-amber-400 font-bold' : 'text-slate-400'"
-                           x-text="(repeaterDeltaValue > 0 ? '+' : '') + repeaterDeltaValue + ' B'"></span>
+                x-text="(repeaterDeltaValue > 0 ? '+' : '') + repeaterDeltaValue + ' B'"></span>
             </span>
           </template>
         </div>
@@ -1006,14 +1039,16 @@
             <div class="text-amber-400/80 p-8 text-center space-y-2">
               <i data-lucide="diff" class="w-8 h-8 mx-auto opacity-30 text-amber-400"></i>
               <p>Click 'Set Current as Baseline' on an initial response.</p>
-              <p class="text-[11px] text-slate-500">Subsequent mutated requests will highlight line-by-line insertions and deletions here.</p>
+              <p class="text-[11px] text-slate-500">Subsequent mutated requests will highlight line-by-line insertions
+                and deletions here.</p>
             </div>
           </template>
           <template x-if="repeaterBaselineResponse && repeaterResponse">
             <div class="divide-y divide-slate-800 text-[11px] select-text">
               <template x-for="(line, idx) in computeRepeaterDiff()" :key="idx">
-                <div :class="line.type === 'add' ? 'bg-emerald-950/50 text-emerald-300' : (line.type === 'del' ? 'bg-rose-950/50 text-rose-300' : 'text-slate-400')"
-                     class="px-2 py-0.5 whitespace-pre-wrap flex font-mono">
+                <div
+                  :class="line.type === 'add' ? 'bg-emerald-950/50 text-emerald-300' : (line.type === 'del' ? 'bg-rose-950/50 text-rose-300' : 'text-slate-400')"
+                  class="px-2 py-0.5 whitespace-pre-wrap flex font-mono">
                   <span class="w-6 shrink-0 opacity-50" x-text="line.prefix"></span>
                   <span class="flex-1" x-text="line.text"></span>
                 </div>
@@ -1028,7 +1063,8 @@
   <!-- VIEW 5: PARAMETER FUZZER / MINI-INTRUDER -->
   <div x-show="currentAppTab === 'fuzzer'" class="flex-1 flex overflow-hidden bg-[#0B0F17]">
     <!-- Left: Attack Configuration -->
-    <div class="w-[45%] flex flex-col border-r border-[#1E293B] bg-[#111827] p-4 space-y-3 font-mono text-xs overflow-y-auto">
+    <div
+      class="w-[45%] flex flex-col border-r border-[#1E293B] bg-[#111827] p-4 space-y-3 font-mono text-xs overflow-y-auto">
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-2">
         <div>
           <h2 class="text-sm font-bold text-purple-300 flex items-center">
@@ -1037,9 +1073,8 @@
           </h2>
           <p class="text-[11px] text-slate-400">Automated differential injection with position markers (§...§)</p>
         </div>
-        <button @click="runFuzzerAttack()"
-                :disabled="fuzzerRunning || !fuzzerForm.url"
-                class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition flex items-center shadow-lg disabled:opacity-50">
+        <button @click="runFuzzerAttack()" :disabled="fuzzerRunning || !fuzzerForm.url"
+          class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold transition flex items-center shadow-lg disabled:opacity-50">
           <i data-lucide="flame" class="w-3.5 h-3.5 mr-1.5"></i>
           <span x-text="fuzzerRunning ? 'Attacking...' : 'Launch Attack'"></span>
         </button>
@@ -1049,19 +1084,21 @@
       <div class="space-y-1">
         <div class="flex items-center justify-between">
           <label class="text-[11px] text-slate-300 font-semibold">Target URL & Marker:</label>
-          <button @click="insertUrlMarker()" class="text-[10px] text-purple-400 hover:text-purple-300 font-bold underline">
+          <button @click="insertUrlMarker()"
+            class="text-[10px] text-purple-400 hover:text-purple-300 font-bold underline">
             + Insert §marker§
           </button>
         </div>
         <div class="flex space-x-2">
-          <select x-model="fuzzerForm.method" class="bg-[#0B0F17] border border-[#1E293B] rounded px-2.5 py-1.5 text-purple-300 font-bold">
+          <select x-model="fuzzerForm.method"
+            class="bg-[#0B0F17] border border-[#1E293B] rounded px-2.5 py-1.5 text-purple-300 font-bold">
             <option value="GET">GET</option>
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
             <option value="DELETE">DELETE</option>
           </select>
           <input type="text" x-model="fuzzerForm.url" placeholder="https://target.local/search?q=§PAYLOAD§"
-                 class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-purple-500">
+            class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-1.5 text-slate-100 focus:outline-none focus:border-purple-500">
         </div>
       </div>
 
@@ -1070,7 +1107,7 @@
         <div>
           <label class="text-[11px] text-slate-300 font-semibold block mb-1">Payload Category:</label>
           <select x-model="fuzzerForm.category" @change="loadFuzzerCategory()"
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-1.5 text-slate-200">
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-1.5 text-slate-200">
             <option value="sqli">💉 SQL Injection (9 payloads)</option>
             <option value="xss">⚡ Cross-Site Scripting (7 payloads)</option>
             <option value="traversal">📁 Path Traversal (7 payloads)</option>
@@ -1084,7 +1121,8 @@
         <div>
           <label class="text-[11px] text-slate-300 font-semibold block mb-1">Threads / Concurrency:</label>
           <div class="flex items-center space-x-2">
-            <input type="range" x-model.number="fuzzerForm.concurrency" min="1" max="10" class="flex-1 accent-purple-500">
+            <input type="range" x-model.number="fuzzerForm.concurrency" min="1" max="10"
+              class="flex-1 accent-purple-500">
             <span class="w-8 text-center font-bold text-purple-400" x-text="fuzzerForm.concurrency"></span>
           </div>
         </div>
@@ -1096,65 +1134,74 @@
           <div class="flex items-center space-x-2">
             <label class="text-[11px] text-slate-300 font-semibold">Active Attack Payloads:</label>
             <span class="text-[10px] text-purple-400 font-mono font-bold"
-                  x-text="'(' + (fuzzerForm.payloadsRaw ? fuzzerForm.payloadsRaw.split('\n').filter(s => s.trim().length > 0).length : 0) + ' payloads)'"></span>
+              x-text="'(' + (fuzzerForm.payloadsRaw ? fuzzerForm.payloadsRaw.split('\n').filter(s => s.trim().length > 0).length : 0) + ' payloads)'"></span>
           </div>
           <div class="flex items-center space-x-1.5 text-[10px]">
-            <input type="file" x-ref="fuzzerWordlistInput" @change="uploadWordlistFile($event)" accept=".txt,.json,.csv" class="hidden">
+            <input type="file" x-ref="fuzzerWordlistInput" @change="uploadWordlistFile($event)" accept=".txt,.json,.csv"
+              class="hidden">
             <button @click="$refs.fuzzerWordlistInput.click()"
-                    class="px-2.5 py-0.5 rounded bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 transition flex items-center font-bold"
-                    title="Upload custom wordlist (.txt or .json)">
+              class="px-2.5 py-0.5 rounded bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 transition flex items-center font-bold"
+              title="Upload custom wordlist (.txt or .json)">
               <i data-lucide="upload" class="w-2.5 h-2.5 mr-1 text-purple-400"></i>
               <span>📁 Upload Wordlist</span>
             </button>
             <button @click="fuzzerForm.payloadsRaw = ''; fuzzerForm.category = 'custom'"
-                    class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-400 border border-[#1E293B] transition"
-                    title="Clear payload list">Clear</button>
+              class="px-2 py-0.5 rounded bg-[#0B0F17] hover:bg-slate-700 text-slate-400 border border-[#1E293B] transition"
+              title="Clear payload list">Clear</button>
           </div>
         </div>
         <textarea x-model="fuzzerForm.payloadsRaw" rows="5"
-                  placeholder="Enter attack payloads (one per line) or upload a custom wordlist file (.txt / .json)..."
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-purple-200 focus:outline-none focus:border-purple-500 font-mono text-xs leading-relaxed resize-y"></textarea>
+          placeholder="Enter attack payloads (one per line) or upload a custom wordlist file (.txt / .json)..."
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-purple-200 focus:outline-none focus:border-purple-500 font-mono text-xs leading-relaxed resize-y"></textarea>
       </div>
 
       <!-- Request Headers -->
       <div>
         <label class="text-[11px] text-slate-300 font-semibold block mb-1">Request Headers (JSON):</label>
         <textarea x-model="fuzzerForm.headersRaw" rows="2"
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-200 font-mono text-xs focus:outline-none"></textarea>
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-200 font-mono text-xs focus:outline-none"></textarea>
       </div>
 
       <!-- Request Body -->
       <div class="flex-1 flex flex-col">
         <div class="flex items-center justify-between mb-1">
           <label class="text-[11px] text-slate-300 font-semibold">Request Body:</label>
-          <button @click="insertBodyMarker()" class="text-[10px] text-purple-400 hover:text-purple-300 font-bold underline">
+          <button @click="insertBodyMarker()"
+            class="text-[10px] text-purple-400 hover:text-purple-300 font-bold underline">
             + Insert §marker§
           </button>
         </div>
         <textarea x-model="fuzzerForm.body" placeholder="JSON or form body containing §marker§..."
-                  class="w-full h-20 bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-100 font-mono text-xs focus:outline-none"></textarea>
+          class="w-full h-20 bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-100 font-mono text-xs focus:outline-none"></textarea>
       </div>
     </div>
 
     <!-- Right: Attack Results Grid & Triage -->
     <div class="w-[55%] flex flex-col bg-[#0B0F17] overflow-hidden">
       <!-- Summary Bar -->
-      <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between font-mono text-xs shrink-0">
+      <div
+        class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between font-mono text-xs shrink-0">
         <div class="flex items-center space-x-4">
-          <span class="text-slate-400">Total: <strong class="text-slate-200" x-text="fuzzerAttackResults ? fuzzerAttackResults.total_payloads : 0"></strong></span>
-          <span class="text-slate-400">Anomalies: <strong class="text-rose-400 font-bold" x-text="fuzzerAttackResults ? fuzzerAttackResults.anomalies_detected : 0"></strong></span>
+          <span class="text-slate-400">Total: <strong class="text-slate-200"
+              x-text="fuzzerAttackResults ? fuzzerAttackResults.total_payloads : 0"></strong></span>
+          <span class="text-slate-400">Anomalies: <strong class="text-rose-400 font-bold"
+              x-text="fuzzerAttackResults ? fuzzerAttackResults.anomalies_detected : 0"></strong></span>
           <template x-if="fuzzerAttackResults && fuzzerAttackResults.baseline">
             <span class="text-slate-400 text-[11px]">
-              Baseline: <span class="text-emerald-400 font-bold" x-text="fuzzerAttackResults.baseline.status_code"></span> 
-              (<span x-text="fuzzerAttackResults.baseline.length + 'B'"></span>, <span x-text="fuzzerAttackResults.baseline.duration_ms + 'ms'"></span>)
+              Baseline: <span class="text-emerald-400 font-bold"
+                x-text="fuzzerAttackResults.baseline.status_code"></span>
+              (<span x-text="fuzzerAttackResults.baseline.length + 'B'"></span>, <span
+                x-text="fuzzerAttackResults.baseline.duration_ms + 'ms'"></span>)
             </span>
           </template>
         </div>
-        <button x-show="fuzzerAttackResults" @click="fuzzerAttackResults = null" class="text-slate-500 hover:text-slate-300 text-[11px]">Clear Results</button>
+        <button x-show="fuzzerAttackResults" @click="fuzzerAttackResults = null"
+          class="text-slate-500 hover:text-slate-300 text-[11px]">Clear Results</button>
       </div>
 
       <!-- Results Table Header -->
-      <div class="grid grid-cols-12 bg-[#0B0F17] border-b border-[#1E293B] px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0">
+      <div
+        class="grid grid-cols-12 bg-[#0B0F17] border-b border-[#1E293B] px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0">
         <div class="col-span-1">#</div>
         <div class="col-span-4">Payload</div>
         <div class="col-span-1 text-center">Status</div>
@@ -1177,24 +1224,24 @@
           <div>
             <template x-for="item in fuzzerAttackResults.results" :key="item.id">
               <div @click="selectedFuzzPreview = item"
-                   :class="selectedFuzzPreview && selectedFuzzPreview.id === item.id ? 'bg-[#1E293B] ring-1 ring-purple-500' : 'hover:bg-[#111827]/70'"
-                   class="grid grid-cols-12 px-3 py-2 cursor-pointer transition items-center">
+                :class="selectedFuzzPreview && selectedFuzzPreview.id === item.id ? 'bg-[#1E293B] ring-1 ring-purple-500' : 'hover:bg-[#111827]/70'"
+                class="grid grid-cols-12 px-3 py-2 cursor-pointer transition items-center">
                 <div class="col-span-1 text-slate-500 text-[11px]" x-text="item.id"></div>
                 <div class="col-span-4 text-purple-300 font-semibold truncate select-text" x-text="item.payload"></div>
                 <div class="col-span-1 text-center">
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                        :class="item.status_code >= 200 && item.status_code < 300 ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'"
-                        x-text="item.status_code || 'ERR'"></span>
+                    :class="item.status_code >= 200 && item.status_code < 300 ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'"
+                    x-text="item.status_code || 'ERR'"></span>
                 </div>
                 <div class="col-span-2 text-right text-slate-300" x-text="item.length"></div>
                 <div class="col-span-2 text-right font-bold"
-                     :class="item.delta > 0 ? 'text-amber-400' : (item.delta < 0 ? 'text-rose-400' : 'text-slate-500')"
-                     x-text="(item.delta > 0 ? '+' : '') + item.delta"></div>
+                  :class="item.delta > 0 ? 'text-amber-400' : (item.delta < 0 ? 'text-rose-400' : 'text-slate-500')"
+                  x-text="(item.delta > 0 ? '+' : '') + item.delta"></div>
                 <div class="col-span-2 flex flex-wrap gap-1 justify-center">
                   <template x-for="flag in item.anomalies" :key="flag">
                     <span class="px-1.5 py-0.2 rounded text-[9px] font-bold"
-                          :class="flag.includes('SQL') || flag.includes('SSTI') ? 'bg-rose-950 text-rose-300 border border-rose-800' : (flag === 'REFLECTED' ? 'bg-amber-950 text-amber-300' : 'bg-indigo-950 text-indigo-300')"
-                          x-text="flag"></span>
+                      :class="flag.includes('SQL') || flag.includes('SSTI') ? 'bg-rose-950 text-rose-300 border border-rose-800' : (flag === 'REFLECTED' ? 'bg-amber-950 text-amber-300' : 'bg-indigo-950 text-indigo-300')"
+                      x-text="flag"></span>
                   </template>
                   <span x-show="item.anomalies.length === 0" class="text-slate-600 text-[10px]">-</span>
                 </div>
@@ -1205,7 +1252,8 @@
       </div>
 
       <!-- Bottom Response Preview -->
-      <div x-show="selectedFuzzPreview" class="h-44 border-t border-[#1E293B] bg-[#111827] flex flex-col p-3 font-mono text-xs shrink-0">
+      <div x-show="selectedFuzzPreview"
+        class="h-44 border-t border-[#1E293B] bg-[#111827] flex flex-col p-3 font-mono text-xs shrink-0">
         <div class="flex items-center justify-between pb-1.5 border-b border-[#1E293B] mb-2">
           <span class="text-slate-300 font-bold flex items-center">
             <span class="text-purple-400 mr-2" x-text="'#' + selectedFuzzPreview.id"></span>
@@ -1213,8 +1261,9 @@
           </span>
           <button @click="selectedFuzzPreview = null" class="text-slate-500 hover:text-white">✕</button>
         </div>
-        <div class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-300 whitespace-pre-wrap select-text text-[11px]"
-             x-text="selectedFuzzPreview ? selectedFuzzPreview.preview : ''"></div>
+        <div
+          class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded p-2 text-slate-300 whitespace-pre-wrap select-text text-[11px]"
+          x-text="selectedFuzzPreview ? selectedFuzzPreview.preview : ''"></div>
       </div>
     </div>
   </div>
@@ -1228,11 +1277,12 @@
             <i data-lucide="shield-check" class="w-5 h-5 mr-2 text-emerald-400"></i>
             Scope & Guardrail Configuration
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Restrict autonomous AI Agent payloads to authorized test boundaries</p>
+          <p class="text-xs text-slate-400 mt-0.5">Restrict autonomous AI Agent payloads to authorized test boundaries
+          </p>
         </div>
 
         <button @click="saveScopeConfig()"
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition flex items-center shadow-lg">
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition flex items-center shadow-lg">
           <i data-lucide="save" class="w-4 h-4 mr-1.5"></i>
           Save Guardrails
         </button>
@@ -1242,11 +1292,12 @@
       <div class="flex items-center justify-between p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
         <div>
           <div class="font-bold text-slate-200 text-sm">Enforce Scope Guardrail for Active Project</div>
-          <div class="text-slate-400 text-xs">When enabled, any requests outside allowed domains or matching blocked patterns are dropped immediately.</div>
+          <div class="text-slate-400 text-xs">When enabled, any requests outside allowed domains or matching blocked
+            patterns are dropped immediately.</div>
         </div>
         <button @click="scopeForm.scope_enabled = !scopeForm.scope_enabled"
-                :class="scopeForm.scope_enabled ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'"
-                class="px-4 py-1.5 rounded font-bold transition">
+          :class="scopeForm.scope_enabled ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-4 py-1.5 rounded font-bold transition">
           <span x-text="scopeForm.scope_enabled ? 'ENABLED' : 'DISABLED'"></span>
         </button>
       </div>
@@ -1258,11 +1309,12 @@
             <i data-lucide="heart-pulse" class="w-4 h-4 mr-1.5 text-rose-400"></i>
             <span>Session Auto-Keep-Alive Heartbeat</span>
           </div>
-          <div class="text-slate-400 text-xs">Sends background periodic lightweight probes to keep authenticated cookies valid during long agent runs.</div>
+          <div class="text-slate-400 text-xs">Sends background periodic lightweight probes to keep authenticated cookies
+            valid during long agent runs.</div>
         </div>
         <button @click="toggleKeepalive()"
-                :class="keepaliveRunning ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'"
-                class="px-4 py-1.5 rounded font-bold transition">
+          :class="keepaliveRunning ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-4 py-1.5 rounded font-bold transition">
           <span x-text="keepaliveRunning ? 'ACTIVE (120s)' : 'DISABLED'"></span>
         </button>
       </div>
@@ -1270,121 +1322,247 @@
       <!-- Rate Limiting / Throttling -->
       <div class="space-y-2">
         <label class="block font-bold text-amber-400">Request Rate Limiting / Throttling (Delay ms):</label>
-        <p class="text-slate-500 text-[11px]">Milliseconds to sleep before each agent request to avoid target overloading, rate limits, or WAF bans (0 = no delay).</p>
+        <p class="text-slate-500 text-[11px]">Milliseconds to sleep before each agent request to avoid target
+          overloading, rate limits, or WAF bans (0 = no delay).</p>
         <input type="number" x-model.number="scopeForm.delay_ms" min="0" step="50" placeholder="0"
-               class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs">
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs">
       </div>
 
       <!-- Upstream Proxy Chaining -->
       <div class="space-y-2">
         <label class="block font-bold text-indigo-400">Upstream Proxy Chaining (Burp Suite / Caido / ZAP):</label>
-        <p class="text-slate-500 text-[11px]">Forward all AI Agent HTTP and Playwright traffic to an upstream proxy listener (e.g. <code>http://127.0.0.1:8080</code>).</p>
+        <p class="text-slate-500 text-[11px]">Forward all AI Agent HTTP and Playwright traffic to an upstream proxy
+          listener (e.g. <code>http://127.0.0.1:8080</code>).</p>
         <input type="text" x-model="scopeForm.upstream_proxy" placeholder="http://127.0.0.1:8080"
-               class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs">
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-slate-100 focus:outline-none focus:border-indigo-500 font-mono text-xs">
       </div>
 
       <!-- Allowed Domains -->
       <div class="space-y-2">
         <label class="block font-bold text-sky-400">Allowed Target Domains (One per line or comma-separated):</label>
-        <p class="text-slate-500 text-[11px]">Supports wildcards (e.g. `*.target.local`, `127.0.0.1`, `api.target.com`). Use `*` to allow all.</p>
-        <textarea x-model="scopeForm.allowedRaw"
-                  rows="3"
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 focus:outline-none focus:border-sky-500 font-mono"></textarea>
+        <p class="text-slate-500 text-[11px]">Supports wildcards (e.g. `*.target.local`, `127.0.0.1`, `api.target.com`).
+          Use `*` to allow all.</p>
+        <textarea x-model="scopeForm.allowedRaw" rows="3"
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 focus:outline-none focus:border-sky-500 font-mono"></textarea>
       </div>
 
       <!-- Blocked Patterns -->
       <div class="space-y-2">
         <label class="block font-bold text-rose-400">Restricted / Destructive Regex Patterns (One per line):</label>
-        <p class="text-slate-500 text-[11px]">Requests matching these paths are instantly blocked to protect sensitive systems (e.g. `logout`, `delete.*user`, `payment`, `stripe`).</p>
-        <textarea x-model="scopeForm.blockedRaw"
-                  rows="3"
-                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 focus:outline-none focus:border-rose-500 font-mono"></textarea>
+        <p class="text-slate-500 text-[11px]">Requests matching these paths are instantly blocked to protect sensitive
+          systems (e.g. `logout`, `delete.*user`, `payment`, `stripe`).</p>
+        <textarea x-model="scopeForm.blockedRaw" rows="3"
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-3 text-slate-100 focus:outline-none focus:border-rose-500 font-mono"></textarea>
       </div>
     </div>
   </div>
 
   <!-- MODALS -->
   <!-- Create Project Modal -->
-  <div x-show="openNewProjectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-    <div @click.away="openNewProjectModal = false" class="w-full max-w-md bg-[#111827] border border-[#1E293B] rounded-xl p-6 space-y-4">
+  <div x-show="openNewProjectModal"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div @click.away="openNewProjectModal = false"
+      class="w-full max-w-md bg-[#111827] border border-[#1E293B] rounded-xl p-6 space-y-4">
       <h3 class="text-sm font-bold text-slate-100">Create New Project</h3>
       <input type="text" x-model="newProjectForm.name" placeholder="Project slug (e.g. client-alpha)"
-             class="w-full bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-2 text-xs font-mono text-slate-200">
+        class="w-full bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-2 text-xs font-mono text-slate-200">
       <textarea x-model="newProjectForm.description" placeholder="Description" rows="2"
-                class="w-full bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-2 text-xs font-mono text-slate-200"></textarea>
+        class="w-full bg-[#0B0F17] border border-[#1E293B] rounded px-3 py-2 text-xs font-mono text-slate-200"></textarea>
       <div class="flex justify-end space-x-2">
         <button @click="openNewProjectModal = false" class="px-3 py-1.5 text-xs text-slate-400">Cancel</button>
-        <button @click="createProject()" class="px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold">Create</button>
+        <button @click="createProject()"
+          class="px-4 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold">Create</button>
       </div>
     </div>
   </div>
 
-  <!-- HITL Login Modal -->
-  <div x-show="openLoginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+  <!-- HITL Login & Session Handover Modal (3-Way: Host Browser / JS Snippet / Direct Paste) -->
+  <div x-show="openLoginModal"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
     <div @click.away="if (!loginSpawning) openLoginModal = false"
-         class="w-full max-w-lg bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl">
+      class="w-full max-w-xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl">
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
         <div class="flex items-center space-x-2.5">
           <div class="p-2 bg-indigo-950/80 border border-indigo-700/60 rounded-lg text-indigo-400">
             <i data-lucide="key" class="w-5 h-5"></i>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-slate-100">Manual Login Handover (HITL)</h3>
-            <p class="text-[11px] text-slate-400">Launch a headed Chromium window to authenticate with SSO/2FA/CAPTCHA</p>
+            <h3 class="text-sm font-bold text-slate-100">Manual Login & Session Handover (HITL)</h3>
+            <p class="text-[11px] text-slate-400">Capture authenticated sessions so AI pentest agents can test protected
+              endpoints</p>
           </div>
         </div>
-        <button x-show="!loginSpawning" @click="openLoginModal = false" class="text-slate-500 hover:text-slate-300">✕</button>
+        <button x-show="!loginSpawning" @click="openLoginModal = false"
+          class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
       </div>
 
-      <!-- Instructions & Input -->
-      <div class="space-y-3">
+      <!-- Navigation Tabs: Spawn Host Browser | JS Console / Bookmarklet | Direct Paste -->
+      <div class="flex bg-[#0B0F17] border border-[#1E293B] rounded-lg p-1 text-xs">
+        <button @click="authModalTab = 'spawn'"
+          :class="authModalTab === 'spawn' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
+          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
+          <i data-lucide="chrome" class="w-3.5 h-3.5"></i>
+          <span>1. Spawn Browser Host</span>
+        </button>
+        <button @click="authModalTab = 'js'"
+          :class="authModalTab === 'js' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
+          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
+          <i data-lucide="code" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>2. Pendekatan JS</span>
+        </button>
+        <button @click="authModalTab = 'paste'"
+          :class="authModalTab === 'paste' ? 'bg-indigo-600 text-white font-bold shadow' : 'text-slate-400 hover:text-slate-200'"
+          class="flex-1 py-1.5 rounded transition flex items-center justify-center space-x-1.5">
+          <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>3. Direct Paste</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: SPAWN HOST BROWSER -->
+      <div x-show="authModalTab === 'spawn'" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[11px] text-slate-300 font-semibold block mb-1">Pilih Browser Host:</label>
+            <select x-model="authForm.browserChoice" :disabled="loginSpawning"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-2 text-xs font-mono text-indigo-300 font-bold focus:outline-none">
+              <option value="chrome">🔵 Google Chrome (Host Default)</option>
+              <option value="msedge">🟢 Microsoft Edge (Host Default)</option>
+              <option value="chromium">⚪ Playwright Chromium</option>
+              <option value="system">🚀 Buka di Browser OS Host</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-300 font-semibold block mb-1">Session Domain:</label>
+            <input type="text" x-model="authForm.domain" placeholder="www.example.com" :disabled="loginSpawning"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
         <div>
           <label class="text-[11px] text-slate-300 font-semibold block mb-1">Target Application Login URL:</label>
-          <input type="text" x-model="authForm.loginUrl" placeholder="https://target.local/login"
-                 :disabled="loginSpawning"
-                 class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-50">
+          <input type="text" x-model="authForm.loginUrl" placeholder="https://www.example.com/login"
+            :disabled="loginSpawning"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
         </div>
-        <div>
-          <label class="text-[11px] text-slate-300 font-semibold block mb-1">Session Cookie Domain (Optional):</label>
-          <input type="text" x-model="authForm.domain" placeholder="target.local (Leave empty to extract automatically)"
-                 :disabled="loginSpawning"
-                 class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-50">
-        </div>
-      </div>
 
-      <!-- Live Active Session Monitoring State -->
-      <div x-show="loginSpawning" class="p-4 bg-indigo-950/40 border border-indigo-700/60 rounded-xl space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="relative flex h-2.5 w-2.5">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span class="font-bold text-emerald-300">Chromium Browser Active</span>
+        <!-- Live Active Session Monitoring State -->
+        <div x-show="loginSpawning" class="p-3 bg-indigo-950/40 border border-indigo-700/60 rounded-xl space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="relative flex h-2.5 w-2.5">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span class="font-bold text-emerald-300">Browser Window Active on Desktop</span>
+            </div>
+            <span
+              class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold"
+              x-text="'🍪 ' + authLiveCookiesCount + ' Cookies Detected in Browser'"></span>
           </div>
-          <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold"
-                x-text="'🍪 ' + authLiveCookiesCount + ' Cookies Captured'"></span>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Login di jendela browser yang terbuka. Cookie akan disinkronkan secara real-time. Jika selesai, klik tombol
+            konfirmasi di bawah atau tutup jendela browser.
+          </p>
+          <button @click="confirmManualAuth()"
+            class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition flex items-center justify-center space-x-2 shadow-lg">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>Confirm & Sync Session Now</span>
+          </button>
         </div>
-        <p class="text-[11px] text-slate-300 leading-relaxed">
-          Log in via the opened Chromium window on your screen. Cookies are synchronized automatically in real-time. When finished, click the confirmation button below or simply close the browser window.
-        </p>
-        <button @click="confirmManualAuth()"
-                class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition flex items-center justify-center space-x-2 shadow-lg">
-          <i data-lucide="check-circle" class="w-4 h-4"></i>
-          <span>Confirm & Sync Session Now</span>
-        </button>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t border-[#1E293B]">
+          <button @click="openLoginModal = false; loginSpawning = false"
+            class="px-4 py-2 text-xs text-slate-400 hover:text-slate-200">
+            <span x-text="loginSpawning ? 'Dismiss Window' : 'Cancel'"></span>
+          </button>
+          <button x-show="!loginSpawning" @click="launchLoginBrowser()"
+            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-lg">
+            <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1"></i>
+            <span>Launch Browser</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="flex justify-end space-x-2 pt-2 border-t border-[#1E293B]">
-        <button @click="openLoginModal = false; loginSpawning = false" class="px-4 py-2 text-xs text-slate-400 hover:text-slate-200">
-          <span x-text="loginSpawning ? 'Dismiss Window' : 'Cancel'"></span>
-        </button>
-        <button x-show="!loginSpawning" @click="launchLoginBrowser()"
-                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-lg">
-          <i data-lucide="external-link" class="w-3.5 h-3.5 mr-1"></i>
-          <span>Launch Browser</span>
-        </button>
+      <!-- TAB 2: PENDEKATAN JAVASCRIPT (BOOKMARKLET / DEVTOOLS CONSOLE) -->
+      <div x-show="authModalTab === 'js'" class="space-y-3">
+        <p class="text-slate-300 text-[11px] leading-relaxed">
+          Gunakan browser apa saja (Chrome, Firefox, Brave, Edge). Login seperti biasa di tab target, lalu jalankan
+          script berikut di <strong>DevTools Console (F12)</strong> untuk sinkronisasi otomatis ke Spectra MCP:
+        </p>
+
+        <div
+          class="relative bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-slate-200 font-mono text-[11px] leading-relaxed">
+          <pre class="overflow-x-auto whitespace-pre-wrap select-all">fetch("http://127.0.0.1:8000/api/auth/cookies/import", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({
+    project: "<span x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></span>",
+    domain: window.location.hostname,
+    raw_cookie: document.cookie
+  })
+}).then(r => r.json()).then(d => alert("✅ Berhasil sync " + d.cookie_count + " cookies ke Spectra MCP!"))
+.catch(e => {
+  navigator.clipboard.writeText(document.cookie);
+  alert("⚠️ Mixed-content: Cookie otomatis disalin ke clipboard! Paste di tab Direct Paste.");
+});</pre>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <button @click="copyJsSnippet()"
+            class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-bold transition flex items-center space-x-1 shadow">
+            <i data-lucide="copy" class="w-3.5 h-3.5 mr-1"></i>
+            <span>Copy DevTools Console Script</span>
+          </button>
+          <button @click="copyBookmarkletUrl()"
+            class="px-3 py-1.5 bg-[#0B0F17] hover:bg-slate-700 text-slate-200 border border-[#1E293B] rounded font-bold transition flex items-center space-x-1">
+            <i data-lucide="bookmark" class="w-3.5 h-3.5 mr-1 text-amber-400"></i>
+            <span>Copy Bookmarklet Link</span>
+          </button>
+        </div>
+
+        <div
+          class="p-2.5 rounded bg-amber-950/30 border border-amber-800/40 text-[11px] text-amber-200 leading-relaxed">
+          💡 <strong>Tips Pentester (HttpOnly Cookie):</strong> Jika cookie autentikasi menggunakan flag
+          <code>HttpOnly</code> (tidak bisa dibaca oleh <code>document.cookie</code>), cukup buka tab
+          <strong>Network</strong> di DevTools, klik kanan salah satu request target &rarr; <em>Copy as cURL</em>, lalu
+          paste di tab <strong>3. Direct Paste</strong> di sebelah!
+        </div>
+      </div>
+
+      <!-- TAB 3: DIRECT PASTE (COOKIE / cURL / JSON) -->
+      <div x-show="authModalTab === 'paste'" class="space-y-3">
+        <div>
+          <label class="text-[11px] text-slate-300 font-semibold block mb-1">Target Domain (e.g.
+            dev01.asetrabook.com):</label>
+          <input type="text" x-model="importCookieForm.domain"
+            placeholder="dev01.asetrabook.com (Otomatis diekstrak jika kosong)"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[11px] text-slate-300 font-semibold">Paste Cookie / cURL / Headers / JSON:</label>
+            <span class="text-[10px] text-slate-500 font-mono">Mendukung HttpOnly & Session tokens</span>
+          </div>
+          <textarea x-model="importCookieForm.rawInput" rows="5"
+            placeholder="Contoh format yang didukung:&#10;1. Raw string: session=abc123xyz; laravel_session=...; XSRF-TOKEN=...&#10;2. Command cURL: curl 'https://...' -H 'Cookie: session=...'&#10;3. Header block: Cookie: token=...&#10;4. JSON dari extension Cookie-Editor"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-200 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y"></textarea>
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-[#1E293B]">
+          <span class="text-[11px] text-slate-400">Target Project: <strong class="text-indigo-400"
+              x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></strong></span>
+          <div class="flex space-x-2">
+            <button @click="importCookieForm.rawInput = ''"
+              class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">Clear</button>
+            <button @click="importCookiesDirectly()"
+              class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition flex items-center space-x-1 shadow-lg">
+              <i data-lucide="download" class="w-3.5 h-3.5 mr-1"></i>
+              <span>Import & Save Session</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1392,7 +1570,8 @@
   <!-- TOAST NOTIFICATIONS -->
   <div class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
     <template x-for="(toast, index) in toasts" :key="index">
-      <div class="p-3 rounded-lg shadow-xl border flex items-start space-x-3 bg-rose-950/90 border-rose-700 text-rose-200 text-xs">
+      <div
+        class="p-3 rounded-lg shadow-xl border flex items-start space-x-3 bg-rose-950/90 border-rose-700 text-rose-200 text-xs">
         <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-400 shrink-0"></i>
         <div class="flex-1">
           <div class="font-bold" x-text="toast.title"></div>
@@ -1487,8 +1666,10 @@
         // HITL Auth
         openLoginModal: false,
         loginSpawning: false,
+        authModalTab: 'spawn', // 'spawn' | 'js' | 'paste'
         authLiveCookiesCount: 0,
-        authForm: { loginUrl: '', domain: '' },
+        authForm: { loginUrl: '', domain: '', browserChoice: 'chrome' },
+        importCookieForm: { domain: '', rawInput: '' },
         copiedCurl: false,
         toasts: [],
 
@@ -1515,7 +1696,7 @@
             try {
               const msg = JSON.parse(event.data);
               this.handleWsMessage(msg);
-            } catch (e) {}
+            } catch (e) { }
           };
           this.socket.onclose = () => {
             this.wsConnected = false;
@@ -1560,15 +1741,12 @@
             this.loginSpawning = true;
             this.authLiveCookiesCount = 0;
             this.showToast({
-              title: 'Chromium Window Opened',
-              message: `Interactive login launched for ${msg.domain || msg.login_url}.`
+              title: 'Browser Launched',
+              message: `Log in to target account in the opened browser window.`
             });
           } else if (msg.type === 'AUTH_COOKIES_UPDATED') {
+            // Silently update live badge counter without premature toast alert
             this.authLiveCookiesCount = msg.cookie_count || 0;
-            this.showToast({
-              title: 'Cookies Synchronized',
-              message: `Captured ${msg.cookie_count} cookies for ${msg.domain}.`
-            });
           } else if (msg.type === 'AUTH_COMPLETED') {
             this.loginSpawning = false;
             this.openLoginModal = false;
@@ -1595,7 +1773,7 @@
               const data = await res.json();
               this.projects = data.projects || [];
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async fetchAgents() {
@@ -1606,7 +1784,7 @@
               const data = await res.json();
               this.agentsList = data.agents || ['primary_agent'];
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async fetchStats() {
@@ -1617,7 +1795,7 @@
               this.stats = await res.json();
               this.interceptEnabled = Boolean(this.stats.intercept_enabled);
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async fetchLogs() {
@@ -1632,7 +1810,7 @@
                 this.selectLog(this.logs[0].id);
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         filterLogs() {
@@ -1657,7 +1835,7 @@
             if (res.ok) {
               this.selectedLogDetail = await res.json();
             }
-          } catch (e) {}
+          } catch (e) { }
           this.$nextTick(() => lucide.createIcons());
         },
 
@@ -1682,7 +1860,7 @@
                 this.activeInterceptItem = this.interceptPending[0];
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async toggleIntercept() {
@@ -1697,7 +1875,7 @@
               this.interceptEnabled = data.enabled;
               if (this.interceptEnabled) this.currentAppTab = 'intercept';
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async resolveIntercept(interceptId, action) {
@@ -1712,7 +1890,7 @@
             });
             this.activeInterceptItem = null;
             await this.fetchInterceptStatus();
-          } catch (e) {}
+          } catch (e) { }
         },
 
         // REPEATER & SMART DIFFING ACTIONS
@@ -1869,7 +2047,7 @@
               this.fuzzerPayloadsMap = data.categories || {};
               this.loadFuzzerCategory();
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         loadFuzzerCategory() {
@@ -1966,7 +2144,7 @@
               this.scopeForm.delay_ms = data.delay_ms || 0;
               this.scopeForm.upstream_proxy = data.upstream_proxy || '';
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async saveScopeConfig() {
@@ -1989,7 +2167,7 @@
             if (res.ok) {
               this.showToast({ title: 'Configuration Saved', message: `Guardrails & proxy settings updated for project '${p}'!` });
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async fetchKeepaliveStatus() {
@@ -1999,7 +2177,7 @@
               const data = await res.json();
               this.keepaliveRunning = Boolean(data.running);
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         async toggleKeepalive() {
@@ -2010,7 +2188,7 @@
               const data = await res.json();
               this.keepaliveRunning = Boolean(data.running);
             }
-          } catch (e) {}
+          } catch (e) { }
         },
 
         // EXPORT ACTIONS
@@ -2052,7 +2230,7 @@
             try {
               domain = new URL(url).hostname;
               this.authForm.domain = domain;
-            } catch (e) {}
+            } catch (e) { }
           }
           this.loginSpawning = true;
           this.authLiveCookiesCount = 0;
@@ -2063,7 +2241,8 @@
               body: JSON.stringify({
                 project: this.selectedProject === 'ALL' ? 'default' : this.selectedProject,
                 login_url: url,
-                target_domain: domain || null
+                target_domain: domain || null,
+                browser_choice: this.authForm.browserChoice || 'chrome'
               })
             });
             if (res.ok) {
@@ -2092,7 +2271,78 @@
             if (res.ok) {
               this.showToast({ title: 'Confirmation Sent', message: 'Syncing final browser session state...' });
             }
-          } catch (e) {}
+          } catch (e) { }
+        },
+
+        copyJsSnippet() {
+          const p = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
+          const snippet = `fetch("http://127.0.0.1:8000/api/auth/cookies/import", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({
+    project: "${p}",
+    domain: window.location.hostname,
+    raw_cookie: document.cookie
+  })
+}).then(r => r.json()).then(d => alert("✅ Spectra MCP: " + d.cookie_count + " cookies tersinkronisasi untuk " + d.domain + "!"))
+.catch(e => {
+  navigator.clipboard.writeText(document.cookie);
+  alert("⚠️ Mixed-content/CORS: Cookie otomatis disalin ke clipboard! Paste di tab Direct Paste Spectra.");
+});`;
+          navigator.clipboard.writeText(snippet);
+          this.showToast({ title: 'JS Snippet Copied', message: 'Paste into browser DevTools Console (F12) on target site!' });
+        },
+
+        copyBookmarkletUrl() {
+          const p = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
+          const bookmarklet = `javascript:(function(){const d=location.hostname;const c=document.cookie;fetch("http://127.0.0.1:8000/api/auth/cookies/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project:"${p}",domain:d,raw_cookie:c})}).then(r=>r.json()).then(data=>alert("✅ Spectra MCP: "+data.cookie_count+" cookies tersinkronisasi untuk "+d+"!")).catch(e=>{navigator.clipboard.writeText(c);alert("⚠️ Cookie disalin ke clipboard! Paste di tab Direct Paste Spectra.");});})();`;
+          navigator.clipboard.writeText(bookmarklet);
+          this.showToast({ title: 'Bookmarklet Copied', message: 'Bookmarklet URL copied! Add as browser bookmark.' });
+        },
+
+        async importCookiesDirectly() {
+          let domain = (this.importCookieForm.domain || '').trim();
+          const raw = (this.importCookieForm.rawInput || '').trim();
+          if (!raw) {
+            this.showToast({ title: 'Input Required', message: 'Please paste cookie string, cURL, or JSON.' });
+            return;
+          }
+          if (!domain) {
+            try {
+              const match = raw.match(/https?:\/\/([^\/\s"']+)/);
+              if (match) domain = match[1].split(':')[0];
+            } catch (e) { }
+            if (!domain && this.authForm.domain) domain = this.authForm.domain;
+            if (!domain) domain = 'target.local';
+            this.importCookieForm.domain = domain;
+          }
+          const proj = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
+          try {
+            const res = await fetch('/api/auth/cookies/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project: proj,
+                domain: domain,
+                raw_cookie: raw
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              this.showToast({
+                title: 'Session Authenticated!',
+                message: `Successfully imported ${data.cookie_count} cookies for ${domain} into project '${proj}'.`
+              });
+              this.importCookieForm.rawInput = '';
+              this.openLoginModal = false;
+              this.fetchStats();
+            } else {
+              const err = await res.json();
+              alert(`Import failed: ${err.detail || 'Could not parse cookie data'}`);
+            }
+          } catch (e) {
+            alert(`Network error: ${String(e)}`);
+          }
         },
 
         copyCurl() {
@@ -2136,7 +2386,7 @@
             }
           }
           if (headerType.includes('application/json') || (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-            try { JSON.parse(trimmed); return 'JSON'; } catch (e) {}
+            try { JSON.parse(trimmed); return 'JSON'; } catch (e) { }
           }
           if (headerType.includes('text/html') || trimmed.toLowerCase().startsWith('<!doctype html') || (trimmed.startsWith('<html') && trimmed.includes('</html>')) || (trimmed.startsWith('<') && trimmed.endsWith('>') && (trimmed.includes('</') || trimmed.includes('/>')))) {
             if (trimmed.startsWith('<?xml') || headerType.includes('xml')) return 'XML';
@@ -2156,7 +2406,7 @@
             const tab = '  ';
             const cleanHtml = html.replace(/>\s*</g, '><').trim();
             const tokens = cleanHtml.split(/(<[^>]+>)/g).filter(Boolean);
-            const voidTags = ['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'];
+            const voidTags = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
 
             for (let token of tokens) {
               const trimmedToken = token.trim();
@@ -2199,7 +2449,7 @@
               lines.push(`${k} = ${v}`);
             }
             if (lines.length > 0) return lines.join('\n');
-          } catch (e) {}
+          } catch (e) { }
           return text;
         },
 
@@ -2260,7 +2510,7 @@
             this.repeaterForm.headersRaw = JSON.stringify(parsed, null, 2);
             this.showToast({ title: 'Headers Beautified', message: 'Request headers formatted as valid JSON.' });
             return;
-          } catch (e) {}
+          } catch (e) { }
           const lines = this.repeaterForm.headersRaw.split('\n');
           const obj = {};
           for (const line of lines) {
@@ -2288,8 +2538,15 @@
             this.showToast({ title: 'Body Beautified', message: `Formatted request body as ${fmt}.` });
           }
         }
-      }
+      };
     }
+
+    // Register with window and Alpine
+    window.spectraApp = spectraApp;
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('spectraApp', spectraApp);
+    });
   </script>
 </body>
+
 </html>

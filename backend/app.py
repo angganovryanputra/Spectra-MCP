@@ -20,7 +20,13 @@ from sqlalchemy import desc, func
 
 from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project
 from backend.analyzer import analyze_traffic
-from backend.browser_handler import spawn_interactive_login, signal_login_confirmation, get_active_login_status
+from backend.browser_handler import (
+    spawn_interactive_login,
+    signal_login_confirmation,
+    get_active_login_status,
+    import_session_cookies,
+    parse_cookie_input
+)
 from backend.intercept_manager import (
     is_intercept_enabled,
     set_intercept_mode,
@@ -127,6 +133,14 @@ class SpawnAuthRequest(BaseModel):
     project: str = "default"
     login_url: str
     target_domain: Optional[str] = None
+    browser_choice: Optional[str] = "chrome"  # "chrome", "msedge", "chromium", "system"
+
+
+class ImportCookiesRequest(BaseModel):
+    project: Optional[str] = "default"
+    domain: str
+    raw_cookie: Optional[str] = None
+    raw_input: Optional[str] = None
 
 
 class ConfirmAuthRequest(BaseModel):
@@ -737,6 +751,7 @@ async def trigger_spawn_login(req: SpawnAuthRequest, background_tasks: Backgroun
                 login_url=req.login_url,
                 target_domain=req.target_domain,
                 project=req.project,
+                browser_choice=req.browser_choice or "chrome",
                 on_cookie_update=cookie_callback
             )
             await ws_manager.broadcast({
@@ -757,6 +772,40 @@ async def trigger_spawn_login(req: SpawnAuthRequest, background_tasks: Backgroun
         "project": req.project,
         "message": "Headed Chromium browser launched. Complete login on screen."
     }
+
+
+@app.post("/api/auth/cookies/import")
+async def import_cookies_endpoint(req: ImportCookiesRequest):
+    """
+    Directly imports session cookies from:
+    - document.cookie string (from DevTools or JS Bookmarklet)
+    - Full cURL request (-H 'Cookie: ...')
+    - HTTP Request Header block (Cookie: ...)
+    - JSON cookies array (from Cookie-Editor extension or Playwright)
+    """
+    target_input = (req.raw_cookie or req.raw_input or "").strip()
+    if not target_input:
+        raise HTTPException(status_code=400, detail="Empty cookie input provided.")
+
+    target_domain = (req.domain or "").strip()
+    if not target_domain:
+        # Fallback domain inference if possible
+        target_domain = "target.local"
+
+    proj = (req.project or "default").strip().lower()
+    res = import_session_cookies(
+        project=proj,
+        domain=target_domain,
+        raw_input=target_input
+    )
+
+    await ws_manager.broadcast({
+        "type": "AUTH_COMPLETED",
+        "project": proj,
+        "result": res
+    })
+
+    return res
 
 
 @app.post("/api/auth/confirm")

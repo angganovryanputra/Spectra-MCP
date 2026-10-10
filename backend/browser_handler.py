@@ -162,19 +162,109 @@ def _save_session_cookies(project: str, domain: str, storage_state: dict):
         db.close()
 
 
+def parse_cookie_input(raw_input: str, domain: str = "") -> List[Dict[str, Any]]:
+    """
+    Intelligently parses cookies from:
+    1. Raw document.cookie string (key1=val1; key2=val2)
+    2. cURL command with -H 'Cookie: ...'
+    3. HTTP request header block (Cookie: ...)
+    4. JSON array (from Cookie-Editor extension or Playwright storage_state)
+    """
+    import re
+    cookies = []
+    text = (raw_input or "").strip()
+    if not text:
+        return cookies
+
+    # 1. Try JSON parsing
+    if (text.startswith("[") and text.endswith("]")) or (text.startswith("{") and text.endswith("}")):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and "cookies" in data:
+                data = data["cookies"]
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and "name" in item and "value" in item:
+                        cookies.append({
+                            "name": str(item["name"]).strip(),
+                            "value": str(item["value"]).strip(),
+                            "domain": item.get("domain", domain or "target.local"),
+                            "path": item.get("path", "/"),
+                            "httpOnly": bool(item.get("httpOnly", False)),
+                            "secure": bool(item.get("secure", True))
+                        })
+                if cookies:
+                    return cookies
+        except Exception:
+            pass
+
+    # 2. Try cURL header extraction
+    curl_match = re.search(r'(?:-H|--header)\s+[\'"](?:Cookie|cookie):\s*([^\'"]+)[\'"]', text, re.IGNORECASE)
+    if curl_match:
+        text = curl_match.group(1).strip()
+
+    # 3. Try HTTP request header block extraction
+    hdr_match = re.search(r'^Cookie:\s*(.+)$', text, re.IGNORECASE | re.MULTILINE)
+    if hdr_match:
+        text = hdr_match.group(1).strip()
+
+    # 4. Parse key=value pairs separated by semicolon or newline
+    pairs = re.split(r'[;\n]+', text)
+    for pair in pairs:
+        pair = pair.strip()
+        if not pair or '=' not in pair:
+            continue
+        parts = pair.split('=', 1)
+        k = parts[0].strip()
+        v = parts[1].strip()
+        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+            v = v[1:-1]
+        if k:
+            cookies.append({
+                "name": k,
+                "value": v,
+                "domain": domain or "target.local",
+                "path": "/",
+                "httpOnly": False,
+                "secure": True
+            })
+    return cookies
+
+
+def import_session_cookies(project: str, domain: str, raw_input: str) -> Dict[str, Any]:
+    """Parses arbitrary cookie / cURL / JSON input and persists it into ActiveSession."""
+    cookies = parse_cookie_input(raw_input, domain=domain)
+    storage_state = {
+        "cookies": cookies,
+        "origins": []
+    }
+    _save_session_cookies(project, domain, storage_state)
+    return {
+        "status": "success",
+        "domain": domain,
+        "project": project,
+        "cookie_count": len(cookies),
+        "cookies": cookies
+    }
+
+
 async def spawn_interactive_login(
     login_url: str,
     target_domain: Optional[str] = None,
     project: str = "default",
     timeout_seconds: int = 300,
+    browser_choice: str = "chrome",
     on_cookie_update: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
-    Spawns headed Chromium window for Human-in-the-Loop (HITL) authentication.
-    - Continuously extracts cookies in real-time as user interacts.
-    - Saves state automatically to SQLite.
-    - Detects successful post-login redirection OR manual confirmation trigger.
+    Spawns interactive browser for Human-in-the-Loop (HITL) authentication.
+    Supports host-installed browsers:
+    - 'chrome': Host Google Chrome (channel='chrome', fallback to msedge / chromium)
+    - 'msedge': Host Microsoft Edge (channel='msedge', fallback to chrome / chromium)
+    - 'chromium': Bundled Playwright Chromium
+    - 'system': Directly opens target in the host's default operating system browser
     """
+    import webbrowser
     from playwright.async_api import async_playwright
 
     clean_url = (login_url or "").strip()
@@ -184,6 +274,19 @@ async def spawn_interactive_login(
     parsed = urllib.parse.urlparse(clean_url)
     domain = (target_domain or parsed.netloc.split(":")[0]).strip()
 
+    # If operator selected host's default system browser, open directly via OS
+    if browser_choice == "system":
+        logger.info("Opening URL directly in host default system browser: %s", clean_url)
+        webbrowser.open(clean_url)
+        return {
+            "cookies": [],
+            "cookie_count": 0,
+            "domain": domain,
+            "project": project,
+            "status": "system_browser_opened",
+            "message": "Opened in system default browser. Please sync cookies via JS Bookmarklet or Paste Cookies tab."
+        }
+
     completion_event = asyncio.Event()
     active_login_events[domain] = completion_event
     active_login_status[domain] = {
@@ -191,6 +294,7 @@ async def spawn_interactive_login(
         "login_url": clean_url,
         "domain": domain,
         "project": project,
+        "browser_choice": browser_choice,
         "started_at": datetime.now(timezone.utc).isoformat()
     }
 
@@ -204,14 +308,40 @@ async def spawn_interactive_login(
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=False,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-infobars"
-                ]
-            )
+            launch_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-infobars"
+            ]
+
+            # Channel fallback ladder for maximum reliability
+            if browser_choice == "msedge":
+                channels_to_try = ["msedge", "chrome", None]
+            elif browser_choice == "chromium":
+                channels_to_try = [None, "chrome", "msedge"]
+            else: # default "chrome"
+                channels_to_try = ["chrome", "msedge", None]
+
+            browser = None
+            last_err = None
+            for chan in channels_to_try:
+                try:
+                    kwargs = {
+                        "headless": False,
+                        "args": launch_args
+                    }
+                    if chan:
+                        kwargs["channel"] = chan
+                    browser = await p.chromium.launch(**kwargs)
+                    logger.info("Spawned headed browser successfully (channel: %s)", chan or "bundled_chromium")
+                    break
+                except Exception as ex:
+                    last_err = ex
+                    logger.warning("Failed launching browser with channel %s: %s", chan, ex)
+
+            if not browser:
+                raise RuntimeError(f"Could not launch browser (tried: {channels_to_try}): {last_err}")
+
             context = await browser.new_context(
                 viewport={"width": 1280, "height": 850},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -240,27 +370,13 @@ async def spawn_interactive_login(
 
             sync_task = asyncio.create_task(sync_loop())
 
-            # Intelligent Navigation Check:
-            # Only trigger completion if URL changes to an authenticated area AND cookies exist
-            initial_path = (parsed.path.rstrip("/") or "/").lower()
-            auth_keywords = ["dashboard", "home", "admin", "app", "main", "welcome", "portal", "user", "account", "feed"]
-
+            # Passive Navigation Monitoring:
+            # Keep browser open until operator explicitly confirms or closes the window
             async def on_frame_navigated(frame):
                 if frame == page.main_frame:
                     curr_url = page.url or ""
                     if curr_url and curr_url != "about:blank":
-                        curr_parsed = urllib.parse.urlparse(curr_url)
-                        curr_path = (curr_parsed.path.rstrip("/") or "/").lower()
-
-                        # Check if landed on authenticated page with cookies present
-                        has_auth_path = any(kw in curr_path for kw in auth_keywords)
-                        not_login_path = "login" not in curr_path and "signin" not in curr_path and "auth" not in curr_path
-                        cookies_exist = captured_data.get("cookie_count", 0) > 0
-
-                        if (has_auth_path or (not_login_path and curr_path != initial_path)) and cookies_exist:
-                            # Settle session headers for 3.5 seconds before auto-closing
-                            await asyncio.sleep(3.5)
-                            completion_event.set()
+                        logger.info("HITL browser navigated to: %s", curr_url)
 
             page.on("framenavigated", lambda frame: asyncio.create_task(on_frame_navigated(frame)))
 
