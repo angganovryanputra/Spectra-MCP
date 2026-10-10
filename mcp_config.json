@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "spectra": {
+      "command": "d:/PROJECT/01/venv/Scripts/python.exe",
+      "args": [
+        "d:/PROJECT/01/mcp_server.py"
+      ],
+      "env": {
+        "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
+        "SPECTRA_PROJECT": "default"
+      }
+    }
+  }
+}
