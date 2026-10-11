@@ -19,7 +19,7 @@ import urllib.parse
 from sqlalchemy.orm import Session, defer
 from sqlalchemy import desc, func, or_
 
-from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project
+from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project, AgentCommandLog, CapturedPayload
 from backend.analyzer import analyze_traffic
 from backend.browser_handler import (
     spawn_interactive_login,
@@ -176,6 +176,36 @@ class RunFuzzRequest(BaseModel):
     custom_payloads: Optional[List[str]] = None
     concurrency: int = 5
 
+
+class RecordCommandRequest(BaseModel):
+    project: Optional[str] = "default"
+    agent_id: Optional[str] = "primary_agent"
+    command: str
+    tool_name: Optional[str] = "terminal"
+    reasoning: Optional[str] = ""
+    exit_code: Optional[int] = 0
+    stdout: Optional[str] = ""
+    stderr: Optional[str] = ""
+    duration_ms: Optional[int] = 0
+    status: Optional[str] = "SUCCESS"
+    linked_log_id: Optional[int] = None
+
+
+class RecordPayloadRequest(BaseModel):
+    project: Optional[str] = "default"
+    agent_id: Optional[str] = "primary_agent"
+    vuln_type: Optional[str] = "CUSTOM"
+    target_param: Optional[str] = ""
+    raw_payload: str
+    mutation_type: Optional[str] = "DIRECT"
+    target_url: Optional[str] = ""
+    http_method: Optional[str] = "GET"
+    http_log_id: Optional[int] = None
+    outcome: Optional[str] = "TESTED"
+    http_status: Optional[int] = None
+    response_signature: Optional[str] = ""
+class ClearRequest(BaseModel):
+    project: Optional[str] = None
 
 
 # ==============================================================================
@@ -622,9 +652,15 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
     clean_logs = log_query.filter(HttpLog.flag_status == "CLEAN").with_entities(func.count(HttpLog.id)).scalar() or 0
     
     sess_query = db.query(ActiveSession)
+    cmd_query = db.query(AgentCommandLog)
+    payload_query = db.query(CapturedPayload)
     if project and project.upper() != "ALL":
         sess_query = sess_query.filter(ActiveSession.project == project.lower())
+        cmd_query = cmd_query.filter(AgentCommandLog.project == project.lower())
+        payload_query = payload_query.filter(CapturedPayload.project == project.lower())
     active_sessions = sess_query.with_entities(func.count(ActiveSession.id)).scalar() or 0
+    total_commands = cmd_query.with_entities(func.count(AgentCommandLog.id)).scalar() or 0
+    total_payloads = payload_query.with_entities(func.count(CapturedPayload.id)).scalar() or 0
 
     res = {
         "project": project or "ALL",
@@ -633,6 +669,8 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
         "potential_findings": potential_findings,
         "clean_logs": clean_logs,
         "active_sessions": active_sessions,
+        "total_commands": total_commands,
+        "total_payloads": total_payloads,
         "intercept_enabled": is_intercept_enabled(),
         "interactive_login_active": get_active_login_status()
     }
@@ -733,24 +771,211 @@ async def record_log_api(data: LogRecordRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/logs/clear")
-async def clear_logs(project: Optional[str] = None, db: Session = Depends(get_db)):
-    if project and project.upper() != "ALL":
-        target_proj = project.lower()
+async def clear_logs(
+    project: Optional[str] = None,
+    req: Optional[ClearRequest] = None,
+    db: Session = Depends(get_db)
+):
+    target_raw = project or (req.project if req else None)
+    if target_raw and target_raw.upper() != "ALL":
+        target_proj = target_raw.lower()
         log_ids = [l.id for l in db.query(HttpLog.id).filter(HttpLog.project == target_proj).all()]
         if log_ids:
             db.query(Finding).filter(Finding.log_id.in_(log_ids)).delete(synchronize_session=False)
             db.query(HttpLog).filter(HttpLog.project == target_proj).delete(synchronize_session=False)
-            db.commit()
+        db.query(CapturedPayload).filter(CapturedPayload.project == target_proj).delete(synchronize_session=False)
+        db.query(AgentCommandLog).filter(AgentCommandLog.project == target_proj).delete(synchronize_session=False)
+        db.commit()
         _invalidate_stats_cache()
         await ws_manager.broadcast({"type": "LOGS_CLEARED", "project": target_proj})
+        await ws_manager.broadcast({"type": "COMMANDS_CLEARED", "project": target_proj})
+        await ws_manager.broadcast({"type": "PAYLOADS_CLEARED", "project": target_proj})
         return {"status": "cleared", "project": target_proj}
     else:
         db.query(Finding).delete()
+        db.query(CapturedPayload).delete()
+        db.query(AgentCommandLog).delete()
         db.query(HttpLog).delete()
         db.commit()
         _invalidate_stats_cache()
         await ws_manager.broadcast({"type": "LOGS_CLEARED", "project": "ALL"})
+        await ws_manager.broadcast({"type": "COMMANDS_CLEARED", "project": "ALL"})
+        await ws_manager.broadcast({"type": "PAYLOADS_CLEARED", "project": "ALL"})
         return {"status": "cleared", "project": "ALL"}
+
+
+# ==============================================================================
+# AI Command & Terminal Audit Trail Endpoints
+# ==============================================================================
+
+@app.get("/api/commands")
+def list_commands(
+    project: Optional[str] = None,
+    agent: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    query = db.query(AgentCommandLog)
+    if project and project.upper() != "ALL":
+        query = query.filter(AgentCommandLog.project == project.lower())
+    if agent and agent.upper() != "ALL":
+        query = query.filter(AgentCommandLog.agent_id == agent)
+    if status and status.upper() != "ALL":
+        query = query.filter(AgentCommandLog.status == status.upper())
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (AgentCommandLog.command.ilike(search_pattern)) |
+            (AgentCommandLog.reasoning.ilike(search_pattern)) |
+            (AgentCommandLog.stdout.ilike(search_pattern))
+        )
+    total = query.count()
+    commands = query.order_by(desc(AgentCommandLog.id)).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "commands": [c.to_dict() for c in commands]
+    }
+
+
+@app.post("/api/commands")
+async def record_command_api(data: RecordCommandRequest, db: Session = Depends(get_db)):
+    proj = (data.project or "default").strip().lower()
+    entry = AgentCommandLog(
+        project=proj,
+        agent_id=data.agent_id or "primary_agent",
+        command=data.command,
+        tool_name=data.tool_name or "terminal",
+        reasoning=data.reasoning or "",
+        exit_code=data.exit_code,
+        stdout=(data.stdout or "")[:5242880],
+        stderr=(data.stderr or "")[:5242880],
+        duration_ms=data.duration_ms or 0,
+        status=data.status or "SUCCESS",
+        linked_log_id=data.linked_log_id
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    cmd_dict = entry.to_dict()
+    await ws_manager.broadcast({
+        "type": "NEW_COMMAND",
+        "project": proj,
+        "command": cmd_dict
+    })
+    return cmd_dict
+
+
+@app.post("/api/commands/clear")
+async def clear_commands(
+    project: Optional[str] = None,
+    req: Optional[ClearRequest] = None,
+    db: Session = Depends(get_db)
+):
+    target_raw = project or (req.project if req else None)
+    if target_raw and target_raw.upper() != "ALL":
+        target = target_raw.lower()
+        db.query(AgentCommandLog).filter(AgentCommandLog.project == target).delete(synchronize_session=False)
+    else:
+        target = "ALL"
+        db.query(AgentCommandLog).delete(synchronize_session=False)
+    db.commit()
+    _invalidate_stats_cache()
+    await ws_manager.broadcast({"type": "COMMANDS_CLEARED", "project": target})
+    return {"status": "cleared", "project": target}
+
+
+# ==============================================================================
+# Captured Security Payload Vault Endpoints
+# ==============================================================================
+
+@app.get("/api/payloads")
+def list_payloads(
+    project: Optional[str] = None,
+    agent: Optional[str] = None,
+    vuln_type: Optional[str] = None,
+    outcome: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    query = db.query(CapturedPayload)
+    if project and project.upper() != "ALL":
+        query = query.filter(CapturedPayload.project == project.lower())
+    if agent and agent.upper() != "ALL":
+        query = query.filter(CapturedPayload.agent_id == agent)
+    if vuln_type and vuln_type.upper() != "ALL":
+        query = query.filter(CapturedPayload.vuln_type == vuln_type.upper())
+    if outcome and outcome.upper() != "ALL":
+        query = query.filter(CapturedPayload.outcome == outcome.upper())
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (CapturedPayload.raw_payload.ilike(search_pattern)) |
+            (CapturedPayload.target_param.ilike(search_pattern)) |
+            (CapturedPayload.target_url.ilike(search_pattern)) |
+            (CapturedPayload.notes.ilike(search_pattern))
+        )
+    total = query.count()
+    payloads = query.order_by(desc(CapturedPayload.id)).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "payloads": [p.to_dict() for p in payloads]
+    }
+
+
+@app.post("/api/payloads")
+async def record_payload_api(data: RecordPayloadRequest, db: Session = Depends(get_db)):
+    proj = (data.project or "default").strip().lower()
+    entry = CapturedPayload(
+        project=proj,
+        agent_id=data.agent_id or "primary_agent",
+        vuln_type=(data.vuln_type or "CUSTOM").upper(),
+        target_param=data.target_param or "",
+        raw_payload=data.raw_payload,
+        mutation_type=data.mutation_type or "DIRECT",
+        target_url=data.target_url or "",
+        http_method=(data.http_method or "GET").upper(),
+        http_log_id=data.http_log_id,
+        outcome=data.outcome or "TESTED",
+        http_status=data.http_status,
+        response_signature=data.response_signature or "",
+        notes=data.notes or ""
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    p_dict = entry.to_dict()
+    await ws_manager.broadcast({
+        "type": "NEW_PAYLOAD",
+        "project": proj,
+        "payload": p_dict
+    })
+    return p_dict
+
+
+@app.post("/api/payloads/clear")
+async def clear_payloads(
+    project: Optional[str] = None,
+    req: Optional[ClearRequest] = None,
+    db: Session = Depends(get_db)
+):
+    target_raw = project or (req.project if req else None)
+    if target_raw and target_raw.upper() != "ALL":
+        target = target_raw.lower()
+        db.query(CapturedPayload).filter(CapturedPayload.project == target).delete(synchronize_session=False)
+    else:
+        target = "ALL"
+        db.query(CapturedPayload).delete(synchronize_session=False)
+    db.commit()
+    _invalidate_stats_cache()
+    await ws_manager.broadcast({"type": "PAYLOADS_CLEARED", "project": target})
+    return {"status": "cleared", "project": target}
 
 
 # ==============================================================================

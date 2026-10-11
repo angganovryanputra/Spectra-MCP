@@ -163,6 +163,17 @@
           <i data-lucide="shield-check" class="w-3.5 h-3.5 mr-1.5"></i>
           Scope Guardrails
         </button>
+
+        <!-- AI Activity Tab (Commands & Payload Vault) -->
+        <button @click="currentAppTab = 'ai_activity'"
+          :class="currentAppTab === 'ai_activity' ? 'bg-[#1E293B] text-teal-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded transition flex items-center relative">
+          <i data-lucide="terminal" class="w-3.5 h-3.5 mr-1.5"></i>
+          AI Activity
+          <span x-show="(stats.total_commands || 0) + (stats.total_payloads || 0) > 0"
+            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30"
+            x-text="(stats.total_commands || 0) + (stats.total_payloads || 0)"></span>
+        </button>
       </nav>
 
       <!-- Project Selector Dropdown -->
@@ -1747,6 +1758,328 @@
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- VIEW 6: AI ACTIVITY — COMMAND AUDIT TRAIL & PAYLOAD VAULT                -->
+  <!-- ========================================================================= -->
+  <div x-show="currentAppTab === 'ai_activity'" class="flex-1 overflow-hidden flex flex-col bg-[#0B0F17]">
+    <!-- Top Sub-Bar: Sub-tab switcher & Search/Actions -->
+    <div class="h-12 bg-[#111827]/90 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-xs">
+      <!-- Left: Sub-Tab Pills -->
+      <div class="flex items-center space-x-2 bg-[#0B0F17] p-1 rounded-lg border border-[#1E293B]">
+        <!-- Sub-Tab 1: Command History -->
+        <button @click="aiSubTab = 'commands'"
+          :class="aiSubTab === 'commands' ? 'bg-[#1E293B] text-teal-400 font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1 rounded transition flex items-center space-x-1.5">
+          <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+          <span>Command Audit Trail</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-teal-500/20 text-teal-300 font-bold ml-1"
+                x-text="commands.length"></span>
+        </button>
+
+        <!-- Sub-Tab 2: Payload Vault -->
+        <button @click="aiSubTab = 'payloads'"
+          :class="aiSubTab === 'payloads' ? 'bg-[#1E293B] text-amber-400 font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1 rounded transition flex items-center space-x-1.5">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+          <span>Payload Vault &amp; Matrix</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 font-bold ml-1"
+                x-text="payloads.length"></span>
+        </button>
+      </div>
+
+      <!-- Right: Sub-tab specific actions & filters -->
+      <div class="flex items-center space-x-2">
+        <!-- Command filters when on commands subtab -->
+        <template x-if="aiSubTab === 'commands'">
+          <div class="flex items-center space-x-2">
+            <div class="relative">
+              <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
+              <input type="text" x-model="commandSearch" placeholder="Search commands, reasoning..."
+                class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-teal-500 w-56">
+            </div>
+            <select x-model="commandStatusFilter"
+              class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
+              <option value="ALL">All Status</option>
+              <option value="SUCCESS">Success</option>
+              <option value="FAILED">Failed</option>
+              <option value="BLOCKED">Blocked (Guardrail)</option>
+              <option value="TIMEOUT">Timeout</option>
+            </select>
+            <button @click="clearCommands()"
+              class="px-2.5 py-1 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-800 text-slate-400 hover:text-rose-300 rounded transition flex items-center space-x-1"
+              title="Clear all AI command execution history">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+              <span>Clear Commands</span>
+            </button>
+          </div>
+        </template>
+
+        <!-- Payload filters when on payloads subtab -->
+        <template x-if="aiSubTab === 'payloads'">
+          <div class="flex items-center space-x-2">
+            <div class="relative">
+              <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
+              <input type="text" x-model="payloadSearch" placeholder="Search payload, param, URL..."
+                class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-amber-500 w-56">
+            </div>
+            <select x-model="payloadTypeFilter"
+              class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
+              <option value="ALL">All Vuln Types</option>
+              <option value="SQLI">SQL Injection</option>
+              <option value="XSS">XSS</option>
+              <option value="SSTI">SSTI</option>
+              <option value="SSRF">SSRF</option>
+              <option value="RCE">RCE</option>
+              <option value="LFI">LFI / Traversal</option>
+              <option value="IDOR">IDOR</option>
+              <option value="AUTH_BYPASS">Auth Bypass</option>
+              <option value="CUSTOM">Custom</option>
+            </select>
+            <select x-model="payloadOutcomeFilter"
+              class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
+              <option value="ALL">All Outcomes</option>
+              <option value="EXECUTED">Executed</option>
+              <option value="REFLECTED">Reflected</option>
+              <option value="WAF_BLOCKED">WAF Blocked</option>
+              <option value="FILTERED">Filtered</option>
+              <option value="TESTED">Tested</option>
+              <option value="ERROR">Error</option>
+            </select>
+            <button @click="clearPayloads()"
+              class="px-2.5 py-1 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-800 text-slate-400 hover:text-rose-300 rounded transition flex items-center space-x-1"
+              title="Clear all captured security payloads">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+              <span>Clear Vault</span>
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- SUB-VIEW 1: COMMAND AUDIT TRAIL (Split Pane: Command List + Detailed Terminal Output Inspector) -->
+    <div x-show="aiSubTab === 'commands'" class="flex-1 overflow-hidden flex flex-row">
+      <!-- Left: List of Commands -->
+      <div class="w-[45%] border-r border-[#1E293B] flex flex-col bg-[#0B0F17] overflow-hidden">
+        <div class="p-2 bg-[#111827]/70 border-b border-[#1E293B] text-[11px] font-mono text-slate-400 flex items-center justify-between">
+          <span>Captured Commands (<span class="text-teal-400 font-bold" x-text="filteredCommands().length"></span>)</span>
+          <span class="text-[10px] text-slate-500">Live Telemetry from MCP / Terminal</span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
+          <template x-for="cmd in filteredCommands()" :key="cmd.id">
+            <div @click="selectCommand(cmd.id)"
+              :class="selectedCommandId === cmd.id ? 'bg-[#1E293B]/90 ring-1 ring-teal-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
+              class="p-3 cursor-pointer transition select-text">
+              <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-slate-500 text-[10px]" x-text="'#' + cmd.id"></span>
+                  <span :class="{
+                    'bg-emerald-950 border-emerald-700 text-emerald-300': cmd.status === 'SUCCESS',
+                    'bg-rose-950 border-rose-700 text-rose-300': cmd.status === 'FAILED',
+                    'bg-amber-950 border-amber-700 text-amber-300': cmd.status === 'BLOCKED',
+                    'bg-purple-950 border-purple-700 text-purple-300': cmd.status === 'TIMEOUT'
+                  }" class="px-1.5 py-0.2 rounded text-[9px] font-bold border" x-text="cmd.status"></span>
+                  <span class="px-1 py-0.2 rounded text-[9px] bg-slate-800 text-slate-400" x-text="cmd.tool_name || 'terminal'"></span>
+                </div>
+                <div class="text-[10px] text-slate-500 flex items-center space-x-1.5">
+                  <span x-text="cmd.duration_ms + 'ms'"></span>
+                  <span>•</span>
+                  <span x-text="formatTime(cmd.timestamp)"></span>
+                </div>
+              </div>
+
+              <!-- Command String Preview -->
+              <div class="bg-[#0B0F17] rounded p-1.5 border border-[#1E293B]/70 font-mono text-[11px] text-teal-300 truncate mb-1">
+                <span class="text-slate-500 select-none">$ </span><span x-text="cmd.command"></span>
+              </div>
+
+              <!-- AI Reasoning Snippet -->
+              <div x-show="cmd.reasoning" class="text-[10px] text-slate-400 truncate flex items-center space-x-1">
+                <i data-lucide="sparkles" class="w-2.5 h-2.5 text-teal-400 shrink-0"></i>
+                <span x-text="cmd.reasoning"></span>
+              </div>
+            </div>
+          </template>
+
+          <div x-show="filteredCommands().length === 0" class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
+            <i data-lucide="terminal" class="w-8 h-8 mx-auto opacity-30 text-teal-400"></i>
+            <p>No terminal commands recorded yet.</p>
+            <p class="text-[10px] text-slate-600">Commands executed by AI via MCP tool <code>run_pentest_command</code> will stream here live.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Detailed Terminal Output Inspector -->
+      <div class="w-[55%] flex flex-col bg-[#111827]/40 overflow-hidden">
+        <template x-if="selectedCommand">
+          <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header bar of selected command -->
+            <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0 font-mono text-xs">
+              <div class="flex items-center space-x-2">
+                <span class="text-teal-400 font-bold" x-text="'Command #' + selectedCommand.id"></span>
+                <span class="px-2 py-0.5 rounded text-[10px] bg-[#0B0F17] border border-[#1E293B] text-slate-300"
+                      x-text="'Agent: ' + (selectedCommand.agent_id || 'primary_agent')"></span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      :class="selectedCommand.exit_code === 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'"
+                      x-text="'Exit Code: ' + (selectedCommand.exit_code !== null ? selectedCommand.exit_code : 'N/A')"></span>
+              </div>
+
+              <div class="flex items-center space-x-1.5">
+                <button @click="copyText(selectedCommand.command)"
+                  class="px-2.5 py-1 rounded bg-[#0B0F17] hover:bg-[#1E293B] text-slate-300 border border-[#1E293B] text-[11px] flex items-center space-x-1 transition">
+                  <i data-lucide="copy" class="w-3 h-3 text-slate-400"></i>
+                  <span>Copy Command</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Content Body -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs">
+              <!-- Raw Command Block -->
+              <div>
+                <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Executed Command:</label>
+                <div class="bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-teal-300 text-xs font-mono leading-relaxed select-text flex items-start justify-between">
+                  <div>
+                    <span class="text-slate-600 select-none">$ </span>
+                    <span x-text="selectedCommand.command"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- AI Reasoning Card -->
+              <div x-show="selectedCommand.reasoning" class="p-3 bg-gradient-to-r from-teal-950/40 to-[#0B0F17] border border-teal-800/40 rounded-lg">
+                <div class="flex items-center space-x-1.5 text-teal-400 text-[10px] font-bold uppercase mb-1">
+                  <i data-lucide="sparkles" class="w-3 h-3"></i>
+                  <span>AI Agent Intent &amp; Reasoning</span>
+                </div>
+                <div class="text-slate-200 text-xs leading-relaxed" x-text="selectedCommand.reasoning"></div>
+              </div>
+
+              <!-- Standard Output (STDOUT) -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-[10px] uppercase font-bold text-slate-400">Standard Output (STDOUT):</label>
+                  <button @click="copyText(selectedCommand.stdout)" x-show="selectedCommand.stdout"
+                    class="text-[10px] text-slate-500 hover:text-slate-300 underline">Copy Output</button>
+                </div>
+                <pre class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-slate-200 text-xs font-mono overflow-x-auto max-h-72 select-text whitespace-pre-wrap leading-relaxed"
+                     x-text="selectedCommand.stdout || '[No standard output produced]'"></pre>
+              </div>
+
+              <!-- Standard Error (STDERR) -->
+              <div x-show="selectedCommand.stderr">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-[10px] uppercase font-bold text-rose-400">Standard Error (STDERR):</label>
+                  <button @click="copyText(selectedCommand.stderr)" class="text-[10px] text-rose-400 hover:text-rose-300 underline">Copy Stderr</button>
+                </div>
+                <pre class="w-full bg-rose-950/20 border border-rose-900/50 rounded-lg p-3 text-rose-300 text-xs font-mono overflow-x-auto max-h-48 select-text whitespace-pre-wrap leading-relaxed"
+                     x-text="selectedCommand.stderr"></pre>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="!selectedCommand">
+          <div class="flex-1 flex items-center justify-center text-slate-500 font-mono text-xs">
+            Select a command from the left panel to inspect outputs and execution telemetry.
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- SUB-VIEW 2: PAYLOAD VAULT & ATTACK MATRIX -->
+    <div x-show="aiSubTab === 'payloads'" class="flex-1 overflow-y-auto p-4 flex flex-col font-mono text-xs">
+      <div class="bg-[#111827] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col flex-1 shadow-lg">
+        <!-- Vault Header & Counter -->
+        <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i>
+            <span class="font-bold text-slate-100">Security Test Payloads Vault</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-bold"
+                  x-text="filteredPayloads().length + ' captured'"></span>
+          </div>
+          <span class="text-[10px] text-slate-400">Captured security test mutations ready for verification and 1-click replay</span>
+        </div>
+
+        <!-- Table of Payloads -->
+        <div class="flex-1 overflow-x-auto overflow-y-auto">
+          <table class="w-full text-left text-xs font-mono divide-y divide-[#1E293B]">
+            <thead class="bg-[#0B0F17] text-[10px] uppercase text-slate-400 font-semibold sticky top-0 z-10">
+              <tr>
+                <th class="px-3 py-2 w-16"># ID</th>
+                <th class="px-3 py-2 w-28">Vuln Type</th>
+                <th class="px-3 py-2 w-28">Param</th>
+                <th class="px-3 py-2 min-w-[280px]">Raw Payload</th>
+                <th class="px-3 py-2 w-48">Target URL</th>
+                <th class="px-3 py-2 w-28">Outcome</th>
+                <th class="px-3 py-2 w-44 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#1E293B]/60 text-slate-300">
+              <template x-for="p in filteredPayloads()" :key="p.id">
+                <tr class="hover:bg-[#1E293B]/50 transition select-text">
+                  <td class="px-3 py-2.5 text-slate-500 text-[11px]" x-text="'#' + p.id"></td>
+                  <!-- Vuln Type Badge -->
+                  <td class="px-3 py-2.5">
+                    <span :class="{
+                      'bg-amber-950 text-amber-300 border-amber-700': p.vuln_type === 'SQLI',
+                      'bg-sky-950 text-sky-300 border-sky-700': p.vuln_type === 'XSS',
+                      'bg-purple-950 text-purple-300 border-purple-700': p.vuln_type === 'SSTI',
+                      'bg-rose-950 text-rose-300 border-rose-700': p.vuln_type === 'RCE',
+                      'bg-emerald-950 text-emerald-300 border-emerald-700': p.vuln_type === 'SSRF',
+                      'bg-slate-800 text-slate-300 border-slate-700': !['SQLI','XSS','SSTI','RCE','SSRF'].includes(p.vuln_type)
+                    }" class="px-2 py-0.5 rounded text-[10px] font-bold border" x-text="p.vuln_type"></span>
+                  </td>
+                  <!-- Parameter -->
+                  <td class="px-3 py-2.5 font-bold text-slate-200">
+                    <span x-text="p.target_param || '-'" class="px-1.5 py-0.5 rounded bg-[#0B0F17] border border-[#1E293B]"></span>
+                  </td>
+                  <!-- Raw Payload Syntax Box -->
+                  <td class="px-3 py-2.5">
+                    <div class="bg-[#0B0F17] border border-[#1E293B] rounded px-2 py-1 text-amber-300 font-mono text-[11px] truncate max-w-md select-text"
+                         :title="p.raw_payload" x-text="p.raw_payload"></div>
+                  </td>
+                  <!-- Target URL -->
+                  <td class="px-3 py-2.5 text-slate-400 text-[11px] truncate max-w-xs" :title="p.target_url" x-text="p.target_url || '-'"></td>
+                  <!-- Outcome Badge -->
+                  <td class="px-3 py-2.5">
+                    <span :class="{
+                      'bg-rose-950 text-rose-300 border-rose-700': p.outcome === 'EXECUTED',
+                      'bg-amber-950 text-amber-300 border-amber-700': p.outcome === 'REFLECTED',
+                      'bg-purple-950 text-purple-300 border-purple-700': p.outcome === 'WAF_BLOCKED',
+                      'bg-emerald-950 text-emerald-300 border-emerald-700': p.outcome === 'TESTED',
+                      'bg-slate-800 text-slate-400 border-slate-700': !['EXECUTED','REFLECTED','WAF_BLOCKED','TESTED'].includes(p.outcome)
+                    }" class="px-1.5 py-0.2 rounded text-[9px] font-bold border" x-text="p.outcome"></span>
+                  </td>
+                  <!-- Actions: Replay in Repeater + Copy -->
+                  <td class="px-3 py-2.5 text-right space-x-1.5 whitespace-nowrap">
+                    <button @click="sendPayloadToRepeater(p)"
+                      class="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-700/80 text-amber-300 rounded text-[10px] font-bold transition inline-flex items-center space-x-1"
+                      title="Load this target and payload into Repeater to replay">
+                      <i data-lucide="repeat" class="w-3 h-3 text-amber-400"></i>
+                      <span>Repeater</span>
+                    </button>
+                    <button @click="copyText(p.raw_payload)"
+                      class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white border border-[#1E293B] inline-flex items-center transition"
+                      title="Copy payload">
+                      <i data-lucide="copy" class="w-3 h-3"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+
+          <div x-show="filteredPayloads().length === 0" class="p-12 text-center text-slate-500 font-mono text-xs space-y-2">
+            <i data-lucide="shield-alert" class="w-8 h-8 mx-auto opacity-30 text-amber-400"></i>
+            <p>No test payloads cataloged yet.</p>
+            <p class="text-[10px] text-slate-600">Payloads tested by AI via MCP tool <code>record_test_payload</code> or security fuzzer will appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODALS -->
   <!-- Create Project Modal -->
   <div x-show="openNewProjectModal"
@@ -2109,6 +2442,20 @@
         agentsList: ['primary_agent'],
         stats: { total_requests: 0, confirmed_findings: 0, potential_findings: 0, active_sessions: 0 },
 
+        // AI Activity State (Command Audit & Payload Vault)
+        commands: [],
+        payloads: [],
+        aiSubTab: 'commands', // 'commands' | 'payloads'
+        selectedCommandId: null,
+        selectedCommand: null,
+        commandSearch: '',
+        commandStatusFilter: 'ALL',
+        selectedPayloadId: null,
+        selectedPayload: null,
+        payloadSearch: '',
+        payloadTypeFilter: 'ALL',
+        payloadOutcomeFilter: 'ALL',
+
         // Session & Cookie Config
         openLoginModal: false,
         activeSessions: [],
@@ -2231,6 +2578,8 @@
           this.fetchFuzzerPayloads();
           this.fetchKeepaliveStatus();
           this.fetchSessions();
+          this.fetchCommands();
+          this.fetchPayloads();
           this.connectWebSocket();
           this.$nextTick(() => lucide.createIcons());
         },
@@ -2309,10 +2658,66 @@
             this.filteredLogs = [];
             this.selectedLogId = null;
             this.selectedLogDetail = null;
+            this.commands = [];
+            this.payloads = [];
+            this.selectedCommandId = null;
+            this.selectedCommand = null;
+            this.selectedPayloadId = null;
+            this.selectedPayload = null;
             this.currentPage = 1;
             this.newLogsBufferCount = 0;
             this.fetchStats();
             this.fetchProjects();
+            this.$nextTick(() => lucide.createIcons());
+          } else if (msg.type === 'NEW_COMMAND' && msg.command) {
+            const cmd = msg.command;
+            if (this.selectedProject === 'ALL' || this.selectedProject === cmd.project) {
+              this.commands.unshift(cmd);
+              if (this.commands.length > 500) this.commands.pop();
+              if (!this.selectedCommandId) {
+                this.selectCommand(cmd.id);
+              }
+              if (cmd.status === 'BLOCKED') {
+                this.showToast({
+                  title: 'Command Blocked by Guardrail',
+                  message: `Command "$ ${cmd.command}" was intercepted and blocked.`
+                });
+              }
+            }
+            if (this.stats) {
+              this.stats.total_commands = (this.stats.total_commands || 0) + 1;
+            }
+            this.$nextTick(() => lucide.createIcons());
+          } else if (msg.type === 'NEW_PAYLOAD' && msg.payload) {
+            const p = msg.payload;
+            if (this.selectedProject === 'ALL' || this.selectedProject === p.project) {
+              this.payloads.unshift(p);
+              if (this.payloads.length > 500) this.payloads.pop();
+              if (!this.selectedPayloadId) {
+                this.selectPayload(p.id);
+              }
+              if (p.outcome === 'EXECUTED' || p.outcome === 'REFLECTED') {
+                this.showToast({
+                  title: `Payload ${p.outcome}!`,
+                  message: `${p.vuln_type} against ${p.target_param || 'target'} triggered ${p.outcome}.`
+                });
+              }
+            }
+            if (this.stats) {
+              this.stats.total_payloads = (this.stats.total_payloads || 0) + 1;
+            }
+            this.$nextTick(() => lucide.createIcons());
+          } else if (msg.type === 'COMMANDS_CLEARED') {
+            this.commands = [];
+            this.selectedCommandId = null;
+            this.selectedCommand = null;
+            this.fetchStats();
+            this.$nextTick(() => lucide.createIcons());
+          } else if (msg.type === 'PAYLOADS_CLEARED') {
+            this.payloads = [];
+            this.selectedPayloadId = null;
+            this.selectedPayload = null;
+            this.fetchStats();
             this.$nextTick(() => lucide.createIcons());
           } else if (msg.type === 'AUTH_SPAWNED') {
             this.loginSpawning = true;
@@ -2680,6 +3085,8 @@
           this.fetchLogs();
           this.fetchAgents();
           this.fetchScopeConfig();
+          this.fetchCommands();
+          this.fetchPayloads();
         },
 
         // INTERCEPT ACTIONS
@@ -3054,6 +3461,12 @@
               this.filteredLogs = [];
               this.selectedLogId = null;
               this.selectedLogDetail = null;
+              this.commands = [];
+              this.payloads = [];
+              this.selectedCommandId = null;
+              this.selectedCommand = null;
+              this.selectedPayloadId = null;
+              this.selectedPayload = null;
               this.currentPage = 1;
               this.newLogsBufferCount = 0;
               await this.fetchStats();
@@ -3261,6 +3674,166 @@
           navigator.clipboard.writeText(curl);
           this.copiedCurl = true;
           setTimeout(() => this.copiedCurl = false, 2000);
+        },
+
+        // AI ACTIVITY ACTIONS (COMMAND AUDIT & PAYLOAD VAULT)
+        async fetchCommands() {
+          try {
+            const p = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
+            const res = await fetch(`/api/commands${p}`);
+            if (res.ok) {
+              const data = await res.json();
+              this.commands = data.commands || [];
+              if (this.commands.length > 0 && !this.selectedCommandId) {
+                this.selectCommand(this.commands[0].id);
+              }
+            }
+          } catch (e) { }
+        },
+
+        selectCommand(id) {
+          this.selectedCommandId = id;
+          this.selectedCommand = this.commands.find(c => c.id === id) || null;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        async clearCommands() {
+          const target = this.selectedProject === 'ALL' ? 'ALL PROJECTS' : `project '${this.selectedProject}'`;
+          if (!confirm(`Clear all AI terminal command execution logs for ${target}?`)) return;
+          const param = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
+          try {
+            const res = await fetch(`/api/commands/clear${param}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project: this.selectedProject !== 'ALL' ? this.selectedProject : null })
+            });
+            if (res.ok) {
+              this.commands = [];
+              this.selectedCommandId = null;
+              this.selectedCommand = null;
+              if (this.stats) {
+                this.stats.total_commands = 0;
+              }
+              await this.fetchStats();
+              this.showToast({ title: 'Commands Cleared', message: `AI command execution history for ${target} deleted.` });
+              this.$nextTick(() => lucide.createIcons());
+            } else {
+              const err = await res.json().catch(() => ({}));
+              this.showToast({ title: 'Clear Failed', message: err.detail || 'Failed to clear commands.' });
+            }
+          } catch (e) {
+            this.showToast({ title: 'Network Error', message: String(e) });
+          }
+        },
+
+        filteredCommands() {
+          return this.commands.filter(cmd => {
+            if (this.commandStatusFilter !== 'ALL' && cmd.status !== this.commandStatusFilter) return false;
+            if (this.commandSearch) {
+              const q = this.commandSearch.toLowerCase();
+              const full = `${cmd.command} ${cmd.reasoning || ''} ${cmd.tool_name || ''} ${cmd.agent_id || ''}`.toLowerCase();
+              if (!full.includes(q)) return false;
+            }
+            return true;
+          });
+        },
+
+        async fetchPayloads() {
+          try {
+            const p = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
+            const res = await fetch(`/api/payloads${p}`);
+            if (res.ok) {
+              const data = await res.json();
+              this.payloads = data.payloads || [];
+              if (this.payloads.length > 0 && !this.selectedPayloadId) {
+                this.selectPayload(this.payloads[0].id);
+              }
+            }
+          } catch (e) { }
+        },
+
+        selectPayload(id) {
+          this.selectedPayloadId = id;
+          this.selectedPayload = this.payloads.find(p => p.id === id) || null;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        async clearPayloads() {
+          const target = this.selectedProject === 'ALL' ? 'ALL PROJECTS' : `project '${this.selectedProject}'`;
+          if (!confirm(`Clear all captured security testing payloads for ${target}?`)) return;
+          const param = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
+          try {
+            const res = await fetch(`/api/payloads/clear${param}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project: this.selectedProject !== 'ALL' ? this.selectedProject : null })
+            });
+            if (res.ok) {
+              this.payloads = [];
+              this.selectedPayloadId = null;
+              this.selectedPayload = null;
+              if (this.stats) {
+                this.stats.total_payloads = 0;
+              }
+              await this.fetchStats();
+              this.showToast({ title: 'Payload Vault Cleared', message: `Captured security payloads for ${target} deleted.` });
+              this.$nextTick(() => lucide.createIcons());
+            } else {
+              const err = await res.json().catch(() => ({}));
+              this.showToast({ title: 'Clear Failed', message: err.detail || 'Failed to clear payloads.' });
+            }
+          } catch (e) {
+            this.showToast({ title: 'Network Error', message: String(e) });
+          }
+        },
+
+        filteredPayloads() {
+          return this.payloads.filter(p => {
+            if (this.payloadTypeFilter !== 'ALL' && p.vuln_type !== this.payloadTypeFilter) return false;
+            if (this.payloadOutcomeFilter !== 'ALL' && p.outcome !== this.payloadOutcomeFilter) return false;
+            if (this.payloadSearch) {
+              const q = this.payloadSearch.toLowerCase();
+              const full = `${p.raw_payload} ${p.vuln_type} ${p.target_param || ''} ${p.target_url || ''} ${p.notes || ''}`.toLowerCase();
+              if (!full.includes(q)) return false;
+            }
+            return true;
+          });
+        },
+
+        sendPayloadToRepeater(p) {
+          if (!p) return;
+          this.repeaterForm.method = p.http_method || 'GET';
+          let url = p.target_url || 'http://127.0.0.1:8000/api/test';
+
+          if (this.repeaterForm.method === 'GET') {
+            if (p.target_param) {
+              try {
+                const parsed = new URL(url);
+                parsed.searchParams.set(p.target_param, p.raw_payload);
+                url = parsed.toString();
+              } catch (e) {
+                const regex = new RegExp(`([?&])${p.target_param}=([^&]*)`);
+                if (regex.test(url)) {
+                  url = url.replace(regex, `$1${p.target_param}=${encodeURIComponent(p.raw_payload)}`);
+                } else {
+                  const sep = url.includes('?') ? '&' : '?';
+                  url = `${url}${sep}${encodeURIComponent(p.target_param)}=${encodeURIComponent(p.raw_payload)}`;
+                }
+              }
+            }
+            this.repeaterForm.body = '';
+          } else {
+            // POST / PUT / PATCH
+            this.repeaterForm.body = p.raw_payload;
+          }
+          this.repeaterForm.url = url;
+          this.currentAppTab = 'repeater';
+          this.repeaterSubTab = 'body';
+          this.showToast({
+            title: 'Sent to Repeater',
+            message: `Loaded ${p.vuln_type} payload for ${p.target_param || 'target'} into Repeater.`
+          });
+          this.$nextTick(() => lucide.createIcons());
         },
 
         showToast(toast) {

@@ -202,6 +202,82 @@ class ActiveSession(Base):
         }
 
 
+class AgentCommandLog(Base):
+    __tablename__ = "agent_command_logs"
+    __table_args__ = (Index("ix_agent_cmd_proj_id", "project", "id"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    agent_id = Column(String(100), default="primary_agent", index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    command = Column(Text, nullable=False)
+    tool_name = Column(String(64), default="terminal")
+    reasoning = Column(Text, default="")
+    exit_code = Column(Integer, nullable=True)
+    stdout = Column(Text, default="")
+    stderr = Column(Text, default="")
+    duration_ms = Column(Integer, default=0)
+    status = Column(String(32), default="SUCCESS")  # SUCCESS, FAILED, BLOCKED, TIMEOUT
+    linked_log_id = Column(Integer, ForeignKey("http_logs.id", ondelete="SET NULL"), nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "agent_id": self.agent_id or "primary_agent",
+            "timestamp": self.timestamp.isoformat() if self.timestamp else "",
+            "command": self.command,
+            "tool_name": self.tool_name or "terminal",
+            "reasoning": self.reasoning or "",
+            "exit_code": self.exit_code,
+            "stdout": self.stdout or "",
+            "stderr": self.stderr or "",
+            "duration_ms": self.duration_ms or 0,
+            "status": self.status or "SUCCESS",
+            "linked_log_id": self.linked_log_id
+        }
+
+
+class CapturedPayload(Base):
+    __tablename__ = "captured_payloads"
+    __table_args__ = (Index("ix_captured_payloads_proj_id", "project", "id"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    agent_id = Column(String(100), default="primary_agent", index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    vuln_type = Column(String(64), default="CUSTOM", index=True)  # SQLI, XSS, SSRF, SSTI, LFI, RCE, IDOR, AUTH_BYPASS
+    target_param = Column(String(128), default="")
+    raw_payload = Column(Text, nullable=False)
+    mutation_type = Column(String(64), default="DIRECT")  # DIRECT, WAF_BYPASS, POLYGLOT, ENCODED, CHUNKING
+    target_url = Column(Text, default="")
+    http_method = Column(String(16), default="GET")
+    http_log_id = Column(Integer, ForeignKey("http_logs.id", ondelete="SET NULL"), nullable=True, index=True)
+    outcome = Column(String(32), default="TESTED")  # EXECUTED, REFLECTED, WAF_BLOCKED, FILTERED, ERROR, UNCONFIRMED
+    http_status = Column(Integer, nullable=True)
+    response_signature = Column(String(255), default="")
+    notes = Column(Text, default="")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "agent_id": self.agent_id or "primary_agent",
+            "timestamp": self.timestamp.isoformat() if self.timestamp else "",
+            "vuln_type": self.vuln_type or "CUSTOM",
+            "target_param": self.target_param or "",
+            "raw_payload": self.raw_payload,
+            "mutation_type": self.mutation_type or "DIRECT",
+            "target_url": self.target_url or "",
+            "http_method": self.http_method or "GET",
+            "http_log_id": self.http_log_id,
+            "outcome": self.outcome or "TESTED",
+            "http_status": self.http_status,
+            "response_signature": self.response_signature or "",
+            "notes": self.notes or ""
+        }
+
+
 def _run_migrations():
     """Safely adds newly introduced columns to existing SQLite tables if not present."""
     import sqlite3

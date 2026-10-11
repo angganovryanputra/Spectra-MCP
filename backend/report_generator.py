@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 
 from sqlalchemy.orm import Session
-from backend.database import HttpLog, Finding, Project
+from backend.database import HttpLog, Finding, Project, AgentCommandLog, CapturedPayload
 
 
 def generate_har_export(project_name: str, db: Session) -> Dict[str, Any]:
@@ -182,9 +182,50 @@ During this security assessment, an autonomous AI Agent (e.g., Opencode / Hermes
 ---
 """
 
+    # 4. AI Command Audit Trail
+    cmd_query = db.query(AgentCommandLog)
+    if project_name and project_name.upper() != "ALL":
+        cmd_query = cmd_query.filter(AgentCommandLog.project == project_name.lower())
+    commands = cmd_query.order_by(AgentCommandLog.id.asc()).all()
+
+    md += """## 4. AI Command Execution Audit Trail
+
+| ID | Status | Tool / Engine | Command | Exit Code | Duration | AI Intent / Reasoning |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+"""
+    for c in commands:
+        cmd_snippet = f"`{c.command[:60]}...`" if len(c.command) > 60 else f"`{c.command}`"
+        reason = c.reasoning or "Automated pentest execution"
+        md += f"| `#{c.id}` | **{c.status}** | `{c.tool_name}` | {cmd_snippet} | `{c.exit_code}` | {c.duration_ms}ms | *{reason}* |\n"
+
+    if not commands:
+        md += "| - | - | - | *No CLI/terminal commands recorded.* | - | - | - |\n"
+
     md += """
-## 4. Assessment Methodology & Guardrails
-All testing traffic was isolated through the Spectra Model Context Protocol Gateway, ensuring LLM inferencing telemetry was strictly separated from target payloads. Automated deterministic signatures and heuristic anomaly detection triaged each interaction in real-time.
+---
+
+## 5. Captured Security Test Payloads Vault
+
+| ID | Type | Parameter | Raw Payload | HTTP Method | Outcome | Target Endpoint |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+"""
+    payload_query = db.query(CapturedPayload)
+    if project_name and project_name.upper() != "ALL":
+        payload_query = payload_query.filter(CapturedPayload.project == project_name.lower())
+    payloads = payload_query.order_by(CapturedPayload.id.asc()).all()
+
+    for p in payloads:
+        pay_snippet = f"`{p.raw_payload[:60]}...`" if len(p.raw_payload) > 60 else f"`{p.raw_payload}`"
+        md += f"| `#{p.id}` | **{p.vuln_type}** | `{p.target_param or '-'}` | {pay_snippet} | `{p.http_method}` | **{p.outcome}** | `{p.target_url}` |\n"
+
+    if not payloads:
+        md += "| - | - | - | *No security test payloads cataloged.* | - | - | - |\n"
+
+    md += """
+---
+
+## 6. Assessment Methodology & Guardrails
+All testing traffic and terminal commands were isolated through the Spectra Model Context Protocol Gateway, ensuring LLM inferencing telemetry was strictly audited. Automated deterministic signatures and heuristic anomaly detection triaged each interaction in real-time, while Spectra Safe-Mode guardrails prevented destructive system operations.
 """
 
     return md

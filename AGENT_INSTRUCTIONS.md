@@ -41,6 +41,8 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 3. Jika target berada di luar scope atau memicu proteksi guardrail, hormati pesan blokir dan batasi pengujian pada endpoint yang diizinkan.
 4. Jika target membutuhkan rendering halaman JavaScript dinamis, gunakan tool `browser_navigate_and_render`.
 5. Jika menemui login wall, CAPTCHA, atau Two-Factor Authentication (2FA), gunakan tool `request_manual_login` agar operator manusia dapat melakukan login via browser interaktif.
+6. Jika perlu menjalankan perintah terminal / CLI (seperti nmap, curl, sqlmap, custom scripts), gunakan tool `run_pentest_command` agar perintah, stdout, dan stderr terekam di Spectra Command Audit Trail.
+7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Spectra Payload Vault.
 ```
 
 ---

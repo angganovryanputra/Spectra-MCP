@@ -26,7 +26,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-from backend.database import init_db, SessionLocal, ActiveSession, HttpLog, Finding, Project
+from backend.database import init_db, SessionLocal, ActiveSession, HttpLog, Finding, Project, AgentCommandLog, CapturedPayload
 from backend.analyzer import analyze_traffic
 from backend.browser_handler import render_page, spawn_interactive_login
 from backend.intercept_manager import (
@@ -132,6 +132,76 @@ async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str,
             db.rollback()
         finally:
             db.close()
+
+
+async def _persist_and_stream_command(cmd_payload: Dict[str, Any]):
+    """Dispatches command log to dashboard or writes directly to SQLite."""
+    try:
+        client = await _get_dashboard_client()
+        resp = await client.post(f"{BACKEND_URL}/api/commands", json=cmd_payload)
+        if resp.status_code == 200:
+            return
+    except Exception:
+        pass
+
+    db = SessionLocal()
+    try:
+        proj = (cmd_payload.get("project") or DEFAULT_PROJECT).strip().lower()
+        entry = AgentCommandLog(
+            project=proj,
+            agent_id=cmd_payload.get("agent_id", "primary_agent") or "primary_agent",
+            command=cmd_payload.get("command", ""),
+            tool_name=cmd_payload.get("tool_name", "terminal"),
+            reasoning=cmd_payload.get("reasoning", ""),
+            exit_code=cmd_payload.get("exit_code"),
+            stdout=cmd_payload.get("stdout", "")[:5242880],
+            stderr=cmd_payload.get("stderr", "")[:5242880],
+            duration_ms=cmd_payload.get("duration_ms", 0),
+            status=cmd_payload.get("status", "SUCCESS"),
+            linked_log_id=cmd_payload.get("linked_log_id")
+        )
+        db.add(entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+async def _persist_and_stream_payload(payload_data: Dict[str, Any]):
+    """Dispatches captured payload to dashboard or writes directly to SQLite."""
+    try:
+        client = await _get_dashboard_client()
+        resp = await client.post(f"{BACKEND_URL}/api/payloads", json=payload_data)
+        if resp.status_code == 200:
+            return
+    except Exception:
+        pass
+
+    db = SessionLocal()
+    try:
+        proj = (payload_data.get("project") or DEFAULT_PROJECT).strip().lower()
+        entry = CapturedPayload(
+            project=proj,
+            agent_id=payload_data.get("agent_id", "primary_agent") or "primary_agent",
+            vuln_type=(payload_data.get("vuln_type", "CUSTOM") or "CUSTOM").upper(),
+            target_param=payload_data.get("target_param", ""),
+            raw_payload=payload_data.get("raw_payload", ""),
+            mutation_type=payload_data.get("mutation_type", "DIRECT"),
+            target_url=payload_data.get("target_url", ""),
+            http_method=(payload_data.get("http_method", "GET") or "GET").upper(),
+            http_log_id=payload_data.get("http_log_id"),
+            outcome=payload_data.get("outcome", "TESTED"),
+            http_status=payload_data.get("http_status"),
+            response_signature=payload_data.get("response_signature", ""),
+            notes=payload_data.get("notes", "")
+        )
+        db.add(entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 def _extract_domain_cookies(url: str, project: str = "default") -> Dict[str, str]:
@@ -542,6 +612,168 @@ async def request_manual_login(
         )
     except Exception as ex:
         return f"Interactive login failed: {str(ex)}"
+
+
+# ==============================================================================
+# MCP Tool 4: run_pentest_command
+# ==============================================================================
+
+DANGEROUS_COMMAND_PATTERNS = [
+    r"rm\s+(-[rfRF]+\s+|--recursive\s+|--force\s+)*\/",
+    r"rm\s+(-[rfRF]+\s+|--recursive\s+|--force\s+)*\*",
+    r"mkfs",
+    r"dd\s+if=",
+    r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",
+    r"format\s+[a-zA-Z]:",
+    r"DROP\s+DATABASE",
+    r"DROP\s+TABLE",
+    r"shutdown(\.exe)?\s+",
+    r"reboot(\.exe)?"
+]
+
+@mcp.tool()
+async def run_pentest_command(
+    command: str,
+    reasoning: Optional[str] = None,
+    tool_name: Optional[str] = "terminal",
+    project: Optional[str] = None,
+    agent_id: Optional[str] = "primary_agent",
+    timeout: Optional[int] = 60
+) -> str:
+    """
+    Executes a security testing command in the local shell environment (e.g. nmap, curl, sqlmap, custom scripts),
+    streams the command and outputs to Spectra for full operator observability and audit history,
+    and applies automated safety guardrails to prevent destructive system commands.
+    """
+    import re
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    target_agent = (agent_id or "primary_agent").strip()
+    cmd_clean = command.strip()
+
+    # Safety guardrail check
+    for pat in DANGEROUS_COMMAND_PATTERNS:
+        if re.search(pat, cmd_clean, re.IGNORECASE):
+            blocked_payload = {
+                "project": target_project,
+                "agent_id": target_agent,
+                "command": cmd_clean,
+                "tool_name": tool_name or "terminal",
+                "reasoning": reasoning or "",
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": f"Command blocked by Spectra CLI Safe-Mode Guardrail (Matched dangerous pattern '{pat}')",
+                "duration_ms": 0,
+                "status": "BLOCKED"
+            }
+            asyncio.create_task(_persist_and_stream_command(blocked_payload))
+            return (
+                f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE:\n"
+                f"The command '{cmd_clean}' was blocked because it contains potentially destructive instructions."
+            )
+
+    start_time = time.time()
+    stdout_text = ""
+    stderr_text = ""
+    exit_code = 0
+    status = "SUCCESS"
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd_clean,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        try:
+            out_bytes, err_bytes = await asyncio.wait_for(proc.communicate(), timeout=float(timeout or 60))
+            stdout_text = out_bytes.decode("utf-8", errors="replace")
+            stderr_text = err_bytes.decode("utf-8", errors="replace")
+            exit_code = proc.returncode or 0
+            if exit_code != 0:
+                status = "FAILED"
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            exit_code = -1
+            status = "TIMEOUT"
+            stderr_text = f"Execution timed out after {timeout} seconds."
+    except Exception as ex:
+        exit_code = 1
+        status = "FAILED"
+        stderr_text = f"Subprocess invocation failure: {str(ex)}"
+
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    cmd_log_payload = {
+        "project": target_project,
+        "agent_id": target_agent,
+        "command": cmd_clean,
+        "tool_name": tool_name or "terminal",
+        "reasoning": reasoning or "",
+        "exit_code": exit_code,
+        "stdout": stdout_text,
+        "stderr": stderr_text,
+        "duration_ms": duration_ms,
+        "status": status
+    }
+    asyncio.create_task(_persist_and_stream_command(cmd_log_payload))
+
+    stdout_snippet = stdout_text[:2000] if stdout_text else "[No standard output]"
+    stderr_snippet = f"\nSTDERR:\n{stderr_text[:1000]}" if stderr_text else ""
+    return (
+        f"Project: [{target_project}] | Agent: [{target_agent}] | Exit Code: {exit_code} | Duration: {duration_ms}ms | Status: {status}\n"
+        f"Command: {cmd_clean}\n\n"
+        f"STDOUT:\n{stdout_snippet}{stderr_snippet}"
+    )
+
+
+# ==============================================================================
+# MCP Tool 5: record_test_payload
+# ==============================================================================
+
+@mcp.tool()
+async def record_test_payload(
+    target_url: str,
+    vuln_type: str,
+    raw_payload: str,
+    target_param: Optional[str] = "",
+    mutation_type: Optional[str] = "DIRECT",
+    outcome: Optional[str] = "TESTED",
+    http_method: Optional[str] = "GET",
+    response_signature: Optional[str] = "",
+    http_status: Optional[int] = None,
+    reasoning: Optional[str] = None,
+    project: Optional[str] = None,
+    agent_id: Optional[str] = "primary_agent"
+) -> str:
+    """
+    Explicitly catalogs a specialized pentest payload (SQLi, XSS, SSRF, SSTI, RCE, IDOR, etc.)
+    crafted or tested by the AI into the Spectra Payload Vault for operator review, verification, and 1-click replay.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    target_agent = (agent_id or "primary_agent").strip()
+
+    payload_data = {
+        "project": target_project,
+        "agent_id": target_agent,
+        "vuln_type": vuln_type.upper(),
+        "target_param": target_param or "",
+        "raw_payload": raw_payload,
+        "mutation_type": mutation_type or "DIRECT",
+        "target_url": target_url,
+        "http_method": (http_method or "GET").upper(),
+        "outcome": outcome or "TESTED",
+        "response_signature": response_signature or "",
+        "http_status": http_status,
+        "notes": reasoning or ""
+    }
+    asyncio.create_task(_persist_and_stream_payload(payload_data))
+
+    return (
+        f"Project: [{target_project}] | Captured {http_method.upper()} payload '{raw_payload[:60]}' for {vuln_type} on param '{target_param}'. "
+        f"Logged in Spectra Payload Vault."
+    )
 
 
 if __name__ == "__main__":
