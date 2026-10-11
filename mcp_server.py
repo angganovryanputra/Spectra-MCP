@@ -46,6 +46,34 @@ DEFAULT_PROJECT = os.getenv("SPECTRA_PROJECT", "default").strip().lower()
 init_db()
 
 
+# Persistent connection pools for high-throughput concurrency
+_dashboard_client: Optional[httpx.AsyncClient] = None
+_outbound_clients: Dict[str, httpx.AsyncClient] = {}
+
+async def _get_dashboard_client() -> httpx.AsyncClient:
+    global _dashboard_client
+    if _dashboard_client is None or _dashboard_client.is_closed:
+        _dashboard_client = httpx.AsyncClient(
+            timeout=2.0,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=30.0)
+        )
+    return _dashboard_client
+
+async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
+    key = proxy_cfg.strip() if proxy_cfg else "direct"
+    if key not in _outbound_clients or _outbound_clients[key].is_closed:
+        kwargs = {
+            "verify": False,
+            "follow_redirects": True,
+            "timeout": 30.0,
+            "limits": httpx.Limits(max_keepalive_connections=30, max_connections=100, keepalive_expiry=60.0)
+        }
+        if proxy_cfg and proxy_cfg.strip():
+            kwargs["proxy"] = proxy_cfg.strip()
+        _outbound_clients[key] = httpx.AsyncClient(**kwargs)
+    return _outbound_clients[key]
+
+
 async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str, findings: list):
     """
     Dispatches log to running FastAPI dashboard via HTTP POST so it broadcasts over WebSockets.
@@ -53,10 +81,10 @@ async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str,
     """
     notified = False
     try:
-        async with httpx.AsyncClient(timeout=1.5) as client:
-            resp = await client.post(f"{BACKEND_URL}/api/logs", json=log_payload)
-            if resp.status_code == 200:
-                notified = True
+        client = await _get_dashboard_client()
+        resp = await client.post(f"{BACKEND_URL}/api/logs", json=log_payload)
+        if resp.status_code == 200:
+            notified = True
     except Exception:
         notified = False
 
@@ -315,29 +343,22 @@ async def send_http_request(
     error_note = None
 
     proxy_cfg = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
-    client_kwargs = {
-        "verify": False,
-        "follow_redirects": True,
-        "timeout": 30.0
-    }
-    if proxy_cfg:
-        client_kwargs["proxy"] = proxy_cfg
 
     try:
-        async with httpx.AsyncClient(**client_kwargs) as client:
-            content_bytes = body.encode("utf-8") if body else None
-            response = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=content_bytes
-            )
-            status_code = response.status_code
-            res_headers = dict(response.headers)
-            try:
-                res_body = response.text
-            except Exception:
-                res_body = f"<Binary data: {len(response.content)} bytes>"
+        client = await _get_outbound_client(proxy_cfg)
+        content_bytes = body.encode("utf-8") if body else None
+        response = await client.request(
+            method=method,
+            url=url,
+            headers=headers,
+            content=content_bytes
+        )
+        status_code = response.status_code
+        res_headers = dict(response.headers)
+        try:
+            res_body = response.text
+        except Exception:
+            res_body = f"<Binary data: {len(response.content)} bytes>"
     except Exception as ex:
         error_note = f"Network/Transport Error: {str(ex)}"
         res_body = error_note

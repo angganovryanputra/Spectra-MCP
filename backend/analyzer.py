@@ -123,6 +123,8 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
     """
     findings: List[Dict[str, Any]] = []
     response_body = log_entry.response_body or ""
+    # Cap regex inspection to first 250,000 characters to prevent regex stalling on multi-MB downloads
+    scan_body = response_body if len(response_body) <= 250000 else response_body[:250000]
     status_code = log_entry.status_code or 0
     url = log_entry.url or ""
     request_body = log_entry.request_body or ""
@@ -133,9 +135,9 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
 
     # 1. Database Error Signatures
     for db_check in DB_ERROR_PATTERNS:
-        match = db_check["pattern"].search(response_body)
+        match = db_check["pattern"].search(scan_body)
         if match:
-            snippet = response_body[max(0, match.start() - 40): min(len(response_body), match.end() + 80)]
+            snippet = scan_body[max(0, match.start() - 40): min(len(scan_body), match.end() + 80)]
             findings.append({
                 "title": db_check["name"],
                 "severity": db_check["severity"],
@@ -147,7 +149,7 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
 
     # 2. Secret & Credential Leaks
     for sec_check in SECRET_LEAK_PATTERNS:
-        match = sec_check["pattern"].search(response_body)
+        match = sec_check["pattern"].search(scan_body)
         if match:
             # Mask sensitive token in evidence snippet
             matched_text = match.group(0)
@@ -163,9 +165,9 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
 
     # 3. Critical Server Framework Exposure
     for srv_check in SERVER_EXPOSURE_PATTERNS:
-        match = srv_check["pattern"].search(response_body)
+        match = srv_check["pattern"].search(scan_body)
         if match:
-            snippet = response_body[max(0, match.start() - 20): min(len(response_body), match.end() + 100)]
+            snippet = scan_body[max(0, match.start() - 20): min(len(scan_body), match.end() + 100)]
             findings.append({
                 "title": srv_check["name"],
                 "severity": srv_check["severity"],

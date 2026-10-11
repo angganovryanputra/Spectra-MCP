@@ -18,7 +18,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     desc,
-    event
+    event,
+    Index
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 
@@ -31,13 +32,17 @@ engine = create_engine(
     echo=False
 )
 
-# Enable SQLite WAL (Write-Ahead Logging) and busy_timeout for concurrency & persistence
+# Enable SQLite WAL (Write-Ahead Logging) and high-concurrency performance pragmas
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.execute("PRAGMA busy_timeout=15000")  # Wait up to 15s instead of 5s on lock
     cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA cache_size=-64000")   # 64 MB page cache in RAM
+    cursor.execute("PRAGMA temp_store=MEMORY")   # In-memory temporary tables & sorts
+    cursor.execute("PRAGMA mmap_size=268435456") # 256 MB memory-mapped I/O
+    cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -86,6 +91,7 @@ class Project(Base):
 
 class HttpLog(Base):
     __tablename__ = "http_logs"
+    __table_args__ = (Index("ix_http_logs_proj_id", "project", "id"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     project = Column(String(100), default="default", index=True)
@@ -184,11 +190,13 @@ class ActiveSession(Base):
         except Exception:
             state = {}
         cookies = state.get("cookies", [])
+        cookie_names = [c.get("name") for c in cookies if isinstance(c, dict) and c.get("name")]
         return {
             "id": self.id,
             "project": self.project or "default",
             "domain": self.domain,
             "cookie_count": len(cookies),
+            "cookie_names": cookie_names,
             "cookies": cookies,
             "updated_at": self.updated_at.isoformat() if self.updated_at else ""
         }
@@ -211,6 +219,7 @@ def _run_migrations():
         log_cols = [row[1] for row in cur.fetchall()]
         if "agent_id" not in log_cols:
             cur.execute("ALTER TABLE http_logs ADD COLUMN agent_id VARCHAR(100) DEFAULT 'primary_agent'")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_proj_id ON http_logs(project, id DESC)")
         con.commit()
         con.close()
     except Exception as ex:

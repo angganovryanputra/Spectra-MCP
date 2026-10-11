@@ -136,7 +136,7 @@ async def run_fuzz_attack(
     baseline_body = MARKER_REGEX.sub(r"\1", body)
     baseline_headers = {k: MARKER_REGEX.sub(r"\1", str(v)) for k, v in headers.items()}
 
-    # 1. Baseline Request
+    # 1. Baseline Request & Concurrent Attacks with shared connection-pooled client
     baseline_result = {
         "status_code": 0,
         "length": 0,
@@ -144,8 +144,13 @@ async def run_fuzz_attack(
         "response_body_preview": ""
     }
 
-    try:
-        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=15.0, **proxy_kwargs) as client:
+    sem = asyncio.Semaphore(concurrency)
+    results: List[Dict[str, Any]] = []
+
+    limits = httpx.Limits(max_keepalive_connections=concurrency, max_connections=concurrency * 2, keepalive_expiry=30.0)
+    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20.0, limits=limits, **proxy_kwargs) as client:
+        # 1. Baseline Request
+        try:
             t0 = time.time()
             content_bytes = baseline_body.encode("utf-8") if baseline_body else None
             res = await client.request(
@@ -161,32 +166,28 @@ async def run_fuzz_attack(
                 "duration_ms": dur,
                 "response_body_preview": res.text[:500] if res.text else ""
             }
-    except Exception as ex:
-        baseline_result["error"] = str(ex)
+        except Exception as ex:
+            baseline_result["error"] = str(ex)
 
-    # 2. Concurrently execute attacks
-    sem = asyncio.Semaphore(concurrency)
-    results: List[Dict[str, Any]] = []
+        # 2. Concurrently execute attacks
+        async def _fuzz_worker(index: int, payload: str):
+            req_url = replace_markers(base_url, payload)
+            req_body = replace_markers(body, payload)
+            req_headers = {k: replace_markers(str(v), payload) for k, v in headers.items()}
 
-    async def _fuzz_worker(index: int, payload: str):
-        req_url = replace_markers(base_url, payload)
-        req_body = replace_markers(body, payload)
-        req_headers = {k: replace_markers(str(v), payload) for k, v in headers.items()}
-
-        async with sem:
-            item = {
-                "id": index + 1,
-                "payload": payload,
-                "status_code": None,
-                "duration_ms": 0,
-                "length": 0,
-                "delta": 0,
-                "anomalies": [],
-                "error": None,
-                "preview": ""
-            }
-            try:
-                async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20.0, **proxy_kwargs) as client:
+            async with sem:
+                item = {
+                    "id": index + 1,
+                    "payload": payload,
+                    "status_code": None,
+                    "duration_ms": 0,
+                    "length": 0,
+                    "delta": 0,
+                    "anomalies": [],
+                    "error": None,
+                    "preview": ""
+                }
+                try:
                     t0 = time.time()
                     b_bytes = req_body.encode("utf-8") if req_body else None
                     resp = await client.request(
@@ -230,14 +231,14 @@ async def run_fuzz_attack(
                         anomalies.append("SSTI_EVALUATED_49")
 
                     item["anomalies"] = anomalies
-            except Exception as e:
-                item["error"] = str(e)
-                item["anomalies"] = ["TRANSPORT_ERROR"]
+                except Exception as e:
+                    item["error"] = str(e)
+                    item["anomalies"] = ["TRANSPORT_ERROR"]
 
-            results.append(item)
+                results.append(item)
 
-    tasks = [_fuzz_worker(i, p) for i, p in enumerate(payloads)]
-    await asyncio.gather(*tasks)
+        tasks = [_fuzz_worker(i, p) for i, p in enumerate(payloads)]
+        await asyncio.gather(*tasks)
 
     # Sort results by ID
     results.sort(key=lambda x: x["id"])

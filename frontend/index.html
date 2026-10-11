@@ -228,11 +228,12 @@
           x-text="stats.active_sessions || 0"></span>
       </button>
 
-      <!-- Clear Logs Button -->
+      <!-- Clear History Button -->
       <button @click="clearLogs()"
-        class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-rose-800 hover:text-rose-400 text-slate-400 transition"
-        title="Clear Logs">
-        <i data-lucide="trash-2" class="w-4 h-4"></i>
+        class="flex items-center px-3 py-1.5 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-700/80 text-slate-400 hover:text-rose-300 rounded-md text-xs font-mono font-semibold transition shadow-sm group"
+        title="Immediately clear all HTTP history and vulnerability findings">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1.5 text-slate-500 group-hover:text-rose-400 transition-colors"></i>
+        <span>Clear History</span>
       </button>
     </div>
   </header>
@@ -242,129 +243,507 @@
   <!-- ========================================================================= -->
 
   <!-- VIEW 1: PROXY TRAFFIC HISTORY & DEEP INSPECTOR -->
-  <div x-show="currentAppTab === 'proxy'" class="flex-1 flex overflow-hidden">
-    <!-- LEFT PANE: TRAFFIC TABLE (55%) -->
-    <section class="w-[55%] flex flex-col border-r border-[#1E293B] bg-[#0B0F17]">
-      <!-- Filter Bar -->
-      <div class="p-2.5 bg-[#111827]/70 border-b border-[#1E293B] flex items-center space-x-2 shrink-0">
-        <div class="relative flex-1">
-          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
-          <input type="text" x-model="searchQuery" @input.debounce.250ms="filterLogs()"
-            placeholder="Filter URL, path, host, or keyword..."
-            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
-        </div>
+  <div x-show="currentAppTab === 'proxy'" id="proxySplitPane"
+    class="flex-1 overflow-hidden"
+    :class="layoutOrientation === 'vertical' ? 'flex flex-col' : 'flex flex-row'">
 
-        <select x-model="selectedMethod" @change="filterLogs()"
-          class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500 font-mono">
-          <option value="ALL">ALL METHODS</option>
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="DELETE">DELETE</option>
-        </select>
+    <!-- TABLE PANE -->
+    <section :style="maximizedPanel === 'table' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'inspector' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + tableSplitPct + '%; min-height: 140px;' : 'width: ' + tableSplitPct + '%; min-width: 300px;'))"
+      class="relative flex flex-col bg-[#0B0F17] overflow-hidden"
+      :class="layoutOrientation === 'vertical' ? 'border-b border-[#1E293B]' : 'border-r border-[#1E293B]'">
 
-        <!-- Multi-Agent Filter -->
-        <select x-model="selectedAgent" @change="filterLogs()"
-          class="bg-[#0B0F17] border border-[#1E293B] text-purple-300 text-xs rounded-md px-2 py-1.5 focus:outline-none focus:border-purple-500 font-mono">
-          <option value="ALL">ALL AGENTS</option>
-          <template x-for="ag in agentsList" :key="ag">
-            <option :value="ag" x-text="ag"></option>
-          </template>
-        </select>
-
-        <div class="flex bg-[#0B0F17] border border-[#1E293B] rounded-md p-0.5 text-[11px] font-mono">
-          <button @click="selectedFlag = 'ALL'; filterLogs()"
-            :class="selectedFlag === 'ALL' ? 'bg-[#1E293B] text-slate-100 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-            class="px-2 py-1 rounded transition">ALL</button>
-          <button @click="selectedFlag = 'CONFIRMED'; filterLogs()"
-            :class="selectedFlag === 'CONFIRMED' ? 'bg-rose-900/60 text-rose-300 font-semibold' : 'text-slate-400 hover:text-rose-400'"
-            class="px-2 py-1 rounded transition">CONFIRMED</button>
-          <button @click="selectedFlag = 'POTENTIAL'; filterLogs()"
-            :class="selectedFlag === 'POTENTIAL' ? 'bg-amber-900/50 text-amber-300 font-semibold' : 'text-slate-400 hover:text-amber-400'"
-            class="px-2 py-1 rounded transition">POTENTIAL</button>
-        </div>
-      </div>
-
-      <!-- Traffic Table Header -->
-      <div
-        class="grid grid-cols-12 bg-[#111827] border-b border-[#1E293B] px-3 py-1.5 text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0">
-        <div class="col-span-1">ID</div>
-        <div class="col-span-2">Flag</div>
-        <div class="col-span-2">Project / Agent</div>
-        <div class="col-span-1">Method</div>
-        <div class="col-span-1 text-center">Status</div>
-        <div class="col-span-3">Host / Path</div>
-        <div class="col-span-1 text-right">Latency</div>
-        <div class="col-span-1 text-right">Time</div>
-      </div>
-
-      <!-- Traffic Rows -->
-      <div id="logsTableContainer" class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
-        <template x-for="log in filteredLogs" :key="log.id">
-          <div @click="selectLog(log.id)"
-            :class="selectedLogId === log.id ? 'bg-[#1E293B]/80 ring-1 ring-sky-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
-            class="grid grid-cols-12 px-3 py-2 cursor-pointer transition items-center">
-
-            <div class="col-span-1 text-slate-500 text-[11px]" x-text="'#' + log.id"></div>
-
-            <div class="col-span-2 flex items-center">
-              <span x-show="log.flag_status === 'CONFIRMED'"
-                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-950 border border-rose-800 text-rose-300 flex items-center space-x-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
-                <span>CONFIRMED</span>
-              </span>
-              <span x-show="log.flag_status === 'POTENTIAL'"
-                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-950 border border-amber-800 text-amber-300">POTENTIAL</span>
-              <span x-show="log.flag_status === 'BLOCKED'"
-                class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-950 border border-purple-800 text-purple-300">BLOCKED</span>
-              <span x-show="log.flag_status === 'CLEAN'"
-                class="px-1.5 py-0.5 text-[9px] font-medium rounded bg-slate-800/80 text-slate-400">CLEAN</span>
-            </div>
-
-            <div class="col-span-2 truncate flex items-center space-x-1">
-              <span
-                class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
-                x-text="log.project || 'default'"></span>
-              <span x-show="log.agent_id && log.agent_id !== 'primary_agent'"
-                class="px-1 py-0.2 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
-                :title="'Agent: ' + log.agent_id" x-text="log.agent_id"></span>
-            </div>
-
-            <div class="col-span-1 font-semibold">
-              <span :class="{
-                'text-[#38BDF8]': log.method === 'GET',
-                'text-[#34D399]': log.method === 'POST',
-                'text-[#FBBF24]': log.method === 'PUT',
-                'text-[#FB7185]': log.method === 'DELETE',
-                'text-purple-400': !['GET', 'POST', 'PUT', 'DELETE'].includes(log.method)
-              }" x-text="log.method"></span>
-              <span x-show="log.source === 'BROWSER_RENDER'" class="text-[8px] text-slate-500 block">(DOM)</span>
-              <span x-show="log.source === 'REPEATER'" class="text-[8px] text-amber-400 block">(RPT)</span>
-              <span x-show="log.source === 'FUZZER'" class="text-[8px] text-purple-400 block">(FUZZ)</span>
-            </div>
-
-            <div class="col-span-1 text-center font-bold" :class="{
-                   'text-emerald-400': log.status_code >= 200 && log.status_code < 300,
-                   'text-sky-400': log.status_code >= 300 && log.status_code < 400,
-                   'text-amber-400': log.status_code >= 400 && log.status_code < 500,
-                   'text-rose-400': log.status_code >= 500 || !log.status_code
-                 }" x-text="log.status_code || 'ERR'">
-            </div>
-
-            <div class="col-span-3 truncate text-slate-200" :title="log.url">
-              <span class="text-slate-400" x-text="log.host"></span>
-              <span class="text-slate-100 font-medium" x-text="log.path"></span>
-            </div>
-
-            <div class="col-span-1 text-right text-slate-400 text-[11px]" x-text="log.duration_ms + 'ms'"></div>
-            <div class="col-span-1 text-right text-slate-500 text-[10px]" x-text="formatTime(log.timestamp)"></div>
+      <!-- Filter Bar & Table Controls -->
+      <div class="p-2.5 bg-[#111827]/85 border-b border-[#1E293B] flex items-center justify-between space-x-2 shrink-0">
+        <!-- Left: Global Search & Quick Method Filter -->
+        <div class="flex items-center space-x-2 flex-1 min-w-0">
+          <div class="relative flex-1 max-w-sm">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+            <input type="text" x-model="searchQuery" @input.debounce.200ms="filterLogs()"
+              placeholder="Search in URL, host, path, or keyword..."
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono transition">
           </div>
-        </template>
+
+          <!-- Counter Pill -->
+          <div class="px-2 py-1 rounded bg-[#0B0F17] border border-[#1E293B] text-[11px] font-mono text-slate-400 shrink-0">
+            <span class="text-sky-400 font-bold" x-text="filteredLogs.length"></span> / <span x-text="logs.length"></span>
+          </div>
+        </div>
+
+        <!-- Right: Action & Layout Tools -->
+        <div class="flex items-center space-x-1.5 shrink-0">
+          <!-- Toggle Per-Column Filter Row -->
+          <button @click="toggleColFilters()"
+            :class="showColFilters ? 'bg-sky-950 text-sky-300 border-sky-700 shadow-sm' : 'bg-[#0B0F17] text-slate-400 border-[#1E293B] hover:text-slate-200'"
+            class="px-2.5 py-1.5 rounded-md border text-xs font-mono flex items-center space-x-1.5 transition"
+            title="Toggle per-column filter row">
+            <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+            <span>Col Filters</span>
+            <span x-show="getActiveColFiltersCount() > 0"
+              class="px-1.5 py-0.2 rounded-full text-[9px] bg-sky-500 text-black font-bold"
+              x-text="getActiveColFiltersCount()"></span>
+          </button>
+
+          <!-- Reset All Active Filters -->
+          <button x-show="getActiveColFiltersCount() > 0 || searchQuery"
+            @click="clearAllColFilters()"
+            class="px-2 py-1.5 rounded-md bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-mono flex items-center space-x-1 transition"
+            title="Reset all active search and column filters">
+            <i data-lucide="x" class="w-3 h-3"></i>
+            <span>Reset</span>
+          </button>
+
+          <!-- Toggle Layout Orientation (Side-by-Side vs Stacked Top/Bottom) -->
+          <button @click="toggleLayoutOrientation()"
+            class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-mono transition"
+            :title="layoutOrientation === 'horizontal' ? 'Switch to Top-Bottom Stacked Layout' : 'Switch to Side-by-Side Split Layout'">
+            <i :data-lucide="layoutOrientation === 'horizontal' ? 'rows' : 'columns'" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Maximize Table Toggle -->
+          <button @click="toggleMaximize('table')"
+            class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-mono transition"
+            :title="maximizedPanel === 'table' ? 'Restore Split View' : 'Maximize Table View'">
+            <i :data-lucide="maximizedPanel === 'table' ? 'minimize-2' : 'maximize-2'" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Reset Column Widths -->
+          <button @click="resetColWidths()"
+            class="p-1.5 rounded-md bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-mono transition"
+            title="Reset column widths to default">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Auto-Scroll Toggle -->
+          <button @click="autoScroll = !autoScroll"
+            :class="autoScroll ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-[#0B0F17] text-slate-500 border-[#1E293B]'"
+            class="px-2 py-1.5 rounded-md border text-xs font-mono transition flex items-center space-x-1"
+            title="Toggle auto-scroll on new log arrival">
+            <i data-lucide="arrow-down" class="w-3 h-3"></i>
+            <span class="text-[10px]">Auto</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Resizable Table Wrapper (Horizontal + Vertical scroll synced) -->
+      <div class="flex-1 flex flex-col overflow-x-auto overflow-y-hidden select-none">
+        <div class="min-w-max flex-1 flex flex-col">
+          <!-- 1. RESIZABLE COLUMN HEADERS -->
+          <div class="flex bg-[#111827] border-b border-[#1E293B] text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0 sticky top-0 z-20">
+            <!-- Col 1: ID -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'"
+                 @click="sortLogs('id')" title="Click to sort by ID">
+              <span class="truncate"># ID</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('id', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 2: Flag -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'"
+                 @click="sortLogs('flag_status')" title="Click to sort by Flag">
+              <span class="truncate">Flag</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'flag_status' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('flag', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 3: Project -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'"
+                 @click="sortLogs('project')" title="Click to sort by Project">
+              <span class="truncate">Project</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'project' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('project', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 4: Agent -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'"
+                 @click="sortLogs('agent_id')" title="Click to sort by Agent">
+              <span class="truncate">Agent</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'agent_id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('agent', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 5: Method -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'"
+                 @click="sortLogs('method')" title="Click to sort by Method">
+              <span class="truncate">Method</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'method' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('method', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 6: Status -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'"
+                 @click="sortLogs('status_code')" title="Click to sort by Status Code">
+              <span class="truncate">Status</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'status_code' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('status', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 7: Host -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'"
+                 @click="sortLogs('host')" title="Click to sort by Host">
+              <span class="truncate">Host</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'host' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('host', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 8: Path -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'"
+                 @click="sortLogs('path')" title="Click to sort by Path">
+              <span class="truncate">Path</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'path' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('path', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 9: Latency -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+                 :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
+                 @click="sortLogs('duration')" title="Click to sort by Latency">
+              <span class="truncate">Latency</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'duration' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('duration', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+
+            <!-- Col 10: Time -->
+            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group"
+                 :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'"
+                 @click="sortLogs('time')" title="Click to sort by Time">
+              <span class="truncate">Time</span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'time' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <div @mousedown.stop="startColResize('time', $event)"
+                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+            </div>
+          </div>
+
+          <!-- 2. STICKY COLUMN FILTER INPUTS ROW -->
+          <div x-show="showColFilters"
+               class="flex bg-[#0B0F17]/95 border-b border-[#1E293B] text-[10px] font-mono shrink-0 py-1.5 px-0.5 sticky top-[33px] z-10 backdrop-blur-md shadow-inner">
+            <!-- Filter: ID -->
+            <div class="px-1" :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'">
+              <input type="text" x-model="colFilters.id" @input.debounce.150ms="filterLogs()"
+                placeholder="ID / >10"
+                class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
+                :class="colFilters.id ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
+            </div>
+
+            <!-- Filter: Flag -->
+            <div class="px-1" :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'">
+              <select x-model="colFilters.flag" @change="filterLogs()"
+                class="w-full bg-[#111827] border rounded px-1 py-0.5 text-[10px] text-slate-300 focus:outline-none transition"
+                :class="colFilters.flag !== 'ALL' ? 'border-sky-500 ring-1 ring-sky-500/30 font-bold text-sky-300' : 'border-[#1E293B]'">
+                <option value="ALL">ALL</option>
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="POTENTIAL">POTENTIAL</option>
+                <option value="BLOCKED">BLOCKED</option>
+                <option value="CLEAN">CLEAN</option>
+              </select>
+            </div>
+
+            <!-- Filter: Project -->
+            <div class="px-1" :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'">
+              <input type="text" x-model="colFilters.project" @input.debounce.150ms="filterLogs()"
+                placeholder="Project..."
+                class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
+                :class="colFilters.project ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
+            </div>
+
+            <!-- Filter: Agent -->
+            <div class="px-1" :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'">
+              <select x-model="colFilters.agent" @change="filterLogs()"
+                class="w-full bg-[#111827] border rounded px-0.5 py-0.5 text-[10px] text-purple-300 focus:outline-none truncate transition"
+                :class="colFilters.agent !== 'ALL' ? 'border-purple-500 ring-1 ring-purple-500/30 font-bold' : 'border-[#1E293B]'">
+                <option value="ALL">ALL</option>
+                <template x-for="ag in agentsList" :key="ag">
+                  <option :value="ag" x-text="ag"></option>
+                </template>
+              </select>
+            </div>
+
+            <!-- Filter: Method -->
+            <div class="px-1" :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'">
+              <select x-model="colFilters.method" @change="filterLogs()"
+                class="w-full bg-[#111827] border rounded px-0.5 py-0.5 text-[10px] text-slate-300 focus:outline-none transition"
+                :class="colFilters.method !== 'ALL' ? 'border-sky-500 ring-1 ring-sky-500/30 font-bold text-sky-300' : 'border-[#1E293B]'">
+                <option value="ALL">ALL</option>
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+                <option value="OPTIONS">OPT</option>
+              </select>
+            </div>
+
+            <!-- Filter: Status -->
+            <div class="px-1" :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'">
+              <select x-model="colFilters.status" @change="filterLogs()"
+                class="w-full bg-[#111827] border rounded px-0.5 py-0.5 text-[10px] text-slate-300 focus:outline-none transition"
+                :class="colFilters.status !== 'ALL' ? 'border-sky-500 ring-1 ring-sky-500/30 font-bold text-sky-300' : 'border-[#1E293B]'">
+                <option value="ALL">ALL</option>
+                <option value="2xx">2xx (OK)</option>
+                <option value="3xx">3xx (Redir)</option>
+                <option value="4xx">4xx (Client)</option>
+                <option value="5xx">5xx (Server)</option>
+                <option value="ERR">Errors</option>
+              </select>
+            </div>
+
+            <!-- Filter: Host -->
+            <div class="px-1" :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'">
+              <input type="text" x-model="colFilters.host" @input.debounce.150ms="filterLogs()"
+                placeholder="Host..."
+                class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
+                :class="colFilters.host ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
+            </div>
+
+            <!-- Filter: Path -->
+            <div class="px-1" :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'">
+              <input type="text" x-model="colFilters.path" @input.debounce.150ms="filterLogs()"
+                placeholder="Path / Query..."
+                class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
+                :class="colFilters.path ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
+            </div>
+
+            <!-- Filter: Latency -->
+            <div class="px-1" :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'">
+              <input type="text" x-model="colFilters.duration" @input.debounce.150ms="filterLogs()"
+                placeholder=">50ms"
+                class="w-full bg-[#111827] border rounded px-1 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
+                :class="colFilters.duration ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
+            </div>
+
+            <!-- Action: Reset Filters -->
+            <div class="px-1 flex items-center" :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'">
+              <button @click="clearAllColFilters()"
+                class="w-full py-0.5 px-1 bg-slate-800 hover:bg-rose-950 hover:text-rose-300 border border-slate-700 hover:border-rose-800 rounded text-[9px] text-slate-400 font-semibold transition"
+                title="Reset all column filters">
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. TRAFFIC ROWS -->
+          <div id="logsTableContainer" class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
+            <template x-for="log in paginatedLogs()" :key="log.id">
+              <div @click="selectLog(log.id)"
+                :class="selectedLogId === log.id ? 'bg-[#1E293B]/90 ring-1 ring-sky-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
+                class="flex items-center cursor-pointer transition select-text">
+
+                <!-- ID -->
+                <div class="px-2.5 py-2 text-slate-500 text-[11px] truncate"
+                     :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'"
+                     x-text="'#' + log.id"></div>
+
+                <!-- Flag -->
+                <div class="px-2.5 py-2 flex items-center truncate"
+                     :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'">
+                  <span x-show="log.flag_status === 'CONFIRMED'"
+                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-950 border border-rose-800 text-rose-300 flex items-center space-x-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                    <span>CONFIRMED</span>
+                  </span>
+                  <span x-show="log.flag_status === 'POTENTIAL'"
+                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-950 border border-amber-800 text-amber-300">POTENTIAL</span>
+                  <span x-show="log.flag_status === 'BLOCKED'"
+                    class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-purple-950 border border-purple-800 text-purple-300">BLOCKED</span>
+                  <span x-show="log.flag_status === 'CLEAN'"
+                    class="px-1.5 py-0.5 text-[9px] font-medium rounded bg-slate-800/80 text-slate-400">CLEAN</span>
+                </div>
+
+                <!-- Project -->
+                <div class="px-2.5 py-2 truncate"
+                     :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
+                        x-text="log.project || 'default'" :title="log.project"></span>
+                </div>
+
+                <!-- Agent -->
+                <div class="px-2.5 py-2 truncate"
+                     :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'">
+                  <span class="px-1 py-0.5 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
+                        :title="'Agent: ' + (log.agent_id || 'primary_agent')"
+                        x-text="log.agent_id || 'primary_agent'"></span>
+                </div>
+
+                <!-- Method -->
+                <div class="px-2.5 py-2 font-semibold truncate flex items-center space-x-1"
+                     :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'">
+                  <span :class="{
+                    'text-[#38BDF8]': log.method === 'GET',
+                    'text-[#34D399]': log.method === 'POST',
+                    'text-[#FBBF24]': log.method === 'PUT',
+                    'text-[#FB7185]': log.method === 'DELETE',
+                    'text-purple-400': !['GET', 'POST', 'PUT', 'DELETE'].includes(log.method)
+                  }" x-text="log.method"></span>
+                  <span x-show="log.source === 'REPEATER'" class="text-[8px] text-amber-400">(RPT)</span>
+                  <span x-show="log.source === 'FUZZER'" class="text-[8px] text-purple-400">(FUZZ)</span>
+                </div>
+
+                <!-- Status -->
+                <div class="px-2.5 py-2 font-bold truncate text-center"
+                     :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'"
+                     :class="{
+                       'text-emerald-400': log.status_code >= 200 && log.status_code < 300,
+                       'text-sky-400': log.status_code >= 300 && log.status_code < 400,
+                       'text-amber-400': log.status_code >= 400 && log.status_code < 500,
+                       'text-rose-400': log.status_code >= 500 || !log.status_code
+                     }" x-text="log.status_code || 'ERR'">
+                </div>
+
+                <!-- Host -->
+                <div class="px-2.5 py-2 truncate text-slate-300"
+                     :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'"
+                     x-text="log.host" :title="log.host"></div>
+
+                <!-- Path -->
+                <div class="px-2.5 py-2 truncate text-slate-100 font-medium"
+                     :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'"
+                     x-text="log.path" :title="log.path"></div>
+
+                <!-- Latency -->
+                <div class="px-2.5 py-2 text-slate-400 text-[11px] truncate text-right"
+                     :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
+                     x-text="log.duration_ms + 'ms'"></div>
+
+                <!-- Time -->
+                <div class="px-2.5 py-2 text-slate-500 text-[10px] truncate text-right"
+                     :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'"
+                     x-text="formatTime(log.timestamp)"></div>
+              </div>
+            </template>
+
+            <!-- Empty Filter State -->
+            <div x-show="filteredLogs.length === 0" class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
+              <i data-lucide="filter-x" class="w-8 h-8 mx-auto opacity-30 text-slate-400"></i>
+              <p>No HTTP logs match your active filters.</p>
+              <button @click="clearAllColFilters()" class="text-sky-400 hover:text-sky-300 underline text-[11px]">
+                Clear all filters
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Badge: Incoming Logs Buffer when reading older pages -->
+      <div x-show="newLogsBufferCount > 0"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           @click="jumpToLatestLogs()"
+           class="absolute bottom-12 right-6 z-30 cursor-pointer bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono font-bold text-xs px-3 py-1.5 rounded-full shadow-2xl flex items-center space-x-2 transition border border-sky-300 select-none">
+        <i data-lucide="zap" class="w-3.5 h-3.5 text-slate-950 animate-bounce"></i>
+        <span><span x-text="newLogsBufferCount"></span> new logs captured</span>
+        <span class="text-[10px] bg-slate-950/25 px-1.5 py-0.5 rounded font-semibold text-slate-950">Jump to Latest ↑</span>
+      </div>
+
+      <!-- 4. PAGINATION & ROWS-PER-PAGE FOOTER BAR -->
+      <div class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-xs select-none">
+        <!-- Left: Items Info & Rows Per Page Dropdown -->
+        <div class="flex items-center space-x-3 text-slate-400 text-[11px]">
+          <div class="flex items-center space-x-1">
+            <span>Showing</span>
+            <span class="text-slate-200 font-bold" x-text="pageStartItem()"></span>
+            <span>-</span>
+            <span class="text-slate-200 font-bold" x-text="pageEndItem()"></span>
+            <span>of</span>
+            <span class="text-sky-400 font-bold" x-text="filteredLogs.length"></span>
+            <span x-show="filteredLogs.length !== logs.length" class="text-slate-500 text-[10px]">
+              (filtered from <span x-text="logs.length"></span>)
+            </span>
+          </div>
+
+          <!-- Rows Per Page Selector -->
+          <div class="flex items-center space-x-1 pl-2 border-l border-[#1E293B]">
+            <span class="text-slate-500 text-[10px] uppercase">Rows:</span>
+            <select :value="pageSize >= 999999 ? 'ALL' : pageSize"
+                    @change="setPageSize($event.target.value)"
+                    class="bg-[#0B0F17] border border-[#1E293B] text-slate-200 text-[11px] rounded px-1.5 py-0.5 focus:outline-none focus:border-sky-500 cursor-pointer">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+              <option value="ALL">All</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Right: Page Navigation Controls -->
+        <div class="flex items-center space-x-1">
+          <!-- First Page -->
+          <button @click="setPage(1)"
+                  :disabled="currentPage === 1"
+                  :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
+                  title="First Page">
+            <i data-lucide="chevrons-left" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Previous Page -->
+          <button @click="setPage(currentPage - 1)"
+                  :disabled="currentPage === 1"
+                  :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
+                  title="Previous Page">
+            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Current Page Indicator -->
+          <div class="px-2.5 py-0.5 text-[11px] text-slate-300 flex items-center space-x-1 bg-[#0B0F17] border border-[#1E293B] rounded">
+            <span class="text-slate-500">Page</span>
+            <span class="text-sky-400 font-bold" x-text="currentPage"></span>
+            <span class="text-slate-500">/</span>
+            <span class="font-semibold" x-text="totalPages()"></span>
+          </div>
+
+          <!-- Next Page -->
+          <button @click="setPage(currentPage + 1)"
+                  :disabled="currentPage >= totalPages()"
+                  :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
+                  title="Next Page">
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+          </button>
+
+          <!-- Last Page -->
+          <button @click="setPage(totalPages())"
+                  :disabled="currentPage >= totalPages()"
+                  :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
+                  title="Last Page">
+            <i data-lucide="chevrons-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
       </div>
     </section>
 
-    <!-- RIGHT PANE: DEEP INSPECTOR (45%) -->
-    <section class="w-[45%] flex flex-col bg-[#111827]/90 overflow-hidden">
+    <!-- RESIZABLE SPLITTER DIVIDER (Drag to adjust panels) -->
+    <div x-show="maximizedPanel === 'none'"
+      @mousedown="startSplitResize($event)"
+      class="bg-[#1E293B] hover:bg-sky-500 transition-colors flex items-center justify-center shrink-0 z-20 group select-none"
+      :class="layoutOrientation === 'vertical' ? 'h-1.5 hover:h-2 cursor-row-resize w-full' : 'w-1.5 hover:w-2 cursor-col-resize h-full'"
+      :title="layoutOrientation === 'vertical' ? 'Drag up/down to adjust vertical layout' : 'Drag left/right to adjust horizontal layout'">
+      <div :class="layoutOrientation === 'vertical' ? 'w-8 h-0.5 bg-slate-500 group-hover:bg-white rounded' : 'h-8 w-0.5 bg-slate-500 group-hover:bg-white rounded'"></div>
+    </div>
+
+    <!-- RIGHT/BOTTOM PANE: DEEP INSPECTOR -->
+    <section :style="maximizedPanel === 'inspector' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'table' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + (100 - tableSplitPct) + '%; min-height: 140px;' : 'width: ' + (100 - tableSplitPct) + '%; min-width: 300px;'))"
+      class="flex flex-col bg-[#111827]/90 overflow-hidden">
       <!-- Tab Header -->
       <div class="h-10 bg-[#0B0F17] border-b border-[#1E293B] px-3 flex items-center justify-between shrink-0">
         <div class="flex space-x-1 text-xs font-mono">
@@ -399,10 +778,18 @@
             <span>Fuzzer</span>
           </button>
 
+          <!-- Copy cURL -->
           <button x-show="inspectorTab === 'request' && selectedLogDetail" @click="copyCurl()"
             class="px-2 py-1 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center transition">
             <i data-lucide="copy" class="w-3 h-3 mr-1"></i>
             <span x-text="copiedCurl ? 'Copied cURL!' : 'Copy cURL'"></span>
+          </button>
+
+          <!-- Maximize Inspector Toggle -->
+          <button @click="toggleMaximize('inspector')"
+            class="p-1 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center transition"
+            :title="maximizedPanel === 'inspector' ? 'Restore Split View' : 'Maximize Inspector View'">
+            <i :data-lucide="maximizedPanel === 'inspector' ? 'minimize-2' : 'maximize-2'" class="w-3.5 h-3.5"></i>
           </button>
         </div>
       </div>
@@ -917,9 +1304,9 @@
           <template x-if="repeaterResponse">
             <div class="flex items-center space-x-2">
               <span class="px-2.5 py-0.5 rounded text-xs font-bold font-mono"
-                :class="repeaterResponse.status_code >= 200 && repeaterResponse.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
-                x-text="repeaterResponse.status_code || 'ERR'"></span>
-              <span class="text-slate-400 text-[11px]" x-text="repeaterResponse.duration_ms + 'ms'"></span>
+                :class="repeaterResponse?.status_code >= 200 && repeaterResponse?.status_code < 300 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'"
+                x-text="repeaterResponse?.status_code || 'ERR'"></span>
+              <span class="text-slate-400 text-[11px]" x-text="(repeaterResponse?.duration_ms || 0) + 'ms'"></span>
             </div>
           </template>
         </div>
@@ -959,14 +1346,14 @@
               :class="!repeaterResBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
               class="px-2 py-0.5 rounded border transition">Raw</button>
             <button
-              @click="copyText(repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : repeaterResponse.response_body)"
+              @click="copyText(repeaterResBeautified ? beautifyText(repeaterResponse?.response_body, null, repeaterResponse?.response_headers) : repeaterResponse?.response_body)"
               class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
               title="Copy Response Body">Copy</button>
           </div>
         </div>
         <div
           class="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text overflow-y-auto whitespace-pre-wrap text-slate-200 font-mono text-xs leading-relaxed"
-          x-text="repeaterResBeautified ? beautifyText(repeaterResponse.response_body, null, repeaterResponse.response_headers) : (repeaterResponse.response_body || '[Empty Response Body]')">
+          x-text="repeaterResBeautified ? beautifyText(repeaterResponse?.response_body, null, repeaterResponse?.response_headers) : (repeaterResponse?.response_body || '[Empty Response Body]')">
         </div>
       </div>
 
@@ -986,7 +1373,7 @@
             <button @click="repeaterResHeadersView = 'raw'"
               :class="repeaterResHeadersView === 'raw' ? 'bg-[#1E293B] text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'"
               class="px-2 py-0.5 rounded border border-[#1E293B] transition">Raw</button>
-            <button @click="copyText(formatRawHeaders(repeaterResponse.response_headers))"
+            <button @click="copyText(formatRawHeaders(repeaterResponse?.response_headers))"
               class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
               title="Copy Response Headers">Copy</button>
           </div>
@@ -997,7 +1384,7 @@
           class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md">
           <table class="w-full text-left border-collapse">
             <tbody>
-              <template x-for="(val, header) in repeaterResponse.response_headers" :key="header">
+              <template x-for="(val, header) in (repeaterResponse?.response_headers || {})" :key="header">
                 <tr class="border-b border-[#1E293B]/60 hover:bg-[#1E293B]/40">
                   <td class="px-3 py-1.5 text-emerald-300 font-semibold w-1/3 select-text align-top" x-text="header">
                   </td>
@@ -1011,7 +1398,7 @@
         <!-- Raw View -->
         <div x-show="repeaterResHeadersView === 'raw'"
           class="flex-1 overflow-y-auto bg-[#0B0F17] border border-[#1E293B] rounded-md p-3 select-text font-mono text-xs text-emerald-200 whitespace-pre-wrap"
-          x-text="formatRawHeaders(repeaterResponse.response_headers)"></div>
+          x-text="formatRawHeaders(repeaterResponse?.response_headers)"></div>
       </div>
 
       <!-- SUB-TAB 3: DIFF MODE (SMART DIFFERENTIAL BENCHMARK) -->
@@ -1027,10 +1414,10 @@
           <template x-if="repeaterBaselineResponse">
             <span class="text-slate-400 text-[11px]">
               Baseline: <span class="text-sky-400 font-bold"
-                x-text="(repeaterBaselineResponse.response_body ? repeaterBaselineResponse.response_body.length : 0) + ' B'"></span>
+                x-text="(repeaterBaselineResponse?.response_body ? repeaterBaselineResponse.response_body.length : 0) + ' B'"></span>
               |
               Current: <span class="text-purple-400 font-bold"
-                x-text="(repeaterResponse.response_body ? repeaterResponse.response_body.length : 0) + ' B'"></span> |
+                x-text="(repeaterResponse?.response_body ? repeaterResponse.response_body.length : 0) + ' B'"></span> |
               Delta: <span :class="repeaterDeltaValue !== 0 ? 'text-amber-400 font-bold' : 'text-slate-400'"
                 x-text="(repeaterDeltaValue > 0 ? '+' : '') + repeaterDeltaValue + ' B'"></span>
             </span>
@@ -1259,8 +1646,8 @@
         class="h-44 border-t border-[#1E293B] bg-[#111827] flex flex-col p-3 font-mono text-xs shrink-0">
         <div class="flex items-center justify-between pb-1.5 border-b border-[#1E293B] mb-2">
           <span class="text-slate-300 font-bold flex items-center">
-            <span class="text-purple-400 mr-2" x-text="'#' + selectedFuzzPreview.id"></span>
-            <span x-text="'Payload: ' + selectedFuzzPreview.payload"></span>
+            <span class="text-purple-400 mr-2" x-text="'#' + (selectedFuzzPreview?.id || '')"></span>
+            <span x-text="'Payload: ' + (selectedFuzzPreview?.payload || '')"></span>
           </span>
           <button @click="selectedFuzzPreview = null" class="text-slate-500 hover:text-white">✕</button>
         </div>
@@ -1381,134 +1768,238 @@
 
   <!-- SESSION & COOKIE MANAGER MODAL (Direct Paste & AI Auto-Injection) -->
   <div x-show="openLoginModal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
     <div @click.away="openLoginModal = false"
-      class="w-full max-w-2xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl">
-      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
-        <div class="flex items-center space-x-2.5">
-          <div class="p-2 bg-amber-950/80 border border-amber-700/60 rounded-lg text-amber-400">
+      class="w-full max-w-3xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl my-auto">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3.5">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-amber-950/80 border border-amber-700/60 rounded-xl text-amber-400 shadow-md">
             <i data-lucide="cookie" class="w-5 h-5"></i>
           </div>
           <div>
             <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
-              <span>Session & Cookie Manager</span>
-              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">AI Auto-Injection</span>
+              <span>Session &amp; Cookie Credentials</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold flex items-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+                AI Auto-Injection Active
+              </span>
             </h3>
-            <p class="text-[11px] text-slate-400">Paste cookie sesi browser Anda. AI Agent otomatis menyuntikkan cookie ini ke setiap request tanpa perlu prompting ulang.</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              Manage authenticated target sessions. AI Agents automatically inject matching cookies into tool requests with zero prompts.
+            </p>
           </div>
         </div>
-        <button @click="openLoginModal = false" class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
+        <button @click="openLoginModal = false" class="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
       </div>
 
-      <!-- AI Auto-Injection Status Callout -->
-      <div class="p-3 bg-emerald-950/40 border border-emerald-700/50 rounded-xl flex items-start space-x-3">
-        <div class="p-1.5 bg-emerald-900/60 rounded-lg text-emerald-400 mt-0.5 shrink-0">
+      <!-- AI Auto-Injection Callout Banner -->
+      <div class="p-3.5 bg-gradient-to-r from-emerald-950/40 via-[#0B0F17]/90 to-slate-900 border border-emerald-800/40 rounded-xl flex items-start space-x-3">
+        <div class="p-1.5 bg-emerald-900/60 rounded-lg text-emerald-400 mt-0.5 shrink-0 border border-emerald-700/40">
           <i data-lucide="zap" class="w-4 h-4"></i>
         </div>
         <div class="flex-1 text-[11px] leading-relaxed">
           <div class="font-bold text-emerald-300 flex items-center space-x-2">
-            <span>AI AGENT READY & ZERO-PROMPT AUTO-INJECTION</span>
+            <span>ZERO-PROMPT CREDENTIAL INJECTION</span>
           </div>
           <p class="text-slate-300 mt-0.5">
-            Saat AI Agent (Opencode / Hermes via MCP) memanggil tool <code class="text-amber-300 font-semibold">send_http_request</code> ke target domain yang tersimpan di bawah, header <code class="text-emerald-300 font-semibold">Cookie</code> langsung disuntikkan secara otomatis. Anda tidak perlu lagi login berulang kali ataupun menjawab prompt interaktif.
+            When MCP AI Agents (e.g. Opencode, Hermes, Claude) call <code class="text-amber-300 font-semibold bg-amber-950/60 px-1 py-0.5 rounded">send_http_request</code> targeting any domain listed below, the <code class="text-emerald-300 font-semibold bg-emerald-950/60 px-1 py-0.5 rounded">Cookie</code> header is automatically populated. No re-authentication or prompt interruptions required.
           </p>
         </div>
       </div>
 
       <!-- Paste Cookie Input Form -->
-      <div class="space-y-3 bg-[#0B0F17]/60 border border-[#1E293B] rounded-xl p-4">
+      <div class="space-y-3 bg-[#0B0F17]/80 border border-[#1E293B] rounded-xl p-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
           <div class="md:col-span-2">
-            <label class="text-[11px] text-slate-300 font-semibold block mb-1">
-              Target Domain (e.g. <span class="text-sky-400">target.example.com</span>):
-            </label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[11px] text-slate-300 font-semibold">
+                Target Host / Domain:
+              </label>
+              <span class="text-[10px] text-slate-500">Auto-extracted if omitted</span>
+            </div>
             <input type="text" x-model="importCookieForm.domain"
-              placeholder="target.example.com (Otomatis diekstrak jika kosong)"
-              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500">
+              placeholder="e.g. target.example.com"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500 placeholder:text-slate-600 transition">
           </div>
           <div class="flex flex-col justify-end">
-            <span class="text-[11px] text-slate-400 mb-1">Target Project:</span>
-            <div class="px-3 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-400 font-bold truncate"
-              x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></div>
+            <span class="text-[11px] text-slate-400 mb-1">Active Project Scope:</span>
+            <div class="px-3 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-400 font-bold truncate flex items-center space-x-1.5">
+              <i data-lucide="folder" class="w-3.5 h-3.5 text-indigo-400 shrink-0"></i>
+              <span x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></span>
+            </div>
           </div>
         </div>
 
         <div>
-          <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center justify-between mb-1.5">
             <label class="text-[11px] text-slate-300 font-semibold flex items-center space-x-1.5">
               <span>Paste Cookie / cURL / Headers / JSON:</span>
-              <span class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-slate-400">Supports HttpOnly & Raw</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-400 border border-slate-700">Supports HttpOnly &amp; Raw</span>
             </label>
             <button @click="copyConsoleHelper()"
-              class="text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-mono transition"
-              title="Copy snippet copy(document.cookie); untuk ditempel di Console F12 browser target">
+              class="text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-mono transition bg-amber-950/40 hover:bg-amber-950/70 border border-amber-800/40 px-2 py-0.5 rounded"
+              title="Copy snippet copy(document.cookie); to run in target browser F12 Console">
               <i data-lucide="terminal" class="w-3 h-3"></i>
               <span>Copy DevTools Console Helper</span>
             </button>
           </div>
           <textarea x-model="importCookieForm.rawInput" rows="5"
-            placeholder="Contoh format yang langsung didukung:&#10;1. Raw string: session=abc123xyz; token=eyJ...; auth=true&#10;2. Perintah cURL: curl 'https://target.example.com/app' -H 'Cookie: session=...'&#10;3. Request Header block: Cookie: token=...&#10;4. JSON Export dari browser extension Cookie-Editor"
-            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y placeholder:text-slate-600"></textarea>
+            placeholder="Supported formats:&#10;1. Raw cookie string: session=abc123xyz; token=eyJ...; auth=true&#10;2. cURL command: curl 'https://target.example.com/app' -H 'Cookie: session=...'&#10;3. Request Header block: Cookie: token=...&#10;4. JSON export array from Cookie-Editor / Playwright storage state"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y placeholder:text-slate-600 transition"></textarea>
         </div>
 
-        <div class="flex justify-between items-center pt-2">
-          <div class="text-[10px] text-slate-500">
-            💡 Tips: Untuk HttpOnly cookie, salin command cURL dari tab Network di DevTools (F12) lalu paste langsung di sini.
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1 border-t border-[#1E293B]/60">
+          <div class="text-[10px] text-slate-500 leading-tight">
+            💡 <strong class="text-slate-400">Pro-tip:</strong> For HttpOnly session cookies, right-click any request in DevTools (F12) Network tab &gt; <code class="text-sky-400">Copy as cURL</code>, then paste directly above.
           </div>
-          <div class="flex space-x-2 shrink-0">
+          <div class="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
             <button @click="importCookieForm.rawInput = ''"
-              class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">Clear</button>
+              class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition">Clear</button>
             <button @click="importCookiesDirectly()"
-              class="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white rounded-lg font-bold transition flex items-center space-x-1.5 shadow-lg">
+              class="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white rounded-lg font-bold transition flex items-center space-x-1.5 shadow-lg active:scale-95">
               <i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i>
-              <span>Simpan & Aktifkan Sesi</span>
+              <span>Save &amp; Activate Credentials</span>
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Active Sessions in Database -->
-      <div class="border-t border-[#1E293B] pt-3 space-y-2">
+      <!-- Active Stored Sessions in Database -->
+      <div class="border-t border-[#1E293B] pt-3.5 space-y-2.5">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] font-bold text-slate-300 flex items-center space-x-1.5">
-            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>Daftar Sesi Aktif di Database Spectra (<span x-text="activeSessions.length"></span>)</span>
+          <div class="text-[11px] font-bold text-slate-300 flex items-center space-x-2">
+            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+            <span>Active Stored Credentials (<span class="text-emerald-400" x-text="activeSessions.length"></span>)</span>
           </div>
-          <button @click="fetchSessions()" class="text-[10px] text-sky-400 hover:text-sky-300 font-mono flex items-center space-x-1">
-            <i data-lucide="refresh-cw" class="w-3 h-3"></i>
-            <span>Refresh</span>
-          </button>
+          <div class="flex items-center space-x-2">
+            <button x-show="activeSessions.length > 0" @click="clearAllSessions()"
+              class="text-[10px] text-rose-400 hover:text-rose-300 font-mono flex items-center space-x-1 px-2 py-0.5 rounded border border-rose-900/60 bg-rose-950/40 hover:bg-rose-950/80 transition"
+              title="Revoke all active sessions for current project">
+              <i data-lucide="trash-2" class="w-3 h-3"></i>
+              <span>Revoke All</span>
+            </button>
+            <button @click="fetchSessions()"
+              class="text-[10px] text-sky-400 hover:text-sky-300 font-mono flex items-center space-x-1 px-2 py-0.5 rounded border border-sky-900/60 bg-sky-950/40 hover:bg-sky-950/80 transition">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
-        <div class="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+        <div class="max-h-56 overflow-y-auto space-y-2 pr-1">
           <template x-if="activeSessions.length === 0">
-            <div class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-center text-slate-500 text-[11px]">
-              Belum ada cookie tersimpan. Paste cookie di form atas untuk mengaktifkan sesi AI Agent.
+            <div class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-xl text-center text-slate-500 text-[11px] space-y-1">
+              <i data-lucide="cookie" class="w-6 h-6 mx-auto opacity-30 text-amber-400"></i>
+              <p>No stored session credentials found.</p>
+              <p class="text-[10px] text-slate-600">Paste cookie string, cURL command, or JSON array in the form above to activate credentials for AI Agents.</p>
             </div>
           </template>
-          <template x-for="s in activeSessions" :key="s.domain">
-            <div class="p-2.5 bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 rounded-lg flex items-center justify-between">
-              <div class="space-y-0.5">
-                <div class="flex items-center space-x-2">
-                  <span class="font-bold text-sky-300 font-mono text-xs" x-text="s.domain"></span>
-                  <span class="px-1.5 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"
-                    x-text="s.cookie_count + ' cookies'"></span>
+
+          <template x-for="s in activeSessions" :key="s.id || s.domain">
+            <div class="p-3 bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 rounded-xl space-y-2 transition">
+              <div class="flex items-center justify-between">
+                <!-- Left: Domain info & badges -->
+                <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <div class="flex items-center space-x-1.5">
+                    <i data-lucide="globe" class="w-3.5 h-3.5 text-sky-400"></i>
+                    <span class="font-bold text-sky-300 font-mono text-xs select-text" x-text="s.domain"></span>
+                  </div>
+                  <span class="px-2 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"
+                    x-text="s.cookie_count + (s.cookie_count === 1 ? ' cookie' : ' cookies')"></span>
                   <span class="text-[10px] text-indigo-400 font-mono" x-text="'[' + (s.project || 'default') + ']'"></span>
-                  <span class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center">
+                  <span class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.2 rounded">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
-                    AI Injected
+                    Auto-Injected
                   </span>
                 </div>
-                <div class="text-[10px] text-slate-400 font-mono truncate max-w-md"
-                  x-text="'Cookie Keys: ' + (s.cookie_names && s.cookie_names.length ? s.cookie_names.join(', ') : 'Active')"></div>
+
+                <!-- Right: Action Buttons (Copy, Inspect, Revoke) -->
+                <div class="flex items-center space-x-1.5 shrink-0">
+                  <span class="text-[9px] text-slate-500 font-mono mr-1 hidden sm:inline" x-text="s.updated_at ? s.updated_at.split('T')[0] : ''"></span>
+                  
+                  <!-- Copy Cookie String Button -->
+                  <button @click="copySessionCookieString(s)"
+                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] transition font-semibold flex items-center space-x-1"
+                    title="Copy cookie header string to clipboard">
+                    <i data-lucide="copy" class="w-3 h-3 text-slate-400"></i>
+                    <span>Copy</span>
+                  </button>
+
+                  <!-- Expand / Collapse Details Button -->
+                  <button @click="expandedSessionId = (expandedSessionId === s.id ? null : s.id)"
+                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] transition font-semibold flex items-center space-x-1"
+                    :title="expandedSessionId === s.id ? 'Hide cookie details' : 'Inspect cookie details'">
+                    <i data-lucide="list" class="w-3 h-3 text-sky-400"></i>
+                    <span x-text="expandedSessionId === s.id ? 'Collapse' : 'Inspect'"></span>
+                  </button>
+
+                  <!-- Revoke Button -->
+                  <button @click="deleteSession(s.domain, s.id)"
+                    class="px-2.5 py-1 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded text-[10px] transition font-semibold flex items-center space-x-1 active:scale-95 shadow-sm"
+                    title="Revoke and permanently delete this session">
+                    <i data-lucide="trash-2" class="w-3 h-3 text-rose-400"></i>
+                    <span>Revoke</span>
+                  </button>
+                </div>
               </div>
-              <div class="flex items-center space-x-2">
-                <span class="text-[9px] text-slate-500 font-mono" x-text="s.updated_at ? s.updated_at.split('T')[0] : ''"></span>
-                <button @click="deleteSession(s.domain)"
-                  class="px-2.5 py-1 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded text-[10px] transition font-semibold"
-                  title="Cabut & Hapus Sesi Cookie Ini">
-                  Revoke
-                </button>
+
+              <!-- Cookie Name Badges with Individual Revoke (✕) -->
+              <div class="flex items-center flex-wrap gap-1.5 pt-0.5">
+                <span class="text-[10px] text-slate-500 font-semibold mr-0.5">Keys:</span>
+                <template x-for="cName in (s.cookie_names && s.cookie_names.length ? s.cookie_names : (s.cookies || []).map(c => c.name))" :key="cName">
+                  <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900 border border-slate-700 text-emerald-300 font-mono">
+                    <span x-text="cName"></span>
+                    <button @click.stop="deleteSingleCookie(s.id, cName, s.domain)"
+                      class="text-slate-500 hover:text-rose-400 ml-1 transition"
+                      :title="'Revoke only ' + cName">✕</button>
+                  </span>
+                </template>
+                <span x-show="!s.cookie_names || s.cookie_names.length === 0" class="text-[10px] text-slate-500 italic">No cookie keys parsed</span>
+              </div>
+
+              <!-- Expanded Detailed Cookie Inspector Table -->
+              <div x-show="expandedSessionId === s.id" class="mt-2 border-t border-[#1E293B] pt-2">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-[10px] font-mono border-collapse">
+                    <thead>
+                      <tr class="border-b border-[#1E293B] text-slate-400">
+                        <th class="py-1 px-1.5">Name</th>
+                        <th class="py-1 px-1.5">Value</th>
+                        <th class="py-1 px-1.5">Domain</th>
+                        <th class="py-1 px-1.5">Path</th>
+                        <th class="py-1 px-1.5 text-center">HttpOnly</th>
+                        <th class="py-1 px-1.5 text-center">Secure</th>
+                        <th class="py-1 px-1.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="ck in (s.cookies || [])" :key="ck.name">
+                        <tr class="border-b border-[#1E293B]/40 hover:bg-slate-800/30">
+                          <td class="py-1 px-1.5 text-emerald-300 font-semibold select-text" x-text="ck.name"></td>
+                          <td class="py-1 px-1.5 text-slate-300 select-text truncate max-w-[150px]" x-text="ck.value" :title="ck.value"></td>
+                          <td class="py-1 px-1.5 text-slate-400 select-text" x-text="ck.domain || s.domain"></td>
+                          <td class="py-1 px-1.5 text-slate-400" x-text="ck.path || '/'"></td>
+                          <td class="py-1 px-1.5 text-center">
+                            <span :class="ck.httpOnly ? 'text-amber-400' : 'text-slate-600'" x-text="ck.httpOnly ? 'YES' : 'NO'"></span>
+                          </td>
+                          <td class="py-1 px-1.5 text-center">
+                            <span :class="ck.secure ? 'text-emerald-400' : 'text-slate-600'" x-text="ck.secure ? 'YES' : 'NO'"></span>
+                          </td>
+                          <td class="py-1 px-1.5 text-right">
+                            <button @click="deleteSingleCookie(s.id, ck.name, s.domain)"
+                              class="text-rose-400 hover:text-rose-300 text-[10px] font-semibold hover:underline">
+                              Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </template>
@@ -1545,6 +2036,11 @@
         inspectorTab: 'request',
         autoScroll: true,
         activeDomain: '',
+
+        // Smart Pagination State
+        currentPage: 1,
+        pageSize: 50,
+        newLogsBufferCount: 0,
 
         // Traffic Inspector Full View & Beautify flags
         reqHeadersView: 'table', // 'table' | 'raw'
@@ -1617,10 +2113,115 @@
         openLoginModal: false,
         activeSessions: [],
         importCookieForm: { domain: '', rawInput: '' },
+        expandedSessionId: null,
         copiedCurl: false,
         toasts: [],
+        renderTimer: null,
+
+        // Layout & Table Adjustments
+        tableSplitPct: 55,
+        layoutOrientation: 'horizontal', // 'horizontal' | 'vertical'
+        maximizedPanel: 'none', // 'none' | 'table' | 'inspector'
+        showColFilters: true,
+        sortCol: 'id',
+        sortDir: 'desc',
+        colWidths: {
+          id: 60,
+          flag: 105,
+          project: 105,
+          agent: 95,
+          method: 75,
+          status: 70,
+          host: 160,
+          path: 240,
+          duration: 75,
+          time: 75
+        },
+        colFilters: {
+          id: '',
+          flag: 'ALL',
+          project: '',
+          agent: 'ALL',
+          method: 'ALL',
+          status: 'ALL',
+          host: '',
+          path: '',
+          duration: ''
+        },
+
+        totalPages() {
+          if (this.pageSize >= 999999) return 1;
+          const pages = Math.ceil((this.filteredLogs || []).length / this.pageSize);
+          return Math.max(1, pages);
+        },
+
+        paginatedLogs() {
+          if (!this.filteredLogs || this.filteredLogs.length === 0) return [];
+          if (this.pageSize >= 999999) return this.filteredLogs;
+          const start = (this.currentPage - 1) * this.pageSize;
+          return this.filteredLogs.slice(start, start + this.pageSize);
+        },
+
+        setPage(page) {
+          const total = this.totalPages();
+          const target = Math.max(1, Math.min(total, page));
+          this.currentPage = target;
+          if (this.currentPage === 1) {
+            this.newLogsBufferCount = 0;
+          }
+          const el = document.getElementById('logsTableContainer');
+          if (el) el.scrollTop = 0;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        setPageSize(size) {
+          this.pageSize = size === 'ALL' ? 999999 : parseInt(size);
+          this.currentPage = 1;
+          this.newLogsBufferCount = 0;
+          try {
+            localStorage.setItem('spectra_page_size', String(size));
+          } catch (e) { }
+          const el = document.getElementById('logsTableContainer');
+          if (el) el.scrollTop = 0;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        jumpToLatestLogs() {
+          this.currentPage = 1;
+          this.newLogsBufferCount = 0;
+          this.autoScroll = true;
+          const el = document.getElementById('logsTableContainer');
+          if (el) el.scrollTop = 0;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        pageStartItem() {
+          if (!this.filteredLogs || this.filteredLogs.length === 0) return 0;
+          return (this.currentPage - 1) * (this.pageSize >= 999999 ? this.filteredLogs.length : this.pageSize) + 1;
+        },
+
+        pageEndItem() {
+          if (!this.filteredLogs || this.filteredLogs.length === 0) return 0;
+          if (this.pageSize >= 999999) return this.filteredLogs.length;
+          return Math.min(this.currentPage * this.pageSize, this.filteredLogs.length);
+        },
 
         initApp() {
+          try {
+            const savedWidths = localStorage.getItem('spectra_col_widths');
+            if (savedWidths) this.colWidths = Object.assign(this.colWidths, JSON.parse(savedWidths));
+            const savedPct = localStorage.getItem('spectra_split_pct');
+            if (savedPct) this.tableSplitPct = parseFloat(savedPct);
+            const savedOrientation = localStorage.getItem('spectra_layout_orientation');
+            if (savedOrientation) this.layoutOrientation = savedOrientation;
+            const savedShowFilters = localStorage.getItem('spectra_show_col_filters');
+            if (savedShowFilters !== null) this.showColFilters = savedShowFilters === 'true';
+            const savedPageSize = localStorage.getItem('spectra_page_size');
+            if (savedPageSize) {
+              this.pageSize = savedPageSize === 'ALL' ? 999999 : (parseInt(savedPageSize) || 50);
+            }
+          } catch (e) { }
+
           this.fetchProjects();
           this.fetchStats();
           this.fetchLogs();
@@ -1655,11 +2256,27 @@
         handleWsMessage(msg) {
           if (msg.type === 'NEW_LOG' && msg.log) {
             const newLog = msg.log;
+
+            // Instantly update stats in memory without costly HTTP network roundtrips
+            if (this.stats) {
+              this.stats.total_requests = (this.stats.total_requests || 0) + 1;
+              if (newLog.flag_status === 'CONFIRMED') {
+                this.stats.confirmed_findings = (this.stats.confirmed_findings || 0) + 1;
+              } else if (newLog.flag_status === 'POTENTIAL') {
+                this.stats.potential_findings = (this.stats.potential_findings || 0) + 1;
+              } else if (newLog.flag_status === 'CLEAN') {
+                this.stats.clean_logs = (this.stats.clean_logs || 0) + 1;
+              }
+            }
+
             if (this.selectedProject === 'ALL' || this.selectedProject === newLog.project) {
               this.logs.unshift(newLog);
-              if (this.logs.length > 500) this.logs.pop();
-              this.filterLogs();
-              this.fetchStats();
+              if (this.logs.length > 2000) this.logs.pop();
+
+              if (this.currentPage > 1) {
+                this.newLogsBufferCount++;
+              }
+
               if (newLog.agent_id && !this.agentsList.includes(newLog.agent_id)) {
                 this.agentsList.push(newLog.agent_id);
               }
@@ -1670,8 +2287,15 @@
                 });
               }
             }
-            this.fetchProjects();
-            this.$nextTick(() => lucide.createIcons());
+
+            // Batch and throttle DOM updates & icon creation to 100ms window (60 FPS fluid rendering)
+            if (!this.renderTimer) {
+              this.renderTimer = setTimeout(() => {
+                this.filterLogs();
+                this.renderTimer = null;
+                this.$nextTick(() => lucide.createIcons());
+              }, 100);
+            }
           } else if (msg.type === 'INTERCEPT_TOGGLED') {
             this.interceptEnabled = msg.enabled;
           } else if (msg.type === 'FUZZER_COMPLETED') {
@@ -1683,8 +2307,13 @@
           } else if (msg.type === 'LOGS_CLEARED') {
             this.logs = [];
             this.filteredLogs = [];
+            this.selectedLogId = null;
             this.selectedLogDetail = null;
+            this.currentPage = 1;
+            this.newLogsBufferCount = 0;
             this.fetchStats();
+            this.fetchProjects();
+            this.$nextTick(() => lucide.createIcons());
           } else if (msg.type === 'AUTH_SPAWNED') {
             this.loginSpawning = true;
             this.authLiveCookiesCount = 0;
@@ -1749,7 +2378,7 @@
         async fetchLogs() {
           try {
             const param = this.selectedProject !== 'ALL' ? `&project=${encodeURIComponent(this.selectedProject)}` : '';
-            const res = await fetch(`/api/logs?limit=200${param}`);
+            const res = await fetch(`/api/logs?limit=500${param}`);
             if (res.ok) {
               const data = await res.json();
               this.logs = data.logs || [];
@@ -1763,17 +2392,274 @@
 
         filterLogs() {
           this.filteredLogs = this.logs.filter(log => {
-            if (this.selectedMethod !== 'ALL' && log.method !== this.selectedMethod) return false;
-            if (this.selectedFlag !== 'ALL' && log.flag_status !== this.selectedFlag) return false;
-            if (this.selectedAgent !== 'ALL' && log.agent_id !== this.selectedAgent) return false;
+            // Global text search query
             if (this.searchQuery) {
               const q = this.searchQuery.toLowerCase();
-              const full = `${log.url} ${log.host} ${log.path} ${log.method} ${log.project} ${log.agent_id || ''}`.toLowerCase();
+              const full = `${log.url} ${log.host} ${log.path} ${log.method} ${log.project} ${log.agent_id || ''} ${log.status_code || ''} ${log.flag_status}`.toLowerCase();
               if (!full.includes(q)) return false;
             }
+
+            // Quick Top Method Filter
+            if (this.selectedMethod !== 'ALL' && log.method !== this.selectedMethod) return false;
+            if (this.colFilters.method !== 'ALL' && log.method !== this.colFilters.method) return false;
+
+            // Flag Filter
+            if (this.selectedFlag !== 'ALL' && log.flag_status !== this.selectedFlag) return false;
+            if (this.colFilters.flag !== 'ALL' && log.flag_status !== this.colFilters.flag) return false;
+
+            // Agent Filter
+            if (this.selectedAgent !== 'ALL' && log.agent_id !== this.selectedAgent) return false;
+            if (this.colFilters.agent !== 'ALL' && log.agent_id !== this.colFilters.agent) return false;
+
+            // Column 1: ID Filter
+            if (this.colFilters.id) {
+              const idStr = String(log.id);
+              const f = this.colFilters.id.trim();
+              if (f.startsWith('>')) {
+                const val = parseInt(f.slice(1));
+                if (isNaN(val) || log.id <= val) return false;
+              } else if (f.startsWith('<')) {
+                const val = parseInt(f.slice(1));
+                if (isNaN(val) || log.id >= val) return false;
+              } else {
+                if (!idStr.includes(f.replace('#', ''))) return false;
+              }
+            }
+
+            // Column 2: Project Filter
+            if (this.colFilters.project) {
+              const p = (log.project || 'default').toLowerCase();
+              if (!p.includes(this.colFilters.project.toLowerCase())) return false;
+            }
+
+            // Column 3: Status Filter
+            if (this.colFilters.status !== 'ALL') {
+              const sc = log.status_code;
+              const fs = this.colFilters.status;
+              if (fs === '2xx' && (sc < 200 || sc >= 300)) return false;
+              else if (fs === '3xx' && (sc < 300 || sc >= 400)) return false;
+              else if (fs === '4xx' && (sc < 400 || sc >= 500)) return false;
+              else if (fs === '5xx' && (sc < 500 || sc >= 600)) return false;
+              else if (fs === 'ERR' && (sc !== null && sc !== 0 && sc !== undefined)) return false;
+              else if (!isNaN(parseInt(fs)) && sc !== parseInt(fs)) return false;
+            }
+
+            // Column 4: Host Filter
+            if (this.colFilters.host) {
+              const h = (log.host || '').toLowerCase();
+              if (!h.includes(this.colFilters.host.toLowerCase())) return false;
+            }
+
+            // Column 5: Path Filter
+            if (this.colFilters.path) {
+              const pt = (log.path || '').toLowerCase();
+              if (!pt.includes(this.colFilters.path.toLowerCase())) return false;
+            }
+
+            // Column 6: Latency Filter
+            if (this.colFilters.duration) {
+              const dur = log.duration_ms || 0;
+              const f = this.colFilters.duration.trim();
+              if (f.startsWith('>')) {
+                const val = parseInt(f.slice(1));
+                if (isNaN(val) || dur <= val) return false;
+              } else if (f.startsWith('<')) {
+                const val = parseInt(f.slice(1));
+                if (isNaN(val) || dur >= val) return false;
+              } else {
+                const val = parseInt(f);
+                if (!isNaN(val) && dur < val) return false;
+              }
+            }
+
             return true;
           });
+
+          // Sort table rows
+          if (this.sortCol) {
+            const col = this.sortCol;
+            const dir = this.sortDir === 'asc' ? 1 : -1;
+            this.filteredLogs.sort((a, b) => {
+              let va = a[col];
+              let vb = b[col];
+              if (col === 'duration') {
+                va = a.duration_ms || 0;
+                vb = b.duration_ms || 0;
+              } else if (col === 'time') {
+                va = a.timestamp || '';
+                vb = b.timestamp || '';
+              } else if (col === 'status_code') {
+                va = a.status_code || 0;
+                vb = b.status_code || 0;
+              } else if (typeof va === 'string') {
+                return (va || '').localeCompare(vb || '') * dir;
+              }
+              if (va < vb) return -1 * dir;
+              if (va > vb) return 1 * dir;
+              return 0;
+            });
+          }
+
+          const total = this.totalPages();
+          if (this.currentPage > total) {
+            this.currentPage = Math.max(1, total);
+          }
+
           this.$nextTick(() => lucide.createIcons());
+        },
+
+        sortLogs(col) {
+          if (this.sortCol === col) {
+            this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            this.sortCol = col;
+            this.sortDir = 'asc';
+          }
+          this.filterLogs();
+        },
+
+        toggleColFilters() {
+          this.showColFilters = !this.showColFilters;
+          try {
+            localStorage.setItem('spectra_show_col_filters', String(this.showColFilters));
+          } catch (e) { }
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        getActiveColFiltersCount() {
+          let count = 0;
+          if (this.colFilters.id) count++;
+          if (this.colFilters.flag !== 'ALL') count++;
+          if (this.colFilters.project) count++;
+          if (this.colFilters.agent !== 'ALL') count++;
+          if (this.colFilters.method !== 'ALL') count++;
+          if (this.colFilters.status !== 'ALL') count++;
+          if (this.colFilters.host) count++;
+          if (this.colFilters.path) count++;
+          if (this.colFilters.duration) count++;
+          return count;
+        },
+
+        clearAllColFilters() {
+          this.colFilters = {
+            id: '',
+            flag: 'ALL',
+            project: '',
+            agent: 'ALL',
+            method: 'ALL',
+            status: 'ALL',
+            host: '',
+            path: '',
+            duration: ''
+          };
+          this.selectedMethod = 'ALL';
+          this.selectedFlag = 'ALL';
+          this.selectedAgent = 'ALL';
+          this.searchQuery = '';
+          this.filterLogs();
+          this.showToast({ title: 'Filters Reset', message: 'All column and global filters cleared.' });
+        },
+
+        toggleLayoutOrientation() {
+          this.layoutOrientation = this.layoutOrientation === 'horizontal' ? 'vertical' : 'horizontal';
+          try {
+            localStorage.setItem('spectra_layout_orientation', this.layoutOrientation);
+          } catch (e) { }
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        toggleMaximize(panel) {
+          if (this.maximizedPanel === panel) {
+            this.maximizedPanel = 'none';
+          } else {
+            this.maximizedPanel = panel;
+          }
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        startSplitResize(event) {
+          event.preventDefault();
+          const container = document.getElementById('proxySplitPane');
+          if (!container) return;
+          const containerRect = container.getBoundingClientRect();
+          const isVertical = this.layoutOrientation === 'vertical';
+
+          const prevCursor = document.body.style.cursor;
+          const prevUserSelect = document.body.style.userSelect;
+          document.body.style.cursor = isVertical ? 'row-resize' : 'col-resize';
+          document.body.style.userSelect = 'none';
+
+          const onMouseMove = (e) => {
+            if (isVertical) {
+              const newHeight = ((e.clientY - containerRect.top) / containerRect.height) * 100;
+              this.tableSplitPct = Math.min(85, Math.max(15, newHeight));
+            } else {
+              const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+              this.tableSplitPct = Math.min(85, Math.max(15, newWidth));
+            }
+          };
+
+          const onMouseUp = () => {
+            document.body.style.cursor = prevCursor;
+            document.body.style.userSelect = prevUserSelect;
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            try {
+              localStorage.setItem('spectra_split_pct', String(this.tableSplitPct));
+            } catch (e) { }
+          };
+
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', onMouseUp);
+        },
+
+        startColResize(col, event) {
+          event.preventDefault();
+          event.stopPropagation();
+          const startX = event.clientX;
+          const startWidth = this.colWidths[col] || 80;
+
+          const prevCursor = document.body.style.cursor;
+          const prevUserSelect = document.body.style.userSelect;
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+
+          const onMouseMove = (e) => {
+            const delta = e.clientX - startX;
+            this.colWidths[col] = Math.max(35, startWidth + delta);
+          };
+
+          const onMouseUp = () => {
+            document.body.style.cursor = prevCursor;
+            document.body.style.userSelect = prevUserSelect;
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            try {
+              localStorage.setItem('spectra_col_widths', JSON.stringify(this.colWidths));
+            } catch (e) { }
+          };
+
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', onMouseUp);
+        },
+
+        resetColWidths() {
+          this.colWidths = {
+            id: 60,
+            flag: 105,
+            project: 105,
+            agent: 95,
+            method: 75,
+            status: 70,
+            host: 160,
+            path: 240,
+            duration: 75,
+            time: 75
+          };
+          try {
+            localStorage.removeItem('spectra_col_widths');
+          } catch (e) { }
+          this.showToast({ title: 'Columns Reset', message: 'Table column widths restored to default.' });
         },
 
         async selectLog(logId) {
@@ -2155,17 +3041,47 @@
           window.open(`/api/projects/${p}/export/openapi`, '_blank');
         },
 
-        // HITL & CLEAR
+        // HITL & CLEAR HISTORY
         async clearLogs() {
           const target = this.selectedProject === 'ALL' ? 'ALL PROJECTS' : `project '${this.selectedProject}'`;
-          if (!confirm(`Clear traffic logs and findings for ${target}?`)) return;
+          if (!confirm(`Clear HTTP traffic history and vulnerability findings for ${target}? This action is immediate.`)) return;
           const param = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
-          await fetch(`/api/logs/clear${param}`, { method: 'POST' });
+          try {
+            const res = await fetch(`/api/logs/clear${param}`, { method: 'POST' });
+            if (res.ok) {
+              // Immediately clear frontend local state
+              this.logs = [];
+              this.filteredLogs = [];
+              this.selectedLogId = null;
+              this.selectedLogDetail = null;
+              this.currentPage = 1;
+              this.newLogsBufferCount = 0;
+              await this.fetchStats();
+              await this.fetchProjects();
+              this.showToast({
+                title: 'History Cleared',
+                message: `HTTP traffic history and findings for ${target} have been deleted.`
+              });
+              this.$nextTick(() => lucide.createIcons());
+            } else {
+              const err = await res.json().catch(() => ({}));
+              this.showToast({
+                title: 'Clear Failed',
+                message: err.detail || 'Failed to clear history on backend.'
+              });
+            }
+          } catch (e) {
+            this.showToast({
+              title: 'Network Error',
+              message: `Error connecting to server: ${e.message || String(e)}`
+            });
+          }
         },
 
         openSessionModal() {
           this.openLoginModal = true;
           this.fetchSessions();
+          this.$nextTick(() => lucide.createIcons());
         },
 
         async fetchSessions() {
@@ -2175,32 +3091,114 @@
             if (res.ok) {
               const data = await res.json();
               this.activeSessions = data.sessions || [];
+              this.$nextTick(() => lucide.createIcons());
             }
           } catch (e) { }
         },
 
-        async deleteSession(domain) {
-          if (!confirm(`Hapus dan cabut sesi cookie untuk domain '${domain}'?`)) return;
+        async deleteSession(domain, sessionId = null) {
           try {
-            const res = await fetch(`/api/auth/session/${encodeURIComponent(domain)}`, { method: 'DELETE' });
-            if (res.ok) {
-              this.showToast({ title: 'Sesi Dicabut', message: `Sesi cookie untuk ${domain} telah dihapus.` });
-              this.fetchSessions();
-              this.fetchStats();
+            let url = `/api/auth/session/${encodeURIComponent(domain)}`;
+            if (sessionId) {
+              url = `/api/auth/session/id/${sessionId}`;
             }
-          } catch (e) { }
+            const res = await fetch(url, { method: 'DELETE' });
+            if (res.ok) {
+              this.showToast({
+                title: 'Session Revoked',
+                message: `Session credentials for "${domain}" have been successfully revoked.`
+              });
+              await this.fetchSessions();
+              await this.fetchStats();
+              this.$nextTick(() => lucide.createIcons());
+            } else {
+              const err = await res.json().catch(() => ({}));
+              this.showToast({
+                title: 'Revoke Failed',
+                message: err.detail || `Could not revoke session for ${domain}.`
+              });
+            }
+          } catch (e) {
+            this.showToast({
+              title: 'Revoke Error',
+              message: `Network error while revoking: ${e.message || String(e)}`
+            });
+          }
+        },
+
+        async deleteSingleCookie(sessionId, cookieName, domain) {
+          try {
+            const res = await fetch(`/api/auth/session/${sessionId}/cookie/${encodeURIComponent(cookieName)}`, { method: 'DELETE' });
+            if (res.ok) {
+              this.showToast({
+                title: 'Cookie Revoked',
+                message: `Cookie "${cookieName}" was removed from session for ${domain}.`
+              });
+              await this.fetchSessions();
+              await this.fetchStats();
+              this.$nextTick(() => lucide.createIcons());
+            } else {
+              const err = await res.json().catch(() => ({}));
+              this.showToast({
+                title: 'Revoke Failed',
+                message: err.detail || `Could not revoke cookie ${cookieName}.`
+              });
+            }
+          } catch (e) {
+            this.showToast({
+              title: 'Revoke Error',
+              message: `Network error: ${e.message || String(e)}`
+            });
+          }
+        },
+
+        async clearAllSessions() {
+          const proj = this.selectedProject === 'ALL' ? '' : `?project=${encodeURIComponent(this.selectedProject)}`;
+          try {
+            const res = await fetch(`/api/auth/session/clear${proj}`, { method: 'POST' });
+            if (res.ok) {
+              this.showToast({
+                title: 'All Sessions Revoked',
+                message: 'All stored session credentials have been cleared.'
+              });
+              await this.fetchSessions();
+              await this.fetchStats();
+              this.$nextTick(() => lucide.createIcons());
+            }
+          } catch (e) {
+            this.showToast({ title: 'Error', message: `Could not clear sessions: ${String(e)}` });
+          }
+        },
+
+        copySessionCookieString(session) {
+          if (!session || !session.cookies || !session.cookies.length) {
+            this.showToast({ title: 'No Cookies', message: 'No cookies found in this session.' });
+            return;
+          }
+          const cookieStr = session.cookies.map(c => `${c.name}=${c.value}`).join('; ');
+          navigator.clipboard.writeText(cookieStr);
+          this.showToast({
+            title: 'Copied to Clipboard!',
+            message: `Copied ${session.cookies.length} cookies for ${session.domain}.`
+          });
         },
 
         copyConsoleHelper() {
           navigator.clipboard.writeText('copy(document.cookie);');
-          this.showToast({ title: 'Tersalin!', message: 'Snippet "copy(document.cookie);" disalin ke clipboard.' });
+          this.showToast({
+            title: 'Helper Copied!',
+            message: 'Snippet "copy(document.cookie);" copied to clipboard.'
+          });
         },
 
         async importCookiesDirectly() {
           let domain = (this.importCookieForm.domain || '').trim();
           const raw = (this.importCookieForm.rawInput || '').trim();
           if (!raw) {
-            this.showToast({ title: 'Input Diperlukan', message: 'Silakan paste string cookie, cURL, atau JSON.' });
+            this.showToast({
+              title: 'Input Required',
+              message: 'Please paste a raw cookie string, cURL command, or JSON array.'
+            });
             return;
           }
           if (!domain) {
@@ -2208,7 +3206,7 @@
               const match = raw.match(/https?:\/\/([^\/\s"']+)/);
               if (match) domain = match[1].split(':')[0];
             } catch (e) { }
-            if (!domain) domain = 'target.local';
+            if (!domain) domain = 'target.example.com';
             this.importCookieForm.domain = domain;
           }
           domain = domain.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
@@ -2226,18 +3224,25 @@
             if (res.ok) {
               const data = await res.json();
               this.showToast({
-                title: 'Sesi Aktif untuk AI Agent!',
-                message: `Berhasil mengaktifkan ${data.cookie_count} cookie untuk domain '${domain}'. AI Agent langsung menggunakannya!`
+                title: 'Credentials Activated!',
+                message: `Activated ${data.cookie_count} cookies for "${domain}". AI Agents will automatically inject them.`
               });
               this.importCookieForm.rawInput = '';
-              this.fetchSessions();
-              this.fetchStats();
+              await this.fetchSessions();
+              await this.fetchStats();
+              this.$nextTick(() => lucide.createIcons());
             } else {
               const err = await res.json();
-              alert(`Gagal import cookie: ${err.detail || 'Format cookie tidak valid'}`);
+              this.showToast({
+                title: 'Import Failed',
+                message: err.detail || 'Invalid cookie format provided.'
+              });
             }
           } catch (e) {
-            alert(`Network error: ${String(e)}`);
+            this.showToast({
+              title: 'Network Error',
+              message: `Connection error: ${String(e)}`
+            });
           }
         },
 

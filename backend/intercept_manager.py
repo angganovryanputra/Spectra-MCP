@@ -92,9 +92,20 @@ def pop_intercept_result(intercept_id: str) -> Optional[Dict[str, Any]]:
 # Scope & Guardrail Engine
 # ==============================================================================
 
+# In-memory TTL cache for project scope rules (5-second cache to prevent DB churn during high-volume fuzzing/agent runs)
+_SCOPE_CACHE: Dict[str, Tuple[float, Optional[Dict[str, Any]]]] = {}
+
+def invalidate_scope_cache(project_name: Optional[str] = None):
+    if project_name:
+        _SCOPE_CACHE.pop(project_name.lower(), None)
+    else:
+        _SCOPE_CACHE.clear()
+
+
 def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optional[str]]:
     """
     Validates whether a URL is within the authorized scope of a project.
+    Utilizes an in-memory TTL cache to eliminate redundant SQLite queries during rapid bursts.
     Returns: (is_allowed: bool, reason_if_blocked: str | None)
     """
     try:
@@ -104,17 +115,35 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
     except Exception as ex:
         return False, f"Malformed target URL: {str(ex)}"
 
-    project = db.query(Project).filter(Project.name == project_name.lower()).first()
-    if not project or not project.scope_enabled:
+    import time
+    now = time.time()
+    cache_entry = _SCOPE_CACHE.get(project_name.lower())
+    if cache_entry and (now - cache_entry[0] < 5.0):
+        scope_data = cache_entry[1]
+    else:
+        project = db.query(Project).filter(Project.name == project_name.lower()).first()
+        if not project or not project.scope_enabled:
+            scope_data = None
+        else:
+            try:
+                blocked_list = json.loads(project.blocked_patterns) if project.blocked_patterns else []
+            except Exception:
+                blocked_list = []
+            try:
+                allowed_list = json.loads(project.allowed_hosts) if project.allowed_hosts else ["*"]
+            except Exception:
+                allowed_list = ["*"]
+            scope_data = {
+                "blocked_patterns": blocked_list,
+                "allowed_hosts": allowed_list
+            }
+        _SCOPE_CACHE[project_name.lower()] = (now, scope_data)
+
+    if not scope_data:
         return True, None
 
     # 1. Check Blocked Regex Patterns (Anti-destructive / Out-of-bounds keywords)
-    try:
-        blocked_list = json.loads(project.blocked_patterns) if project.blocked_patterns else []
-    except Exception:
-        blocked_list = []
-
-    for pattern in blocked_list:
+    for pattern in scope_data["blocked_patterns"]:
         if not pattern:
             continue
         try:
@@ -126,11 +155,7 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
                 return False, f"Blocked by guardrail: URL contains restricted keyword '{pattern}'"
 
     # 2. Check Allowed Hosts (Domain Boundaries)
-    try:
-        allowed_list = json.loads(project.allowed_hosts) if project.allowed_hosts else ["*"]
-    except Exception:
-        allowed_list = ["*"]
-
+    allowed_list = scope_data["allowed_hosts"]
     if "*" in allowed_list or "all" in allowed_list:
         return True, None
 

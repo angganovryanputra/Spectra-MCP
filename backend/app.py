@@ -15,8 +15,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, HTT
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+import urllib.parse
+from sqlalchemy.orm import Session, defer
+from sqlalchemy import desc, func, or_
 
 from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project
 from backend.analyzer import analyze_traffic
@@ -34,7 +35,8 @@ from backend.intercept_manager import (
     create_intercept_trap,
     resolve_intercept_trap,
     pop_intercept_result,
-    check_scope
+    check_scope,
+    invalidate_scope_cache
 )
 from backend.report_generator import generate_har_export, generate_markdown_report
 from backend.openapi_generator import generate_openapi_spec
@@ -177,18 +179,24 @@ class RunFuzzRequest(BaseModel):
 
 
 # ==============================================================================
-# Core Business Logic Helpers
-# ==============================================================================
+# In-memory known projects cache & stats cache for high concurrency
+_KNOWN_PROJECTS = {"default"}
+_STATS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+
+def _invalidate_stats_cache():
+    _STATS_CACHE.clear()
 
 async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
-    """Stores HttpLog, executes analyzer, and notifies WebSocket subscribers."""
+    """Stores HttpLog, executes analyzer, and notifies WebSocket subscribers with single atomic commit."""
     project_name = (log_data.get("project") or "default").strip().lower()
 
-    # Ensure project exists
-    existing_proj = db.query(Project).filter(Project.name == project_name).first()
-    if not existing_proj:
-        db.add(Project(name=project_name, description="Auto-created workspace"))
-        db.commit()
+    # Fast in-memory check to avoid database query on every log
+    if project_name not in _KNOWN_PROJECTS:
+        existing_proj = db.query(Project).filter(Project.name == project_name).first()
+        if not existing_proj:
+            db.add(Project(name=project_name, description="Auto-created workspace"))
+            db.commit()
+        _KNOWN_PROJECTS.add(project_name)
 
     req_body = (log_data.get("request_body") or "")[:5242880]
     res_body = (log_data.get("response_body") or "")[:5242880]
@@ -216,10 +224,8 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
     log_entry.flag_status = flag_status
 
     db.add(log_entry)
-    db.commit()
-    db.refresh(log_entry)
+    db.flush()  # Populates log_entry.id for findings relationship without committing transaction yet
 
-    saved_findings = []
     for f in findings_data:
         finding = Finding(
             log_id=log_entry.id,
@@ -231,16 +237,17 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
             remediation=f.get("remediation", "")
         )
         db.add(finding)
-        saved_findings.append(finding)
 
-    if saved_findings:
-        db.commit()
-        db.refresh(log_entry)
+    db.commit()
 
+    # Invalidate stats cache on new log
+    _invalidate_stats_cache()
+
+    # Broadcast lightweight log entry (without multi-MB body strings) to keep WebSocket snappy
     payload = {
         "type": "NEW_LOG",
         "project": project_name,
-        "log": log_entry.to_dict(include_body=True),
+        "log": log_entry.to_dict(include_body=False),
         "alert": flag_status in ["CONFIRMED", "POTENTIAL"]
     }
     await ws_manager.broadcast(payload)
@@ -360,6 +367,7 @@ async def update_project_scope(name: str, req: UpdateScopeRequest, db: Session =
         proj.upstream_proxy = req.upstream_proxy.strip()
     db.commit()
     db.refresh(proj)
+    invalidate_scope_cache(name)
 
     await ws_manager.broadcast({"type": "SCOPE_UPDATED", "project": proj.to_dict()})
     return proj.to_dict()
@@ -394,6 +402,23 @@ async def handle_intercept_decision(intercept_id: str, req: InterceptActionReque
     return {"status": "resolved", "intercept_id": intercept_id, "action": req.action}
 
 
+_repeater_clients: Dict[str, Any] = {}
+
+async def _get_repeater_client(proxy_cfg: str = ""):
+    import httpx
+    key = proxy_cfg.strip() if proxy_cfg else "direct"
+    if key not in _repeater_clients or _repeater_clients[key].is_closed:
+        kwargs = {
+            "verify": False,
+            "follow_redirects": True,
+            "timeout": 30.0,
+            "limits": httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=60.0)
+        }
+        if proxy_cfg and proxy_cfg.strip():
+            kwargs["proxy"] = proxy_cfg.strip()
+        _repeater_clients[key] = httpx.AsyncClient(**kwargs)
+    return _repeater_clients[key]
+
 # ==============================================================================
 # Repeater Replay Endpoint
 # ==============================================================================
@@ -401,7 +426,6 @@ async def handle_intercept_decision(intercept_id: str, req: InterceptActionReque
 @app.post("/api/repeater/send")
 async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(get_db)):
     """Executes a request manually via Repeater, saves to DB, triages, and returns full response."""
-    import httpx
     import urllib.parse
 
     # 1. Scope check
@@ -429,29 +453,21 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
     if "User-Agent" not in req_headers and "user-agent" not in req_headers:
         req_headers["User-Agent"] = "SpectraRepeater/1.3"
 
-    client_kwargs = {
-        "verify": False,
-        "follow_redirects": True,
-        "timeout": 30.0
-    }
-    if proxy_cfg and proxy_cfg.strip():
-        client_kwargs["proxy"] = proxy_cfg.strip()
-
     try:
-        async with httpx.AsyncClient(**client_kwargs) as client:
-            content_bytes = req.body.encode("utf-8") if req.body else None
-            response = await client.request(
-                method=req.method.upper(),
-                url=req.url,
-                headers=req_headers,
-                content=content_bytes
-            )
-            status_code = response.status_code
-            res_headers = dict(response.headers)
-            try:
-                res_body = response.text[:5242880]
-            except Exception:
-                res_body = f"<Binary data: {len(response.content)} bytes>"
+        client = await _get_repeater_client(proxy_cfg or "")
+        content_bytes = req.body.encode("utf-8") if req.body else None
+        response = await client.request(
+            method=req.method.upper(),
+            url=req.url,
+            headers=req_headers,
+            content=content_bytes
+        )
+        status_code = response.status_code
+        res_headers = dict(response.headers)
+        try:
+            res_body = response.text[:5242880]
+        except Exception:
+            res_body = f"<Binary data: {len(response.content)} bytes>"
     except Exception as ex:
         status_code = 502
         res_body = f"Transport Error: {str(ex)}"
@@ -586,6 +602,13 @@ def keepalive_toggle_endpoint(enabled: bool = Query(...)):
 
 @app.get("/api/stats")
 def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
+    cache_key = (project or "ALL").upper()
+    now = time.time()
+    if cache_key in _STATS_CACHE:
+        cache_time, cached_data = _STATS_CACHE[cache_key]
+        if now - cache_time < 1.0:  # 1-second TTL to avoid 5 SQL count queries on rapid polling
+            return cached_data
+
     log_query = db.query(HttpLog)
     finding_query = db.query(Finding).join(HttpLog)
 
@@ -603,7 +626,7 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
         sess_query = sess_query.filter(ActiveSession.project == project.lower())
     active_sessions = sess_query.with_entities(func.count(ActiveSession.id)).scalar() or 0
 
-    return {
+    res = {
         "project": project or "ALL",
         "total_requests": total_requests,
         "confirmed_findings": confirmed_findings,
@@ -613,20 +636,23 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
         "intercept_enabled": is_intercept_enabled(),
         "interactive_login_active": get_active_login_status()
     }
+    _STATS_CACHE[cache_key] = (now, res)
+    return res
 
 
 @app.get("/api/logs")
 def list_logs(
     project: Optional[str] = None,
     agent: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=2000),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
     flag: Optional[str] = None,
     method: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(HttpLog)
+    # Defer heavy body text columns so paginated listings don't load multi-megabytes into memory
+    query = db.query(HttpLog).options(defer(HttpLog.request_body), defer(HttpLog.response_body))
 
     if project and project.upper() != "ALL":
         query = query.filter(HttpLog.project == project.lower())
@@ -715,12 +741,14 @@ async def clear_logs(project: Optional[str] = None, db: Session = Depends(get_db
             db.query(Finding).filter(Finding.log_id.in_(log_ids)).delete(synchronize_session=False)
             db.query(HttpLog).filter(HttpLog.project == target_proj).delete(synchronize_session=False)
             db.commit()
+        _invalidate_stats_cache()
         await ws_manager.broadcast({"type": "LOGS_CLEARED", "project": target_proj})
         return {"status": "cleared", "project": target_proj}
     else:
         db.query(Finding).delete()
         db.query(HttpLog).delete()
         db.commit()
+        _invalidate_stats_cache()
         await ws_manager.broadcast({"type": "LOGS_CLEARED", "project": "ALL"})
         return {"status": "cleared", "project": "ALL"}
 
@@ -826,11 +854,62 @@ def inspect_session(project: Optional[str] = None, db: Session = Depends(get_db)
     return {"sessions": [s.to_dict() for s in sessions]}
 
 
-@app.delete("/api/auth/session/{domain}")
-def remove_session(domain: str, db: Session = Depends(get_db)):
-    db.query(ActiveSession).filter(ActiveSession.domain == domain).delete()
+@app.delete("/api/auth/session/id/{session_id}")
+def remove_session_by_id(session_id: int, db: Session = Depends(get_db)):
+    """Revokes and deletes an active session by its unique database ID."""
+    deleted = db.query(ActiveSession).filter(ActiveSession.id == session_id).delete(synchronize_session=False)
     db.commit()
-    return {"status": "deleted", "domain": domain}
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"Session with ID {session_id} not found.")
+    return {"status": "deleted", "id": session_id, "count": deleted}
+
+
+@app.delete("/api/auth/session/{session_id:int}/cookie/{cookie_name}")
+def remove_single_cookie(session_id: int, cookie_name: str, db: Session = Depends(get_db)):
+    """Revokes a specific cookie key from an active session."""
+    session_obj = db.query(ActiveSession).filter(ActiveSession.id == session_id).first()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail=f"Session ID {session_id} not found.")
+    try:
+        state = json.loads(session_obj.storage_state or "{}")
+    except Exception:
+        state = {}
+    cookies = state.get("cookies", [])
+    initial_len = len(cookies)
+    cookies = [c for c in cookies if c.get("name") != cookie_name]
+    state["cookies"] = cookies
+    session_obj.storage_state = json.dumps(state)
+    session_obj.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "updated", "id": session_id, "removed_cookie": cookie_name, "remaining_cookies": len(cookies)}
+
+
+@app.delete("/api/auth/session/{domain:path}")
+def remove_session_by_domain(domain: str, db: Session = Depends(get_db)):
+    """Revokes and deletes active sessions matching a target domain."""
+    raw_domain = urllib.parse.unquote(domain).strip().lower()
+    clean_domain = raw_domain.lstrip(".")
+    deleted = db.query(ActiveSession).filter(
+        or_(
+            ActiveSession.domain == raw_domain,
+            ActiveSession.domain == clean_domain,
+            ActiveSession.domain == f".{clean_domain}",
+            ActiveSession.domain.ilike(f"%{clean_domain}%")
+        )
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"status": "deleted", "domain": raw_domain, "count": deleted}
+
+
+@app.post("/api/auth/session/clear")
+def clear_all_sessions(project: Optional[str] = None, db: Session = Depends(get_db)):
+    """Clears all stored active sessions."""
+    query = db.query(ActiveSession)
+    if project and project.upper() != "ALL":
+        query = query.filter(ActiveSession.project == project.lower())
+    count = query.delete(synchronize_session=False)
+    db.commit()
+    return {"status": "cleared", "count": count, "project": project or "ALL"}
 
 
 # ==============================================================================

@@ -39,7 +39,7 @@ async def _ping_session(session_record: ActiveSession) -> bool:
         pass
 
     try:
-        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=10.0) as client:
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=4.0) as client:
             cookie_hdr = "; ".join([f"{k}={v}" for k, v in cookies.items()])
             headers = {"User-Agent": "SpectraMCP SessionKeeper/1.0", "Cookie": cookie_hdr}
             resp = await client.head(url, headers=headers)
@@ -51,7 +51,7 @@ async def _ping_session(session_record: ActiveSession) -> bool:
         # Fallback to http:// if https failed
         try:
             url_http = f"http://{domain}/"
-            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=10.0) as client:
+            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=4.0) as client:
                 cookie_hdr = "; ".join([f"{k}={v}" for k, v in cookies.items()])
                 headers = {"User-Agent": "SpectraMCP SessionKeeper/1.0", "Cookie": cookie_hdr}
                 resp = await client.head(url_http, headers=headers)
@@ -67,19 +67,24 @@ async def _keepalive_loop():
 
     while _is_running:
         db = SessionLocal()
-        success = 0
-        failed = 0
         try:
             sessions = db.query(ActiveSession).all()
-            for s in sessions:
-                ok = await _ping_session(s)
-                if ok:
-                    success += 1
-                    s.updated_at = datetime.now(timezone.utc)
-                else:
-                    failed += 1
-            if sessions and success > 0:
-                db.commit()
+            if sessions:
+                ping_tasks = [_ping_session(s) for s in sessions]
+                results = await asyncio.gather(*ping_tasks, return_exceptions=True)
+                success = 0
+                failed = 0
+                for s, res in zip(sessions, results):
+                    if res is True:
+                        success += 1
+                        s.updated_at = datetime.now(timezone.utc)
+                    else:
+                        failed += 1
+                if success > 0:
+                    db.commit()
+            else:
+                success = 0
+                failed = 0
             _last_run_timestamp = datetime.now(timezone.utc).isoformat()
             _last_summary = {
                 "pings_sent": len(sessions),
