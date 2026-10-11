@@ -90,73 +90,78 @@ async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
     return _outbound_clients[key]
 
 
-async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str, findings: list):
+async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str, findings: list) -> Optional[int]:
     """
     Dispatches log to running FastAPI dashboard via HTTP POST so it broadcasts over WebSockets.
     Falls back to direct SQLite database write if dashboard is offline.
+    Returns the recorded log_id for programmatic chaining.
     """
-    notified = False
     try:
         client = await _get_dashboard_client()
         resp = await client.post(f"{BACKEND_URL}/api/logs", json=log_payload)
         if resp.status_code == 200:
-            notified = True
+            data = resp.json()
+            if isinstance(data, dict) and "id" in data:
+                return data["id"]
     except Exception:
-        notified = False
+        pass
 
-    if not notified:
-        db = SessionLocal()
-        try:
-            proj = (log_payload.get("project") or DEFAULT_PROJECT).strip().lower()
-            if not db.query(Project).filter(Project.name == proj).first():
-                db.add(Project(name=proj, description="Auto-created workspace"))
-                db.commit()
+    db = SessionLocal()
+    try:
+        proj = (log_payload.get("project") or DEFAULT_PROJECT).strip().lower()
+        if not db.query(Project).filter(Project.name == proj).first():
+            db.add(Project(name=proj, description="Auto-created workspace"))
+            db.commit()
 
-            entry = HttpLog(
-                project=proj,
-                agent_id=log_payload.get("agent_id", "primary_agent") or "primary_agent",
-                source=log_payload.get("source", "HTTP_CLIENT"),
-                method=log_payload.get("method", "GET"),
-                url=log_payload.get("url", ""),
-                host=log_payload.get("host", ""),
-                path=log_payload.get("path", "/"),
-                status_code=log_payload.get("status_code"),
-                duration_ms=log_payload.get("duration_ms", 0),
-                request_headers=json.dumps(log_payload.get("request_headers", {})),
-                request_body=(log_payload.get("request_body") or "")[:5242880],
-                response_headers=json.dumps(log_payload.get("response_headers", {})),
-                response_body=(log_payload.get("response_body") or "")[:5242880],
-                reasoning=log_payload.get("reasoning", "") or "",
-                flag_status=flag_status
+        entry = HttpLog(
+            project=proj,
+            agent_id=log_payload.get("agent_id", "primary_agent") or "primary_agent",
+            source=log_payload.get("source", "HTTP_CLIENT"),
+            method=log_payload.get("method", "GET"),
+            url=log_payload.get("url", ""),
+            host=log_payload.get("host", ""),
+            path=log_payload.get("path", "/"),
+            status_code=log_payload.get("status_code"),
+            duration_ms=log_payload.get("duration_ms", 0),
+            request_headers=json.dumps(log_payload.get("request_headers", {})),
+            request_body=(log_payload.get("request_body") or "")[:5242880],
+            response_headers=json.dumps(log_payload.get("response_headers", {})),
+            response_body=(log_payload.get("response_body") or "")[:5242880],
+            reasoning=log_payload.get("reasoning", "") or "",
+            flag_status=flag_status
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+        for f in findings:
+            finding = Finding(
+                log_id=entry.id,
+                title=f["title"],
+                severity=f["severity"],
+                category=f["category"],
+                evidence=f.get("evidence", ""),
+                description=f.get("description", ""),
+                remediation=f.get("remediation", "")
             )
-            db.add(entry)
-            db.commit()
-            db.refresh(entry)
-            for f in findings:
-                finding = Finding(
-                    log_id=entry.id,
-                    title=f["title"],
-                    severity=f["severity"],
-                    category=f["category"],
-                    evidence=f.get("evidence", ""),
-                    description=f.get("description", ""),
-                    remediation=f.get("remediation", "")
-                )
-                db.add(finding)
-            db.commit()
-        except Exception:
-            db.rollback()
-        finally:
-            db.close()
+            db.add(finding)
+        db.commit()
+        return entry.id
+    except Exception:
+        db.rollback()
+        return None
+    finally:
+        db.close()
 
 
-async def _persist_and_stream_command(cmd_payload: Dict[str, Any]):
-    """Dispatches command log to dashboard or writes directly to SQLite."""
+async def _persist_and_stream_command(cmd_payload: Dict[str, Any]) -> Optional[int]:
+    """Dispatches command log to dashboard or writes directly to SQLite. Returns command_id."""
     try:
         client = await _get_dashboard_client()
         resp = await client.post(f"{BACKEND_URL}/api/commands", json=cmd_payload)
         if resp.status_code == 200:
-            return
+            data = resp.json()
+            if isinstance(data, dict) and "id" in data:
+                return data["id"]
     except Exception:
         pass
 
@@ -178,19 +183,24 @@ async def _persist_and_stream_command(cmd_payload: Dict[str, Any]):
         )
         db.add(entry)
         db.commit()
+        db.refresh(entry)
+        return entry.id
     except Exception:
         db.rollback()
+        return None
     finally:
         db.close()
 
 
-async def _persist_and_stream_payload(payload_data: Dict[str, Any]):
-    """Dispatches captured payload to dashboard or writes directly to SQLite."""
+async def _persist_and_stream_payload(payload_data: Dict[str, Any]) -> Optional[int]:
+    """Dispatches captured payload to dashboard or writes directly to SQLite. Returns payload_id."""
     try:
         client = await _get_dashboard_client()
         resp = await client.post(f"{BACKEND_URL}/api/payloads", json=payload_data)
         if resp.status_code == 200:
-            return
+            data = resp.json()
+            if isinstance(data, dict) and "id" in data:
+                return data["id"]
     except Exception:
         pass
 
@@ -214,8 +224,11 @@ async def _persist_and_stream_payload(payload_data: Dict[str, Any]):
         )
         db.add(entry)
         db.commit()
+        db.refresh(entry)
+        return entry.id
     except Exception:
         db.rollback()
+        return None
     finally:
         db.close()
 
@@ -276,12 +289,14 @@ async def send_http_request(
     body: Optional[str] = None,
     project: Optional[str] = None,
     agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None
+    reasoning: Optional[str] = None,
+    max_body_chars: Optional[int] = 5000
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
     logs traffic, performs real-time vulnerability triage, AND AUTOMATICALLY INJECTS
     active session cookies configured in Spectra for the target domain.
+    Returns Log ID for chaining and body preview. Use get_log_detail(log_id) for full uncompressed body.
     
     NOTE FOR AI AGENTS (Opencode / Hermes):
     You DO NOT need to ask the user for session cookies or authenticate manually.
@@ -489,9 +504,12 @@ async def send_http_request(
     )
     flag_status, findings_list = analyze_traffic(in_memory_log)
 
-    await _persist_and_stream_log(log_payload, flag_status, findings_list)
+    logged_id = await _persist_and_stream_log(log_payload, flag_status, findings_list)
 
-    body_snippet = res_body[:1500] if res_body else "[Empty response body]"
+    max_preview = max(100, min(max_body_chars or 5000, 50000))
+    body_snippet = res_body[:max_preview] if res_body else "[Empty response body]"
+    log_id_str = f"#{logged_id}" if logged_id else "#untracked"
+
     triage_info = ""
     if flag_status == "CONFIRMED":
         triage_info = f"\n[!] ALERT: CONFIRMED FINDING DETECTED: {[f['title'] for f in findings_list]}"
@@ -500,9 +518,9 @@ async def send_http_request(
 
     session_tag = f" | [Spectra: Auto-injected {len(active_cookies)} cookies]" if active_cookies else ""
     return (
-        f"Project: [{target_project}] | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms{session_tag} | Flag: {flag_status}{triage_info}\n"
+        f"Project: [{target_project}] | Log ID: {log_id_str} | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms{session_tag} | Flag: {flag_status}{triage_info}\n"
         f"Headers: {json.dumps(res_headers)}\n\n"
-        f"Body Preview:\n{body_snippet}"
+        f"Body Preview (showing {min(len(body_snippet), len(res_body))} of {len(res_body)} chars. Call tool get_log_detail({logged_id or 0}) to read complete uncompressed body):\n{body_snippet}"
     )
 
 
@@ -517,11 +535,13 @@ async def browser_navigate_and_render(
     fill_inputs: Optional[Dict[str, str]] = None,
     project: Optional[str] = None,
     agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None
+    reasoning: Optional[str] = None,
+    max_dom_chars: Optional[int] = 10000
 ) -> str:
     """
     Renders a dynamic webpage headlessly via Playwright, executes automated actions,
-    intercepts background asynchronous network requests, and extracts visible DOM content.
+    intercepts background asynchronous network requests (AJAX/fetch/scripts), and extracts visible DOM content.
+    Returns Log ID, list of intercepted API endpoints/scripts, and DOM content preview.
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
@@ -571,11 +591,13 @@ async def browser_navigate_and_render(
             "response_body": result.get("dom_text", "")[:50000],
             "reasoning": reasoning or ""
         }
-        await _persist_and_stream_log(log_payload, "CLEAN", [])
+        logged_id = await _persist_and_stream_log(log_payload, "CLEAN", [])
 
         # Log intercepted background AJAX/fetch sub-requests
-        for sub_req in result.get("intercepted_requests", []):
-            if sub_req.get("resource_type") in ["xhr", "fetch"]:
+        intercepted = result.get("intercepted_requests", [])
+        intercepted_summary = []
+        for sub_req in intercepted:
+            if sub_req.get("resource_type") in ["xhr", "fetch", "script"]:
                 sub_parsed = urllib.parse.urlparse(sub_req.get("url", ""))
                 sub_payload = {
                     "project": target_project,
@@ -595,12 +617,21 @@ async def browser_navigate_and_render(
                 }
                 await _persist_and_stream_log(sub_payload, "CLEAN", [])
 
-        dom_preview = result.get("dom_text", "")[:2500]
+        # Extract top 30 endpoints for agent reconnaissance
+        for sub in intercepted[:30]:
+            intercepted_summary.append(f"  [{sub.get('method', 'GET')}] {sub.get('url')} ({sub.get('resource_type')})")
+        intercepted_str = "\n".join(intercepted_summary) if intercepted_summary else "  [No sub-requests intercepted]"
+
+        max_dom = max(500, min(max_dom_chars or 10000, 100000))
+        full_dom = result.get("dom_text", "")
+        dom_preview = full_dom[:max_dom]
+        log_id_str = f"#{logged_id}" if logged_id else "#untracked"
+
         return (
-            f"Project: [{target_project}] | Agent: [{target_agent}] | Page Rendered: '{result.get('title')}'\n"
+            f"Project: [{target_project}] | Log ID: {log_id_str} | Agent: [{target_agent}] | Page: '{result.get('title')}'\n"
             f"Final URL: {result.get('url')}\n"
-            f"Sub-requests intercepted: {result.get('intercepted_count')}\n\n"
-            f"DOM Text:\n{dom_preview}"
+            f"Intercepted Endpoints ({len(intercepted)} captured):\n{intercepted_str}\n\n"
+            f"DOM Text Preview (showing {min(len(dom_preview), len(full_dom))} of {len(full_dom)} chars. Use get_log_detail({logged_id or 0}) to read complete body):\n{dom_preview}"
         )
     except Exception as ex:
         return f"Browser render failure: {str(ex)}"
@@ -613,7 +644,8 @@ async def render_webpage(
     fill_inputs: Optional[Dict[str, str]] = None,
     project: Optional[str] = None,
     agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None
+    reasoning: Optional[str] = None,
+    max_dom_chars: Optional[int] = 10000
 ) -> str:
     """
     Renders a dynamic webpage headlessly via Playwright, executes automated actions,
@@ -626,7 +658,8 @@ async def render_webpage(
         fill_inputs=fill_inputs,
         project=project,
         agent_id=agent_id,
-        reasoning=reasoning
+        reasoning=reasoning,
+        max_dom_chars=max_dom_chars
     )
 
 
@@ -681,19 +714,30 @@ async def run_pentest_command(
     tool_name: Optional[str] = "terminal",
     project: Optional[str] = None,
     agent_id: Optional[str] = "primary_agent",
-    timeout: Optional[int] = 60
+    timeout: Optional[int] = 60,
+    cwd: Optional[str] = None
 ) -> str:
     """
     Executes a security testing command in the local shell environment (e.g. nmap, curl, sqlmap, custom scripts),
     streams the command and outputs to Spectra for full operator observability and audit history,
-    and applies automated safety guardrails to prevent destructive system commands.
+    and applies automated safety guardrails to prevent destructive system commands and SSRF metadata exfiltration.
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
     cmd_clean = command.strip()
 
-    # Hardened Cross-Platform Safety Guardrail Check
-    is_safe_cmd, block_reason = check_command_safe_mode(cmd_clean)
+    # Query project settings for internal network scope allowance
+    db = SessionLocal()
+    allow_internal = False
+    try:
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            allow_internal = bool(proj_obj.allow_internal_networks)
+    finally:
+        db.close()
+
+    # Hardened Cross-Platform Safety Guardrail & SSRF Check
+    is_safe_cmd, block_reason = check_command_safe_mode(cmd_clean, allow_internal=allow_internal)
     if not is_safe_cmd:
         blocked_payload = {
             "project": target_project,
@@ -707,12 +751,18 @@ async def run_pentest_command(
             "duration_ms": 0,
             "status": "BLOCKED"
         }
-        await _persist_and_stream_command(blocked_payload)
+        cmd_id = await _persist_and_stream_command(blocked_payload)
+        cmd_id_str = f"#{cmd_id}" if cmd_id else "#untracked"
         return (
-            f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE:\n"
+            f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE / SSRF GUARD (Command ID: {cmd_id_str}):\n"
             f"{block_reason}\n"
             f"Please restrict commands to authorized non-destructive reconnaissance and assessment utilities."
         )
+
+    # Resolve execution working directory
+    work_dir = CURRENT_DIR
+    if cwd and os.path.isdir(cwd):
+        work_dir = os.path.abspath(cwd)
 
     start_time = time.time()
     stdout_text = ""
@@ -723,7 +773,7 @@ async def run_pentest_command(
     try:
         proc = await asyncio.create_subprocess_shell(
             cmd_clean,
-            cwd=CURRENT_DIR,
+            cwd=work_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
@@ -761,12 +811,13 @@ async def run_pentest_command(
         "duration_ms": duration_ms,
         "status": status
     }
-    await _persist_and_stream_command(cmd_log_payload)
+    cmd_id = await _persist_and_stream_command(cmd_log_payload)
+    cmd_id_str = f"#{cmd_id}" if cmd_id else "#untracked"
 
-    stdout_snippet = stdout_text[:2000] if stdout_text else "[No standard output]"
-    stderr_snippet = f"\nSTDERR:\n{stderr_text[:1000]}" if stderr_text else ""
+    stdout_snippet = stdout_text[:5000] if stdout_text else "[No standard output]"
+    stderr_snippet = f"\nSTDERR:\n{stderr_text[:2000]}" if stderr_text else ""
     return (
-        f"Project: [{target_project}] | Agent: [{target_agent}] | Exit Code: {exit_code} | Duration: {duration_ms}ms | Status: {status}\n"
+        f"Project: [{target_project}] | Command ID: {cmd_id_str} | Agent: [{target_agent}] | Exit Code: {exit_code} | Duration: {duration_ms}ms | CWD: [{work_dir}] | Status: {status}\n"
         f"Command: {cmd_clean}\n\n"
         f"STDOUT:\n{stdout_snippet}{stderr_snippet}"
     )
@@ -794,6 +845,7 @@ async def record_test_payload(
     """
     Explicitly catalogs a specialized pentest payload (SQLi, XSS, SSRF, SSTI, RCE, IDOR, etc.)
     crafted or tested by the AI into the Spectra Payload Vault for operator review, verification, and 1-click replay.
+    Returns Payload ID for programmatic chaining.
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
@@ -812,12 +864,99 @@ async def record_test_payload(
         "http_status": http_status,
         "notes": reasoning or ""
     }
-    await _persist_and_stream_payload(payload_data)
+    payload_id = await _persist_and_stream_payload(payload_data)
+    payload_id_str = f"#{payload_id}" if payload_id else "#untracked"
 
     return (
-        f"Project: [{target_project}] | Captured {http_method.upper()} payload '{raw_payload[:60]}' for {vuln_type} on param '{target_param}'. "
-        f"Logged in Spectra Payload Vault."
+        f"Project: [{target_project}] | Payload ID: {payload_id_str} | Captured {http_method.upper()} payload '{raw_payload[:80]}' for {vuln_type} on param '{target_param}'. "
+        f"Logged in Spectra Payload Vault (Use Payload ID for chained replay/verification)."
     )
+
+
+# ==============================================================================
+# MCP Tool 6: get_log_detail (Full Request/Response Body Inspection)
+# ==============================================================================
+
+@mcp.tool()
+async def get_log_detail(
+    log_id: int,
+    max_body_chars: Optional[int] = 100000
+) -> str:
+    """
+    Retrieves complete headers, full request body, full response body, and triaged findings
+    for a specific HTTP transaction by its Log ID.
+    Essential for bug bounty research to inspect reflected XSS, deep JSON responses, or sensitive leaks without truncation.
+    """
+    db = SessionLocal()
+    try:
+        log_entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+        if not log_entry:
+            return f"[!] Log ID #{log_id} was not found in the Spectra database."
+
+        findings = db.query(Finding).filter(Finding.log_id == log_id).all()
+        findings_str = ""
+        if findings:
+            findings_str = "\nFindings Detected on this Request:\n" + "\n".join([
+                f"- [{f.severity}] {f.title} ({f.category})\n  Evidence: {f.evidence}\n  Remediation: {f.remediation}"
+                for f in findings
+            ])
+        else:
+            findings_str = "\nFindings: None (Clean)"
+
+        max_len = max(500, min(max_body_chars or 100000, 1000000))
+        req_body = log_entry.request_body or "[Empty Request Body]"
+        res_body = log_entry.response_body or "[Empty Response Body]"
+
+        req_body_prev = req_body[:max_len]
+        res_body_prev = res_body[:max_len]
+
+        return (
+            f"=== SPECTRA HTTP LOG DETAIL #{log_entry.id} ===\n"
+            f"Project: [{log_entry.project}] | Agent: [{log_entry.agent_id}] | Source: {log_entry.source}\n"
+            f"Target: {log_entry.method} {log_entry.url}\n"
+            f"Status Code: {log_entry.status_code} | Latency: {log_entry.duration_ms}ms | Flag: {log_entry.flag_status}\n"
+            f"Timestamp: {log_entry.timestamp}\n"
+            f"Hypothesis / Reasoning: {log_entry.reasoning or '[None]'}\n\n"
+            f"--- Request Headers ---\n{log_entry.request_headers}\n\n"
+            f"--- Request Body ({len(req_body)} bytes) ---\n{req_body_prev}\n\n"
+            f"--- Response Headers ---\n{log_entry.response_headers}\n\n"
+            f"--- Response Body ({len(res_body)} bytes) ---\n{res_body_prev}\n"
+            f"{findings_str}"
+        )
+    finally:
+        db.close()
+
+
+# ==============================================================================
+# MCP Tool 7: get_traffic_history (Traffic Index & Search)
+# ==============================================================================
+
+@mcp.tool()
+async def get_traffic_history(
+    project: Optional[str] = None,
+    limit: Optional[int] = 20
+) -> str:
+    """
+    Lists recent HTTP traffic entries recorded in Spectra for the selected project.
+    Returns Log IDs, HTTP methods, status codes, URLs, and triage flags so the agent can select IDs for deep inspection.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    db = SessionLocal()
+    try:
+        query = db.query(HttpLog)
+        if target_project and target_project.upper() != "ALL":
+            query = query.filter(HttpLog.project == target_project)
+        logs = query.order_by(HttpLog.id.desc()).limit(min(max(limit or 20, 1), 100)).all()
+        if not logs:
+            return f"No traffic logs recorded for project [{target_project}]."
+
+        lines = [f"=== RECENT TRAFFIC HISTORY (Project: {target_project}) ==="]
+        for l in logs:
+            lines.append(f"#{l.id:04d} | {l.method:<5} | {str(l.status_code or 'ERR'):<4} | {l.duration_ms:>4}ms | [{l.flag_status:<9}] | {l.url}")
+        lines.append(f"\nTip: Call get_log_detail(log_id) to read complete headers, full body, or vulnerability findings.")
+        return "\n".join(lines)
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

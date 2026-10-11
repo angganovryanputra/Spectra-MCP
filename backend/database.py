@@ -57,7 +57,7 @@ class Project(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     description = Column(Text, nullable=True, default="")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=datetime.now)
     
     # Scope & Guardrail settings
     scope_enabled = Column(Boolean, default=False)
@@ -102,7 +102,7 @@ class HttpLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     project = Column(String(100), default="default", index=True)
     agent_id = Column(String(100), default="primary_agent", index=True)  # Multi-Agent Tag
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
     source = Column(String(32), default="HTTP_CLIENT")  # HTTP_CLIENT, BROWSER_RENDER, REPEATER, FUZZER
     method = Column(String(16), default="GET", index=True)
     url = Column(Text, nullable=False)
@@ -188,7 +188,7 @@ class ActiveSession(Base):
     project = Column(String(100), default="default", index=True)
     domain = Column(String(255), index=True, nullable=False)
     storage_state = Column(Text, nullable=False, default="{}")  # Encrypted Cookies, LocalStorage, SessionStorage
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def get_decrypted_state(self) -> dict:
         """Decrypts and parses the stored session state dictionary."""
@@ -235,7 +235,7 @@ class AgentCommandLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     project = Column(String(100), default="default", index=True)
     agent_id = Column(String(100), default="primary_agent", index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
     command = Column(Text, nullable=False)
     tool_name = Column(String(64), default="terminal")
     reasoning = Column(Text, default="")
@@ -272,7 +272,7 @@ class CapturedPayload(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     project = Column(String(100), default="default", index=True)
     agent_id = Column(String(100), default="primary_agent", index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    timestamp = Column(DateTime, default=datetime.now, index=True)
     vuln_type = Column(String(64), default="CUSTOM", index=True)  # SQLI, XSS, SSRF, SSTI, LFI, RCE, IDOR, AUTH_BYPASS
     target_param = Column(String(128), default="")
     raw_payload = Column(Text, nullable=False)

@@ -41,8 +41,10 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 3. Jika target berada di luar scope atau memicu proteksi guardrail, hormati pesan blokir dan batasi pengujian pada endpoint yang diizinkan.
 4. Jika target membutuhkan rendering halaman JavaScript dinamis, gunakan tool `browser_navigate_and_render`.
 5. Jika menemui login wall, CAPTCHA, atau Two-Factor Authentication (2FA), gunakan tool `request_manual_login` agar operator manusia dapat melakukan login via browser interaktif.
-6. Jika perlu menjalankan perintah terminal / CLI (seperti nmap, curl, sqlmap, custom scripts), gunakan tool `run_pentest_command` agar perintah, stdout, dan stderr terekam di Spectra Command Audit Trail.
-7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Spectra Payload Vault.
+6. Jika perlu menjalankan perintah terminal / CLI (seperti nmap, curl, sqlmap, custom scripts), gunakan tool `run_pentest_command` agar perintah, stdout, dan stderr terekam di Spectra Command Audit Trail. Anda dapat menentukan parameter `cwd` untuk direktori kerja eksekusi.
+7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Spectra Payload Vault (mengembalikan Payload ID).
+8. Jika response body terpotong pada `send_http_request` atau Anda membutuhkan response body/headers utuh untuk analisis mendalam (misal: reflected XSS, token extraction, dump JSON besar), gunakan tool `get_log_detail(log_id=<ID>)` dengan `Log ID` yang didapat dari `send_http_request`.
+9. Jika perlu meninjau riwayat request yang pernah dikirim sebelumnya untuk chaining atau replay, gunakan tool `get_traffic_history(project="default", limit=20)`.
 ```
 
 ---

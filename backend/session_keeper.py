@@ -76,7 +76,7 @@ async def _keepalive_loop():
                 for s, res in zip(sessions, results):
                     if res is True:
                         success += 1
-                        s.updated_at = datetime.now(timezone.utc)
+                        s.updated_at = datetime.now()
                     else:
                         failed += 1
                 if success > 0:
@@ -84,7 +84,7 @@ async def _keepalive_loop():
             else:
                 success = 0
                 failed = 0
-            _last_run_timestamp = datetime.now(timezone.utc).isoformat()
+            _last_run_timestamp = datetime.now().isoformat()
             _last_summary = {
                 "pings_sent": len(sessions),
                 "success_count": success,

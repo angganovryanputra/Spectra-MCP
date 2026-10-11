@@ -275,16 +275,49 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
             "remediation": "Disable `X-Powered-By` header in application configuration (e.g. `expose_php = Off`)."
         })
 
-    # 4. Status Code Anomalies (e.g. 500 Internal Server Error)
+    # 4. Status Code Anomalies (e.g. 500 Internal Server Error, 503 Service Unavailable)
     if status_code >= 500:
-        findings.append({
-            "title": f"Server Anomaly (HTTP {status_code} Internal Error)",
-            "severity": "MEDIUM",
-            "category": "Status Code Anomaly",
-            "evidence": f"HTTP {status_code} returned for {log_entry.method} {log_entry.path}",
-            "description": f"The target returned an unhandled server fault status ({status_code}) which may indicate logic failure or unhandled exception on injected inputs.",
-            "remediation": "Audit server logs for unhandled exception paths and enforce robust error boundaries."
-        })
+        req_context = (url + " " + request_body + " " + (log_entry.reasoning or "")).lower()
+        is_sqli_probe = any(k in req_context for k in ["select", "union", "sleep(", "benchmark(", "or '1'='1", "or 1=1", "where", "from", "--", "/*", "admin'"])
+        is_xss_probe = any(k in req_context for k in ["<script", "javascript:", "onerror=", "onload=", "alert("])
+        is_cmd_probe = any(k in req_context for k in [";cat ", "|whoami", "|id", "&&whoami", "$(whoami)", "`id`"])
+
+        if is_sqli_probe:
+            findings.append({
+                "title": f"Potential SQLi Triggered Server Fault (HTTP {status_code})",
+                "severity": "HIGH",
+                "category": "Potential SQL Injection",
+                "evidence": f"HTTP {status_code} triggered during SQLi injection probe on {log_entry.path}",
+                "description": f"The target returned an unhandled server error status ({status_code}) in response to SQL injection probes, indicating database syntax breakdown or unhandled query exceptions.",
+                "remediation": "Inspect backend database queries and enforce strict prepared statements."
+            })
+        elif is_xss_probe:
+            findings.append({
+                "title": f"Potential XSS/Parser Fault (HTTP {status_code})",
+                "severity": "MEDIUM",
+                "category": "Parser Anomaly",
+                "evidence": f"HTTP {status_code} triggered during XSS probe on {log_entry.path}",
+                "description": f"The target returned an unhandled server error status ({status_code}) in response to XSS payload probes.",
+                "remediation": "Ensure server-side parsers safely handle unexpected HTML/JS markup."
+            })
+        elif is_cmd_probe:
+            findings.append({
+                "title": f"Potential Command Injection Server Fault (HTTP {status_code})",
+                "severity": "HIGH",
+                "category": "Potential Command Injection",
+                "evidence": f"HTTP {status_code} triggered during command injection probe on {log_entry.path}",
+                "description": f"The target returned an unhandled server error status ({status_code}) during command delimiter probing.",
+                "remediation": "Eliminate shell execution wrappers and sanitize user input."
+            })
+        else:
+            findings.append({
+                "title": f"Server Anomaly (HTTP {status_code} Internal Error)",
+                "severity": "MEDIUM",
+                "category": "Status Code Anomaly",
+                "evidence": f"HTTP {status_code} returned for {log_entry.method} {log_entry.path}",
+                "description": f"The target returned an unhandled server fault status ({status_code}) which may indicate logic failure or unhandled exception on injected inputs.",
+                "remediation": "Audit server logs for unhandled exception paths and enforce robust error boundaries."
+            })
 
     if findings:
         return "POTENTIAL", findings

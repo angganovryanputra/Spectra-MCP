@@ -94,6 +94,8 @@ def decrypt_secret(stored_text: str) -> str:
 # 2. SSRF & Dangerous Network Target Guardrail
 # ==============================================================================
 
+import socket
+
 # Dangerous IP ranges that must be blocked unless explicitly permitted
 _METADATA_NETWORKS = [
     ipaddress.ip_network("169.254.0.0/16"),   # AWS/Azure/GCP/OpenStack Instance Metadata Service (IMDS)
@@ -112,6 +114,7 @@ def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_po
     Validates whether a target URL poses an SSRF threat.
     - Always blocks Cloud Metadata (169.254.169.254).
     - Always blocks recursive self-loopback requests to Spectra's own backend port.
+    - Resolves DNS hostnames to verify that domains do not resolve to private/loopback/metadata IPs.
     - Blocks private networks (RFC1918) unless allow_internal=True.
     """
     try:
@@ -133,29 +136,49 @@ def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_po
     if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port == spectra_backend_port:
         return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({spectra_backend_port})."
 
-    # 2. Check if hostname is an IP address or resolves to IP
+    # 2. Check for obvious metadata hostname aliases
+    if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
+        return False, f"SSRF Guardrail: Target host '{hostname}' matches cloud metadata service."
+
+    # 3. Check IP address (Literal or DNS-Resolved)
+    resolved_ips = []
     is_ip = False
     try:
         ip_obj = ipaddress.ip_address(hostname)
+        resolved_ips.append(ip_obj)
         is_ip = True
     except ValueError:
-        ip_obj = None
+        pass
 
-    if is_ip and ip_obj:
+    if not is_ip:
+        # Check localhost aliases
+        if hostname in ["localhost", "ip6-localhost", "ip6-loopback"]:
+            resolved_ips.append(ipaddress.ip_address("127.0.0.1"))
+        else:
+            try:
+                addr_info = socket.getaddrinfo(hostname, None)
+                for item in addr_info:
+                    sockaddr = item[4]
+                    ip_str = sockaddr[0]
+                    try:
+                        resolved_ips.append(ipaddress.ip_address(ip_str))
+                    except ValueError:
+                        pass
+            except Exception:
+                # If DNS resolution fails, allow downstream network client to report NXDOMAIN
+                pass
+
+    for ip_check in resolved_ips:
         # Check Cloud Metadata (Strictly blocked under all circumstances)
         for meta_net in _METADATA_NETWORKS:
-            if ip_obj in meta_net:
-                return False, f"SSRF Guardrail: Target IP '{hostname}' belongs to cloud instance metadata service (169.254.x.x)."
+            if ip_check in meta_net:
+                return False, f"SSRF Guardrail: Target '{hostname}' ({ip_check}) belongs to cloud instance metadata service (169.254.x.x)."
 
         # Check Private Networks (Blocked unless allow_internal is enabled)
         if not allow_internal:
             for priv_net in _PRIVATE_NETWORKS:
-                if ip_obj in priv_net:
-                    return False, f"SSRF Guardrail: Target IP '{hostname}' is in private/loopback network. Enable 'Allow Internal Scope' in project settings to permit."
-
-    # 3. Check for obvious metadata hostname aliases
-    if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
-        return False, f"SSRF Guardrail: Target host '{hostname}' matches cloud metadata service."
+                if ip_check in priv_net:
+                    return False, f"SSRF Guardrail: Target '{hostname}' resolves to private/loopback IP '{ip_check}'. Enable 'Allow Internal Scope' in project settings to permit."
 
     return True, None
 
@@ -204,17 +227,35 @@ EXPANDED_DANGEROUS_PATTERNS = [
     r"Restart-Computer",
 ]
 
-def check_command_safe_mode(command: str) -> Tuple[bool, Optional[str]]:
-    """Inspects shell commands against expanded cross-platform dangerous pattern signatures."""
+def check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple[bool, Optional[str]]:
+    """
+    Inspects shell commands against:
+    1. Dangerous filesystem/system destruction patterns.
+    2. Cloud metadata IP/host targeting (SSRF via CLI).
+    3. Extracted URL targets violating SSRF policies.
+    """
     cmd_clean = command.strip()
     if not cmd_clean:
         return False, "Command cannot be empty"
 
+    # 1. Check dangerous system command patterns
     for pat in EXPANDED_DANGEROUS_PATTERNS:
         if re.search(pat, cmd_clean, re.IGNORECASE):
             return False, f"Command blocked by Spectra CLI Safe-Mode (Matched dangerous signature: '{pat}')"
 
+    # 2. Check metadata service targeting in CLI (e.g. curl 169.254.169.254)
+    if re.search(r"\b169\.254\.\d+\.\d+\b", cmd_clean) or "metadata.google.internal" in cmd_clean:
+        return False, "Command blocked by Spectra SSRF Guard: Targeting cloud instance metadata service (169.254.x.x) is strictly forbidden."
+
+    # 3. Extract and validate any HTTP/HTTPS URLs present in the command
+    extracted_urls = re.findall(r"https?://[^\s'\"`]+", cmd_clean)
+    for u in extracted_urls:
+        safe, reason = check_ssrf_safety(u, allow_internal=allow_internal)
+        if not safe:
+            return False, f"Command blocked by Spectra SSRF Guard: Embedded target '{u}' violates SSRF policy ({reason})"
+
     return True, None
+
 
 
 # ==============================================================================

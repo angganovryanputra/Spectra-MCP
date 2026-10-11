@@ -297,7 +297,7 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
         response_headers=json.dumps(log_data.get("response_headers", {})),
         response_body=res_body,
         reasoning=log_data.get("reasoning", "") or "",
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now()
     )
 
     flag_status, findings_data = analyze_traffic(log_entry)
@@ -1178,7 +1178,7 @@ def remove_single_cookie(session_id: int, cookie_name: str, db: Session = Depend
     cookies = [c for c in cookies if c.get("name") != cookie_name]
     state["cookies"] = cookies
     session_obj.set_encrypted_state(state)
-    session_obj.updated_at = datetime.now(timezone.utc)
+    session_obj.updated_at = datetime.now()
     db.commit()
     return {"status": "updated", "id": session_id, "removed_cookie": cookie_name, "remaining_cookies": len(cookies)}
 
@@ -1219,5 +1219,9 @@ def clear_all_sessions(project: Optional[str] = None, db: Session = Depends(get_
 def serve_index():
     index_file = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file, media_type="text/html")
+        response = FileResponse(index_file, media_type="text/html")
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
     return JSONResponse({"status": "Frontend not yet generated. Please create frontend/index.html"}, status_code=404)

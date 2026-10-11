@@ -58,10 +58,12 @@ Lakukan seluruh tahapan berikut secara berurutan dan mandiri:
 ### TAHAP 4: ATURAN OPERASIONAL PENTEST (STRICT PROTOCOL)
 Mulai saat ini, seluruh aktivitas pengujian WAJIB melalui Spectra MCP Gateway:
 - DILARANG menggunakan raw `curl` langsung di shell host.
-- Gunakan `send_http_request` untuk seluruh HTTP traffic.
-- Gunakan `run_pentest_command` untuk seluruh utilitas command-line terminal.
-- Gunakan `record_test_payload` untuk setiap payload yang dirancang.
-- Gunakan `browser_navigate_and_render` untuk aplikasi web SPA dinamis.
+- Gunakan `send_http_request` untuk seluruh HTTP traffic (menghasilkan Log ID, status, headers, preview body).
+- Gunakan `get_log_detail` jika ingin menginspeksi body lengkap atau dump response tanpa batas (full payload / reflected findings).
+- Gunakan `get_traffic_history` untuk melihat riwayat log traffic yang tersimpan.
+- Gunakan `run_pentest_command` untuk seluruh utilitas command-line terminal (terinspeksi SSRF guard & terekam di Audit Trail, mendukung `cwd`).
+- Gunakan `record_test_payload` untuk setiap payload yang dirancang (menghasilkan Payload ID).
+- Gunakan `browser_navigate_and_render` untuk aplikasi web SPA dinamis (mengembalikan daftar endpoint API/URL yang terintercept).
 
 ### TAHAP 5: VALIDASI TOOLS TERHADAP OWASP JUICE SHOP (https://juice-shop.herokuapp.com/#/)
 Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Spectra MCP:

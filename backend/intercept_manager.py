@@ -64,7 +64,7 @@ def create_intercept_trap(request_data: Dict[str, Any]) -> Tuple[str, asyncio.Ev
         "request_data": request_data,
         "decision": "pending",  # "forward", "drop"
         "modified_data": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now().isoformat()
     }
     return intercept_id, event
 

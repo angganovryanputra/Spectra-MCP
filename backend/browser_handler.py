@@ -147,12 +147,12 @@ def _save_session_cookies(project: str, domain: str, storage_state: dict):
         if existing:
             existing.project = project
             existing.set_encrypted_state(storage_state)
-            existing.updated_at = datetime.now(timezone.utc)
+            existing.updated_at = datetime.now()
         else:
             new_session = ActiveSession(
                 project=project,
                 domain=domain,
-                updated_at=datetime.now(timezone.utc)
+                updated_at=datetime.now()
             )
             new_session.set_encrypted_state(storage_state)
             db.add(new_session)
@@ -303,7 +303,7 @@ async def spawn_interactive_login(
         "domain": domain,
         "project": project,
         "browser_choice": browser_choice,
-        "started_at": datetime.now(timezone.utc).isoformat()
+        "started_at": datetime.now().isoformat()
     }
 
     captured_data = {
