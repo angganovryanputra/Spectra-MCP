@@ -80,9 +80,13 @@ async def host_and_auth_security_middleware(request, call_next):
     client_host = request.client.host if request.client else "unknown"
     # 1. Localhost enforcement: if remote access is not explicitly enabled, block remote IPs
     if not SPECTRA_ALLOW_REMOTE:
-        if client_host not in ["127.0.0.1", "localhost", "::1", "testclient"]:
+        is_local_client = (
+            client_host in ["127.0.0.1", "localhost", "::1", "testclient"] or
+            client_host.startswith("172.")  # Permit WSL2 virtual hyper-v bridge NAT
+        )
+        if not is_local_client:
             return JSONResponse(
-                {"detail": "Remote access forbidden: Spectra dashboard is restricted to localhost (127.0.0.1). Set SPECTRA_ALLOW_REMOTE=true in environment to permit."},
+                {"detail": f"Remote access forbidden for {client_host}: Spectra dashboard is restricted to localhost (127.0.0.1) or WSL2. Set SPECTRA_ALLOW_REMOTE=true in environment to permit external remote IPs."},
                 status_code=403
             )
 
