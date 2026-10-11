@@ -68,6 +68,18 @@
       background: #334155;
     }
 
+    /* Universal smooth scrolling & flex min-height fix for data tables */
+    #logsTableContainer,
+    .smooth-scroll,
+    .overflow-y-auto,
+    .overflow-x-auto,
+    .overflow-auto {
+      min-height: 0;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
     .glow-rose {
       box-shadow: 0 0 15px rgba(244, 63, 94, 0.35);
     }
@@ -165,7 +177,7 @@
         </button>
 
         <!-- AI Activity Tab (Commands & Payload Vault) -->
-        <button @click="currentAppTab = 'ai_activity'"
+        <button @click="currentAppTab = 'ai_activity'; fetchCommands(); fetchPayloads()"
           :class="currentAppTab === 'ai_activity' ? 'bg-[#1E293B] text-teal-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
           class="px-3 py-1.5 rounded transition flex items-center relative">
           <i data-lucide="terminal" class="w-3.5 h-3.5 mr-1.5"></i>
@@ -255,12 +267,12 @@
 
   <!-- VIEW 1: PROXY TRAFFIC HISTORY & DEEP INSPECTOR -->
   <div x-show="currentAppTab === 'proxy'" id="proxySplitPane"
-    class="flex-1 overflow-hidden"
+    class="flex-1 min-h-0 overflow-hidden"
     :class="layoutOrientation === 'vertical' ? 'flex flex-col' : 'flex flex-row'">
 
     <!-- TABLE PANE -->
     <section :style="maximizedPanel === 'table' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'inspector' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + tableSplitPct + '%; min-height: 140px;' : 'width: ' + tableSplitPct + '%; min-width: 300px;'))"
-      class="relative flex flex-col bg-[#0B0F17] overflow-hidden"
+      class="relative flex flex-col bg-[#0B0F17] overflow-hidden min-h-0"
       :class="layoutOrientation === 'vertical' ? 'border-b border-[#1E293B]' : 'border-r border-[#1E293B]'">
 
       <!-- Filter Bar & Table Controls -->
@@ -336,8 +348,8 @@
       </div>
 
       <!-- Resizable Table Wrapper (Horizontal + Vertical scroll synced) -->
-      <div class="flex-1 flex flex-col overflow-x-auto overflow-y-hidden select-none">
-        <div class="min-w-max flex-1 flex flex-col">
+      <div id="logsTableContainer" class="flex-1 min-h-0 flex flex-col overflow-auto select-none smooth-scroll">
+        <div class="min-w-max flex flex-col">
           <!-- 1. RESIZABLE COLUMN HEADERS -->
           <div class="flex bg-[#111827] border-b border-[#1E293B] text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0 sticky top-0 z-20">
             <!-- Col 1: ID -->
@@ -549,7 +561,7 @@
           </div>
 
           <!-- 3. TRAFFIC ROWS -->
-          <div id="logsTableContainer" class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
+          <div class="divide-y divide-[#1E293B]/60 font-mono text-xs">
             <template x-for="log in paginatedLogs()" :key="log.id">
               <div @click="selectLog(log.id)"
                 :class="selectedLogId === log.id ? 'bg-[#1E293B]/90 ring-1 ring-sky-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
@@ -754,7 +766,7 @@
 
     <!-- RIGHT/BOTTOM PANE: DEEP INSPECTOR -->
     <section :style="maximizedPanel === 'inspector' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'table' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + (100 - tableSplitPct) + '%; min-height: 140px;' : 'width: ' + (100 - tableSplitPct) + '%; min-width: 300px;'))"
-      class="flex flex-col bg-[#111827]/90 overflow-hidden">
+      class="flex flex-col bg-[#111827]/90 overflow-hidden min-h-0">
       <!-- Tab Header -->
       <div class="h-10 bg-[#0B0F17] border-b border-[#1E293B] px-3 flex items-center justify-between shrink-0">
         <div class="flex space-x-1 text-xs font-mono">
@@ -806,7 +818,7 @@
       </div>
 
       <!-- Inspector Body -->
-      <div class="flex-1 overflow-y-auto p-4 font-mono text-xs text-slate-300">
+      <div class="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs text-slate-300 smooth-scroll">
         <template x-if="selectedLogDetail">
           <div>
             <!-- TAB 1: REQUEST -->
@@ -1767,7 +1779,7 @@
       <!-- Left: Sub-Tab Pills -->
       <div class="flex items-center space-x-2 bg-[#0B0F17] p-1 rounded-lg border border-[#1E293B]">
         <!-- Sub-Tab 1: Command History -->
-        <button @click="aiSubTab = 'commands'"
+        <button @click="aiSubTab = 'commands'; renderIconsDebounced()"
           :class="aiSubTab === 'commands' ? 'bg-[#1E293B] text-teal-400 font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           class="px-3 py-1 rounded transition flex items-center space-x-1.5">
           <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
@@ -1777,7 +1789,7 @@
         </button>
 
         <!-- Sub-Tab 2: Payload Vault -->
-        <button @click="aiSubTab = 'payloads'"
+        <button @click="aiSubTab = 'payloads'; renderIconsDebounced()"
           :class="aiSubTab === 'payloads' ? 'bg-[#1E293B] text-amber-400 font-bold shadow-sm' : 'text-slate-400 hover:text-slate-200'"
           class="px-3 py-1 rounded transition flex items-center space-x-1.5">
           <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
@@ -1794,10 +1806,10 @@
           <div class="flex items-center space-x-2">
             <div class="relative">
               <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
-              <input type="text" x-model="commandSearch" placeholder="Search commands, reasoning..."
+              <input type="text" x-model="commandSearch" @input.debounce.150ms="filterCommands()" placeholder="Search commands, reasoning..."
                 class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-teal-500 w-56">
             </div>
-            <select x-model="commandStatusFilter"
+            <select x-model="commandStatusFilter" @change="filterCommands()"
               class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
               <option value="ALL">All Status</option>
               <option value="SUCCESS">Success</option>
@@ -1819,10 +1831,10 @@
           <div class="flex items-center space-x-2">
             <div class="relative">
               <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
-              <input type="text" x-model="payloadSearch" placeholder="Search payload, param, URL..."
+              <input type="text" x-model="payloadSearch" @input.debounce.150ms="filterPayloads()" placeholder="Search payload, param, URL..."
                 class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-amber-500 w-56">
             </div>
-            <select x-model="payloadTypeFilter"
+            <select x-model="payloadTypeFilter" @change="filterPayloads()"
               class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
               <option value="ALL">All Vuln Types</option>
               <option value="SQLI">SQL Injection</option>
@@ -1835,7 +1847,7 @@
               <option value="AUTH_BYPASS">Auth Bypass</option>
               <option value="CUSTOM">Custom</option>
             </select>
-            <select x-model="payloadOutcomeFilter"
+            <select x-model="payloadOutcomeFilter" @change="filterPayloads()"
               class="bg-[#0B0F17] border border-[#1E293B] text-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none cursor-pointer">
               <option value="ALL">All Outcomes</option>
               <option value="EXECUTED">Executed</option>
@@ -1857,16 +1869,16 @@
     </div>
 
     <!-- SUB-VIEW 1: COMMAND AUDIT TRAIL (Split Pane: Command List + Detailed Terminal Output Inspector) -->
-    <div x-show="aiSubTab === 'commands'" class="flex-1 overflow-hidden flex flex-row">
+    <div x-show="aiSubTab === 'commands'" class="flex-1 min-h-0 overflow-hidden flex flex-row">
       <!-- Left: List of Commands -->
-      <div class="w-[45%] border-r border-[#1E293B] flex flex-col bg-[#0B0F17] overflow-hidden">
-        <div class="p-2 bg-[#111827]/70 border-b border-[#1E293B] text-[11px] font-mono text-slate-400 flex items-center justify-between">
-          <span>Captured Commands (<span class="text-teal-400 font-bold" x-text="filteredCommands().length"></span>)</span>
+      <div class="w-[45%] border-r border-[#1E293B] flex flex-col bg-[#0B0F17] overflow-hidden min-h-0">
+        <div class="p-2 bg-[#111827]/70 border-b border-[#1E293B] text-[11px] font-mono text-slate-400 flex items-center justify-between shrink-0">
+          <span>Captured Commands (<span class="text-teal-400 font-bold" x-text="filteredCommandsList.length"></span>)</span>
           <span class="text-[10px] text-slate-500">Live Telemetry from MCP / Terminal</span>
         </div>
 
-        <div class="flex-1 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs">
-          <template x-for="cmd in filteredCommands()" :key="cmd.id">
+        <div class="flex-1 min-h-0 overflow-y-auto divide-y divide-[#1E293B]/60 font-mono text-xs smooth-scroll">
+          <template x-for="cmd in paginatedCommands()" :key="cmd.id">
             <div @click="selectCommand(cmd.id)"
               :class="selectedCommandId === cmd.id ? 'bg-[#1E293B]/90 ring-1 ring-teal-500 text-white' : 'hover:bg-[#111827]/80 text-slate-300'"
               class="p-3 cursor-pointer transition select-text">
@@ -1901,18 +1913,68 @@
             </div>
           </template>
 
-          <div x-show="filteredCommands().length === 0" class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
+          <div x-show="filteredCommandsList.length === 0" class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
             <i data-lucide="terminal" class="w-8 h-8 mx-auto opacity-30 text-teal-400"></i>
             <p>No terminal commands recorded yet.</p>
             <p class="text-[10px] text-slate-600">Commands executed by AI via MCP tool <code>run_pentest_command</code> will stream here live.</p>
           </div>
         </div>
+
+        <!-- Bottom Pagination Bar for Commands -->
+        <div class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
+          <div class="flex items-center space-x-1.5">
+            <span class="text-slate-500">Showing</span>
+            <span class="text-teal-400 font-bold" x-text="commandPageStartItem() + '-' + commandPageEndItem()"></span>
+            <span class="text-slate-500">of</span>
+            <span class="text-slate-300 font-semibold" x-text="filteredCommandsList.length"></span>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <button @click="setCommandPage(1)" :disabled="commandPage <= 1"
+              :class="commandPage <= 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="First Page">
+              <i data-lucide="chevrons-left" class="w-3.5 h-3.5"></i>
+            </button>
+            <button @click="setCommandPage(commandPage - 1)" :disabled="commandPage <= 1"
+              :class="commandPage <= 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Previous Page">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            </button>
+
+            <span class="px-2 text-slate-300 font-bold">
+              <span class="text-teal-400" x-text="commandPage"></span> / <span x-text="totalCommandPages()"></span>
+            </span>
+
+            <button @click="setCommandPage(commandPage + 1)" :disabled="commandPage >= totalCommandPages()"
+              :class="commandPage >= totalCommandPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Next Page">
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </button>
+            <button @click="setCommandPage(totalCommandPages())" :disabled="commandPage >= totalCommandPages()"
+              :class="commandPage >= totalCommandPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Last Page">
+              <i data-lucide="chevrons-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <span class="text-slate-500 text-[10px]">Rows:</span>
+            <select :value="commandPageSize >= 999999 ? 'ALL' : commandPageSize" @change="setCommandPageSize($event.target.value)"
+              class="bg-[#0B0F17] border border-[#1E293B] text-teal-400 font-bold rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="ALL">ALL</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <!-- Right: Detailed Terminal Output Inspector -->
-      <div class="w-[55%] flex flex-col bg-[#111827]/40 overflow-hidden">
+      <div class="w-[55%] flex flex-col bg-[#111827]/40 overflow-hidden min-h-0">
         <template x-if="selectedCommand">
-          <div class="flex-1 flex flex-col overflow-hidden">
+          <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
             <!-- Header bar of selected command -->
             <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0 font-mono text-xs">
               <div class="flex items-center space-x-2">
@@ -1934,7 +1996,7 @@
             </div>
 
             <!-- Content Body -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs">
+            <div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 font-mono text-xs smooth-scroll">
               <!-- Raw Command Block -->
               <div>
                 <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Executed Command:</label>
@@ -1988,21 +2050,21 @@
     </div>
 
     <!-- SUB-VIEW 2: PAYLOAD VAULT & ATTACK MATRIX -->
-    <div x-show="aiSubTab === 'payloads'" class="flex-1 overflow-y-auto p-4 flex flex-col font-mono text-xs">
-      <div class="bg-[#111827] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col flex-1 shadow-lg">
+    <div x-show="aiSubTab === 'payloads'" class="flex-1 min-h-0 overflow-hidden p-4 flex flex-col font-mono text-xs">
+      <div class="bg-[#111827] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col flex-1 min-h-0 shadow-lg">
         <!-- Vault Header & Counter -->
         <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0">
           <div class="flex items-center space-x-2">
             <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i>
             <span class="font-bold text-slate-100">Security Test Payloads Vault</span>
             <span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-bold"
-                  x-text="filteredPayloads().length + ' captured'"></span>
+                  x-text="filteredPayloadsList.length + ' captured'"></span>
           </div>
           <span class="text-[10px] text-slate-400">Captured security test mutations ready for verification and 1-click replay</span>
         </div>
 
         <!-- Table of Payloads -->
-        <div class="flex-1 overflow-x-auto overflow-y-auto">
+        <div class="flex-1 min-h-0 overflow-auto smooth-scroll">
           <table class="w-full text-left text-xs font-mono divide-y divide-[#1E293B]">
             <thead class="bg-[#0B0F17] text-[10px] uppercase text-slate-400 font-semibold sticky top-0 z-10">
               <tr>
@@ -2016,7 +2078,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-[#1E293B]/60 text-slate-300">
-              <template x-for="p in filteredPayloads()" :key="p.id">
+              <template x-for="p in paginatedPayloads()" :key="p.id">
                 <tr class="hover:bg-[#1E293B]/50 transition select-text">
                   <td class="px-3 py-2.5 text-slate-500 text-[11px]" x-text="'#' + p.id"></td>
                   <!-- Vuln Type Badge -->
@@ -2070,10 +2132,61 @@
             </tbody>
           </table>
 
-          <div x-show="filteredPayloads().length === 0" class="p-12 text-center text-slate-500 font-mono text-xs space-y-2">
+          <div x-show="filteredPayloadsList.length === 0" class="p-12 text-center text-slate-500 font-mono text-xs space-y-2">
             <i data-lucide="shield-alert" class="w-8 h-8 mx-auto opacity-30 text-amber-400"></i>
             <p>No test payloads cataloged yet.</p>
             <p class="text-[10px] text-slate-600">Payloads tested by AI via MCP tool <code>record_test_payload</code> or security fuzzer will appear here.</p>
+          </div>
+        </div>
+
+        <!-- Bottom Pagination Bar for Payloads -->
+        <div class="h-10 bg-[#0B0F17] border-t border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
+          <div class="flex items-center space-x-1.5">
+            <span class="text-slate-500">Showing</span>
+            <span class="text-amber-400 font-bold" x-text="payloadPageStartItem() + '-' + payloadPageEndItem()"></span>
+            <span class="text-slate-500">of</span>
+            <span class="text-slate-300 font-semibold" x-text="filteredPayloadsList.length"></span>
+            <span class="text-slate-500">payloads</span>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <button @click="setPayloadPage(1)" :disabled="payloadPage <= 1"
+              :class="payloadPage <= 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="First Page">
+              <i data-lucide="chevrons-left" class="w-3.5 h-3.5"></i>
+            </button>
+            <button @click="setPayloadPage(payloadPage - 1)" :disabled="payloadPage <= 1"
+              :class="payloadPage <= 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Previous Page">
+              <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            </button>
+
+            <span class="px-2 text-slate-300 font-bold">
+              <span class="text-amber-400" x-text="payloadPage"></span> / <span x-text="totalPayloadPages()"></span>
+            </span>
+
+            <button @click="setPayloadPage(payloadPage + 1)" :disabled="payloadPage >= totalPayloadPages()"
+              :class="payloadPage >= totalPayloadPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Next Page">
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </button>
+            <button @click="setPayloadPage(totalPayloadPages())" :disabled="payloadPage >= totalPayloadPages()"
+              :class="payloadPage >= totalPayloadPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300'"
+              class="p-1 rounded transition" title="Last Page">
+              <i data-lucide="chevrons-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <span class="text-slate-500 text-[10px]">Rows:</span>
+            <select :value="payloadPageSize >= 999999 ? 'ALL' : payloadPageSize" @change="setPayloadPageSize($event.target.value)"
+              class="bg-[#111827] border border-[#1E293B] text-amber-400 font-bold rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="ALL">ALL</option>
+            </select>
           </div>
         </div>
       </div>
@@ -2442,9 +2555,15 @@
         agentsList: ['primary_agent'],
         stats: { total_requests: 0, confirmed_findings: 0, potential_findings: 0, active_sessions: 0 },
 
-        // AI Activity State (Command Audit & Payload Vault)
+        // AI Activity State (Command Audit & Payload Vault with Smart Pagination)
         commands: [],
+        filteredCommandsList: [],
+        commandPage: 1,
+        commandPageSize: 25,
         payloads: [],
+        filteredPayloadsList: [],
+        payloadPage: 1,
+        payloadPageSize: 25,
         aiSubTab: 'commands', // 'commands' | 'payloads'
         selectedCommandId: null,
         selectedCommand: null,
@@ -2455,6 +2574,8 @@
         payloadSearch: '',
         payloadTypeFilter: 'ALL',
         payloadOutcomeFilter: 'ALL',
+        aiBatchTimer: null,
+        _lucideTimer: null,
 
         // Session & Cookie Config
         openLoginModal: false,
@@ -2673,7 +2794,7 @@
             const cmd = msg.command;
             if (this.selectedProject === 'ALL' || this.selectedProject === cmd.project) {
               this.commands.unshift(cmd);
-              if (this.commands.length > 500) this.commands.pop();
+              if (this.commands.length > 2000) this.commands.pop();
               if (!this.selectedCommandId) {
                 this.selectCommand(cmd.id);
               }
@@ -2687,12 +2808,12 @@
             if (this.stats) {
               this.stats.total_commands = (this.stats.total_commands || 0) + 1;
             }
-            this.$nextTick(() => lucide.createIcons());
+            this.scheduleAiBatchRender();
           } else if (msg.type === 'NEW_PAYLOAD' && msg.payload) {
             const p = msg.payload;
             if (this.selectedProject === 'ALL' || this.selectedProject === p.project) {
               this.payloads.unshift(p);
-              if (this.payloads.length > 500) this.payloads.pop();
+              if (this.payloads.length > 2000) this.payloads.pop();
               if (!this.selectedPayloadId) {
                 this.selectPayload(p.id);
               }
@@ -2706,19 +2827,23 @@
             if (this.stats) {
               this.stats.total_payloads = (this.stats.total_payloads || 0) + 1;
             }
-            this.$nextTick(() => lucide.createIcons());
+            this.scheduleAiBatchRender();
           } else if (msg.type === 'COMMANDS_CLEARED') {
             this.commands = [];
+            this.filteredCommandsList = [];
+            this.commandPage = 1;
             this.selectedCommandId = null;
             this.selectedCommand = null;
             this.fetchStats();
-            this.$nextTick(() => lucide.createIcons());
+            this.renderIconsDebounced();
           } else if (msg.type === 'PAYLOADS_CLEARED') {
             this.payloads = [];
+            this.filteredPayloadsList = [];
+            this.payloadPage = 1;
             this.selectedPayloadId = null;
             this.selectedPayload = null;
             this.fetchStats();
-            this.$nextTick(() => lucide.createIcons());
+            this.renderIconsDebounced();
           } else if (msg.type === 'AUTH_SPAWNED') {
             this.loginSpawning = true;
             this.authLiveCookiesCount = 0;
@@ -3676,14 +3801,35 @@
           setTimeout(() => this.copiedCurl = false, 2000);
         },
 
-        // AI ACTIVITY ACTIONS (COMMAND AUDIT & PAYLOAD VAULT)
+        // AI ACTIVITY ACTIONS (COMMAND AUDIT & PAYLOAD VAULT WITH PAGINATION)
+        renderIconsDebounced() {
+          if (this._lucideTimer) clearTimeout(this._lucideTimer);
+          this._lucideTimer = setTimeout(() => {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+              window.lucide.createIcons();
+            }
+          }, 60);
+        },
+
+        scheduleAiBatchRender() {
+          if (!this.aiBatchTimer) {
+            this.aiBatchTimer = setTimeout(() => {
+              this.filterCommands();
+              this.filterPayloads();
+              this.aiBatchTimer = null;
+              this.renderIconsDebounced();
+            }, 100);
+          }
+        },
+
         async fetchCommands() {
           try {
-            const p = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
-            const res = await fetch(`/api/commands${p}`);
+            const p = this.selectedProject !== 'ALL' ? `&project=${encodeURIComponent(this.selectedProject)}` : '';
+            const res = await fetch(`/api/commands?limit=1000${p}`);
             if (res.ok) {
               const data = await res.json();
               this.commands = data.commands || [];
+              this.filterCommands();
               if (this.commands.length > 0 && !this.selectedCommandId) {
                 this.selectCommand(this.commands[0].id);
               }
@@ -3691,10 +3837,79 @@
           } catch (e) { }
         },
 
-        selectCommand(id) {
+        filterCommands() {
+          const q = (this.commandSearch || '').toLowerCase().trim();
+          this.filteredCommandsList = this.commands.filter(cmd => {
+            if (this.commandStatusFilter !== 'ALL' && cmd.status !== this.commandStatusFilter) return false;
+            if (q) {
+              const full = `${cmd.command} ${cmd.reasoning || ''} ${cmd.tool_name || ''} ${cmd.agent_id || ''}`.toLowerCase();
+              if (!full.includes(q)) return false;
+            }
+            return true;
+          });
+          const total = this.totalCommandPages();
+          if (this.commandPage > total) {
+            this.commandPage = Math.max(1, total);
+          }
+          this.renderIconsDebounced();
+        },
+
+        totalCommandPages() {
+          if (this.commandPageSize >= 999999) return 1;
+          const pages = Math.ceil((this.filteredCommandsList || []).length / this.commandPageSize);
+          return Math.max(1, pages);
+        },
+
+        paginatedCommands() {
+          if (!this.filteredCommandsList || this.filteredCommandsList.length === 0) return [];
+          if (this.commandPageSize >= 999999) return this.filteredCommandsList;
+          const start = (this.commandPage - 1) * this.commandPageSize;
+          return this.filteredCommandsList.slice(start, start + this.commandPageSize);
+        },
+
+        setCommandPage(page) {
+          const total = this.totalCommandPages();
+          this.commandPage = Math.max(1, Math.min(total, page));
+          this.renderIconsDebounced();
+        },
+
+        setCommandPageSize(size) {
+          this.commandPageSize = size === 'ALL' ? 999999 : parseInt(size);
+          this.commandPage = 1;
+          this.renderIconsDebounced();
+        },
+
+        commandPageStartItem() {
+          if (!this.filteredCommandsList || this.filteredCommandsList.length === 0) return 0;
+          return (this.commandPage - 1) * (this.commandPageSize >= 999999 ? this.filteredCommandsList.length : this.commandPageSize) + 1;
+        },
+
+        commandPageEndItem() {
+          if (!this.filteredCommandsList || this.filteredCommandsList.length === 0) return 0;
+          if (this.commandPageSize >= 999999) return this.filteredCommandsList.length;
+          return Math.min(this.commandPage * this.commandPageSize, this.filteredCommandsList.length);
+        },
+
+        async selectCommand(id) {
           this.selectedCommandId = id;
-          this.selectedCommand = this.commands.find(c => c.id === id) || null;
-          this.$nextTick(() => lucide.createIcons());
+          const cmd = this.commands.find(c => c.id === id) || null;
+          if (cmd) {
+            this.selectedCommand = Object.assign({}, cmd);
+            // If output was truncated in list view, fetch full output lazily
+            if (cmd.output_truncated || cmd.stdout === undefined) {
+              try {
+                const res = await fetch(`/api/commands/${id}`);
+                if (res.ok) {
+                  const full = await res.json();
+                  this.selectedCommand = full;
+                  Object.assign(cmd, full);
+                }
+              } catch (e) { }
+            }
+          } else {
+            this.selectedCommand = null;
+          }
+          this.renderIconsDebounced();
         },
 
         async clearCommands() {
@@ -3709,6 +3924,8 @@
             });
             if (res.ok) {
               this.commands = [];
+              this.filteredCommandsList = [];
+              this.commandPage = 1;
               this.selectedCommandId = null;
               this.selectedCommand = null;
               if (this.stats) {
@@ -3716,7 +3933,7 @@
               }
               await this.fetchStats();
               this.showToast({ title: 'Commands Cleared', message: `AI command execution history for ${target} deleted.` });
-              this.$nextTick(() => lucide.createIcons());
+              this.renderIconsDebounced();
             } else {
               const err = await res.json().catch(() => ({}));
               this.showToast({ title: 'Clear Failed', message: err.detail || 'Failed to clear commands.' });
@@ -3726,25 +3943,14 @@
           }
         },
 
-        filteredCommands() {
-          return this.commands.filter(cmd => {
-            if (this.commandStatusFilter !== 'ALL' && cmd.status !== this.commandStatusFilter) return false;
-            if (this.commandSearch) {
-              const q = this.commandSearch.toLowerCase();
-              const full = `${cmd.command} ${cmd.reasoning || ''} ${cmd.tool_name || ''} ${cmd.agent_id || ''}`.toLowerCase();
-              if (!full.includes(q)) return false;
-            }
-            return true;
-          });
-        },
-
         async fetchPayloads() {
           try {
-            const p = this.selectedProject !== 'ALL' ? `?project=${encodeURIComponent(this.selectedProject)}` : '';
-            const res = await fetch(`/api/payloads${p}`);
+            const p = this.selectedProject !== 'ALL' ? `&project=${encodeURIComponent(this.selectedProject)}` : '';
+            const res = await fetch(`/api/payloads?limit=1000${p}`);
             if (res.ok) {
               const data = await res.json();
               this.payloads = data.payloads || [];
+              this.filterPayloads();
               if (this.payloads.length > 0 && !this.selectedPayloadId) {
                 this.selectPayload(this.payloads[0].id);
               }
@@ -3752,10 +3958,64 @@
           } catch (e) { }
         },
 
+        filterPayloads() {
+          const q = (this.payloadSearch || '').toLowerCase().trim();
+          this.filteredPayloadsList = this.payloads.filter(p => {
+            if (this.payloadTypeFilter !== 'ALL' && p.vuln_type !== this.payloadTypeFilter) return false;
+            if (this.payloadOutcomeFilter !== 'ALL' && p.outcome !== this.payloadOutcomeFilter) return false;
+            if (q) {
+              const full = `${p.raw_payload} ${p.vuln_type} ${p.target_param || ''} ${p.target_url || ''} ${p.notes || ''}`.toLowerCase();
+              if (!full.includes(q)) return false;
+            }
+            return true;
+          });
+          const total = this.totalPayloadPages();
+          if (this.payloadPage > total) {
+            this.payloadPage = Math.max(1, total);
+          }
+          this.renderIconsDebounced();
+        },
+
+        totalPayloadPages() {
+          if (this.payloadPageSize >= 999999) return 1;
+          const pages = Math.ceil((this.filteredPayloadsList || []).length / this.payloadPageSize);
+          return Math.max(1, pages);
+        },
+
+        paginatedPayloads() {
+          if (!this.filteredPayloadsList || this.filteredPayloadsList.length === 0) return [];
+          if (this.payloadPageSize >= 999999) return this.filteredPayloadsList;
+          const start = (this.payloadPage - 1) * this.payloadPageSize;
+          return this.filteredPayloadsList.slice(start, start + this.payloadPageSize);
+        },
+
+        setPayloadPage(page) {
+          const total = this.totalPayloadPages();
+          this.payloadPage = Math.max(1, Math.min(total, page));
+          this.renderIconsDebounced();
+        },
+
+        setPayloadPageSize(size) {
+          this.payloadPageSize = size === 'ALL' ? 999999 : parseInt(size);
+          this.payloadPage = 1;
+          this.renderIconsDebounced();
+        },
+
+        payloadPageStartItem() {
+          if (!this.filteredPayloadsList || this.filteredPayloadsList.length === 0) return 0;
+          return (this.payloadPage - 1) * (this.payloadPageSize >= 999999 ? this.filteredPayloadsList.length : this.payloadPageSize) + 1;
+        },
+
+        payloadPageEndItem() {
+          if (!this.filteredPayloadsList || this.filteredPayloadsList.length === 0) return 0;
+          if (this.payloadPageSize >= 999999) return this.filteredPayloadsList.length;
+          return Math.min(this.payloadPage * this.payloadPageSize, this.filteredPayloadsList.length);
+        },
+
         selectPayload(id) {
           this.selectedPayloadId = id;
           this.selectedPayload = this.payloads.find(p => p.id === id) || null;
-          this.$nextTick(() => lucide.createIcons());
+          this.renderIconsDebounced();
         },
 
         async clearPayloads() {
@@ -3770,6 +4030,8 @@
             });
             if (res.ok) {
               this.payloads = [];
+              this.filteredPayloadsList = [];
+              this.payloadPage = 1;
               this.selectedPayloadId = null;
               this.selectedPayload = null;
               if (this.stats) {
@@ -3777,7 +4039,7 @@
               }
               await this.fetchStats();
               this.showToast({ title: 'Payload Vault Cleared', message: `Captured security payloads for ${target} deleted.` });
-              this.$nextTick(() => lucide.createIcons());
+              this.renderIconsDebounced();
             } else {
               const err = await res.json().catch(() => ({}));
               this.showToast({ title: 'Clear Failed', message: err.detail || 'Failed to clear payloads.' });
@@ -3785,19 +4047,6 @@
           } catch (e) {
             this.showToast({ title: 'Network Error', message: String(e) });
           }
-        },
-
-        filteredPayloads() {
-          return this.payloads.filter(p => {
-            if (this.payloadTypeFilter !== 'ALL' && p.vuln_type !== this.payloadTypeFilter) return false;
-            if (this.payloadOutcomeFilter !== 'ALL' && p.outcome !== this.payloadOutcomeFilter) return false;
-            if (this.payloadSearch) {
-              const q = this.payloadSearch.toLowerCase();
-              const full = `${p.raw_payload} ${p.vuln_type} ${p.target_param || ''} ${p.target_url || ''} ${p.notes || ''}`.toLowerCase();
-              if (!full.includes(q)) return false;
-            }
-            return true;
-          });
         },
 
         sendPayloadToRepeater(p) {

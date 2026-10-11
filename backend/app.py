@@ -204,6 +204,9 @@ class RecordPayloadRequest(BaseModel):
     outcome: Optional[str] = "TESTED"
     http_status: Optional[int] = None
     response_signature: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
 class ClearRequest(BaseModel):
     project: Optional[str] = None
 
@@ -616,7 +619,7 @@ def keepalive_status_endpoint():
 
 
 @app.post("/api/auth/keepalive/toggle")
-def keepalive_toggle_endpoint(enabled: bool = Query(...)):
+async def keepalive_toggle_endpoint(enabled: bool = Query(...)):
     """Starts or stops the background session heartbeat service."""
     if enabled:
         start_session_keeper(interval=120)
@@ -814,11 +817,11 @@ def list_commands(
     agent: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(250, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
-    query = db.query(AgentCommandLog)
+    query = db.query(AgentCommandLog).options(defer(AgentCommandLog.stdout), defer(AgentCommandLog.stderr))
     if project and project.upper() != "ALL":
         query = query.filter(AgentCommandLog.project == project.lower())
     if agent and agent.upper() != "ALL":
@@ -829,15 +832,25 @@ def list_commands(
         search_pattern = f"%{search}%"
         query = query.filter(
             (AgentCommandLog.command.ilike(search_pattern)) |
-            (AgentCommandLog.reasoning.ilike(search_pattern)) |
-            (AgentCommandLog.stdout.ilike(search_pattern))
+            (AgentCommandLog.reasoning.ilike(search_pattern))
         )
     total = query.count()
     commands = query.order_by(desc(AgentCommandLog.id)).offset(offset).limit(limit).all()
     return {
         "total": total,
-        "commands": [c.to_dict() for c in commands]
+        "limit": limit,
+        "offset": offset,
+        "commands": [c.to_dict(include_output=False) for c in commands]
     }
+
+
+@app.get("/api/commands/{cmd_id}")
+def get_command_detail(cmd_id: int, db: Session = Depends(get_db)):
+    """Fetch complete stdout and stderr for a selected command execution."""
+    entry = db.query(AgentCommandLog).filter(AgentCommandLog.id == cmd_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Command log entry not found")
+    return entry.to_dict(include_output=True)
 
 
 @app.post("/api/commands")
@@ -899,7 +912,7 @@ def list_payloads(
     vuln_type: Optional[str] = None,
     outcome: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(250, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
@@ -924,6 +937,8 @@ def list_payloads(
     payloads = query.order_by(desc(CapturedPayload.id)).offset(offset).limit(limit).all()
     return {
         "total": total,
+        "limit": limit,
+        "offset": offset,
         "payloads": [p.to_dict() for p in payloads]
     }
 

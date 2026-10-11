@@ -220,7 +220,7 @@ class AgentCommandLog(Base):
     status = Column(String(32), default="SUCCESS")  # SUCCESS, FAILED, BLOCKED, TIMEOUT
     linked_log_id = Column(Integer, ForeignKey("http_logs.id", ondelete="SET NULL"), nullable=True)
 
-    def to_dict(self):
+    def to_dict(self, include_output: bool = True):
         return {
             "id": self.id,
             "project": self.project or "default",
@@ -230,8 +230,9 @@ class AgentCommandLog(Base):
             "tool_name": self.tool_name or "terminal",
             "reasoning": self.reasoning or "",
             "exit_code": self.exit_code,
-            "stdout": self.stdout or "",
-            "stderr": self.stderr or "",
+            "stdout": self.stdout or "" if include_output else (self.stdout[:500] if self.stdout else ""),
+            "stderr": self.stderr or "" if include_output else (self.stderr[:500] if self.stderr else ""),
+            "output_truncated": not include_output and bool(self.stdout and len(self.stdout) > 500),
             "duration_ms": self.duration_ms or 0,
             "status": self.status or "SUCCESS",
             "linked_log_id": self.linked_log_id
@@ -279,7 +280,7 @@ class CapturedPayload(Base):
 
 
 def _run_migrations():
-    """Safely adds newly introduced columns to existing SQLite tables if not present."""
+    """Safely adds newly introduced columns and high-performance indexes to existing SQLite tables."""
     import sqlite3
     try:
         con = sqlite3.connect(DB_PATH)
@@ -295,7 +296,19 @@ def _run_migrations():
         log_cols = [row[1] for row in cur.fetchall()]
         if "agent_id" not in log_cols:
             cur.execute("ALTER TABLE http_logs ADD COLUMN agent_id VARCHAR(100) DEFAULT 'primary_agent'")
+
+        # Performance Indexes for zero-lag filtering & sorting
         cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_proj_id ON http_logs(project, id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_id_desc ON http_logs(id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_flag ON http_logs(flag_status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_method ON http_logs(method)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_agent_cmd_proj_id ON agent_command_logs(project, id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_agent_cmd_id_desc ON agent_command_logs(id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_agent_cmd_status ON agent_command_logs(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_proj_id ON captured_payloads(project, id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_id_desc ON captured_payloads(id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_vuln_type ON captured_payloads(vuln_type)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_outcome ON captured_payloads(outcome)")
         con.commit()
         con.close()
     except Exception as ex:

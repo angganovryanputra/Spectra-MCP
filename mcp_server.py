@@ -48,18 +48,32 @@ init_db()
 
 # Persistent connection pools for high-throughput concurrency
 _dashboard_client: Optional[httpx.AsyncClient] = None
+_client_loop = None
 _outbound_clients: Dict[str, httpx.AsyncClient] = {}
+_outbound_loop = None
 
 async def _get_dashboard_client() -> httpx.AsyncClient:
-    global _dashboard_client
-    if _dashboard_client is None or _dashboard_client.is_closed:
+    global _dashboard_client, _client_loop
+    current_loop = asyncio.get_running_loop()
+    if _dashboard_client is None or _dashboard_client.is_closed or _client_loop != current_loop:
+        if _dashboard_client and not _dashboard_client.is_closed:
+            try:
+                await _dashboard_client.aclose()
+            except Exception:
+                pass
         _dashboard_client = httpx.AsyncClient(
             timeout=2.0,
             limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=30.0)
         )
+        _client_loop = current_loop
     return _dashboard_client
 
 async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
+    global _outbound_clients, _outbound_loop
+    current_loop = asyncio.get_running_loop()
+    if _outbound_loop != current_loop:
+        _outbound_clients.clear()
+        _outbound_loop = current_loop
     key = proxy_cfg.strip() if proxy_cfg else "direct"
     if key not in _outbound_clients or _outbound_clients[key].is_closed:
         kwargs = {
@@ -320,7 +334,7 @@ async def send_http_request(
             "response_body": f"<BLOCKED BY SPECTRA SCOPE GUARD: {block_reason}>",
             "reasoning": reasoning or ""
         }
-        asyncio.create_task(_persist_and_stream_log(blocked_payload, "BLOCKED", []))
+        await _persist_and_stream_log(blocked_payload, "BLOCKED", [])
         return (
             f"[!] BLOCKED BY SPECTRA SCOPE GUARD:\n"
             f"The target '{url}' was blocked because: {block_reason}.\n"
@@ -470,7 +484,7 @@ async def send_http_request(
     )
     flag_status, findings_list = analyze_traffic(in_memory_log)
 
-    asyncio.create_task(_persist_and_stream_log(log_payload, flag_status, findings_list))
+    await _persist_and_stream_log(log_payload, flag_status, findings_list)
 
     body_snippet = res_body[:1500] if res_body else "[Empty response body]"
     triage_info = ""
@@ -552,7 +566,7 @@ async def browser_navigate_and_render(
             "response_body": result.get("dom_text", "")[:50000],
             "reasoning": reasoning or ""
         }
-        asyncio.create_task(_persist_and_stream_log(log_payload, "CLEAN", []))
+        await _persist_and_stream_log(log_payload, "CLEAN", [])
 
         # Log intercepted background AJAX/fetch sub-requests
         for sub_req in result.get("intercepted_requests", []):
@@ -574,7 +588,7 @@ async def browser_navigate_and_render(
                     "response_body": f"<Intercepted {sub_req.get('resource_type')} request>",
                     "reasoning": "Sub-request captured during headless render"
                 }
-                asyncio.create_task(_persist_and_stream_log(sub_payload, "CLEAN", []))
+                await _persist_and_stream_log(sub_payload, "CLEAN", [])
 
         dom_preview = result.get("dom_text", "")[:2500]
         return (
@@ -585,6 +599,30 @@ async def browser_navigate_and_render(
         )
     except Exception as ex:
         return f"Browser render failure: {str(ex)}"
+
+
+@mcp.tool()
+async def render_webpage(
+    url: str,
+    click_selector: Optional[str] = None,
+    fill_inputs: Optional[Dict[str, str]] = None,
+    project: Optional[str] = None,
+    agent_id: Optional[str] = "primary_agent",
+    reasoning: Optional[str] = None
+) -> str:
+    """
+    Renders a dynamic webpage headlessly via Playwright, executes automated actions,
+    intercepts background asynchronous network requests, and extracts visible DOM content.
+    (Alias for browser_navigate_and_render).
+    """
+    return await browser_navigate_and_render(
+        url=url,
+        click_selector=click_selector,
+        fill_inputs=fill_inputs,
+        project=project,
+        agent_id=agent_id,
+        reasoning=reasoning
+    )
 
 
 # ==============================================================================
@@ -665,7 +703,7 @@ async def run_pentest_command(
                 "duration_ms": 0,
                 "status": "BLOCKED"
             }
-            asyncio.create_task(_persist_and_stream_command(blocked_payload))
+            await _persist_and_stream_command(blocked_payload)
             return (
                 f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE:\n"
                 f"The command '{cmd_clean}' was blocked because it contains potentially destructive instructions."
@@ -717,7 +755,7 @@ async def run_pentest_command(
         "duration_ms": duration_ms,
         "status": status
     }
-    asyncio.create_task(_persist_and_stream_command(cmd_log_payload))
+    await _persist_and_stream_command(cmd_log_payload)
 
     stdout_snippet = stdout_text[:2000] if stdout_text else "[No standard output]"
     stderr_snippet = f"\nSTDERR:\n{stderr_text[:1000]}" if stderr_text else ""
@@ -768,7 +806,7 @@ async def record_test_payload(
         "http_status": http_status,
         "notes": reasoning or ""
     }
-    asyncio.create_task(_persist_and_stream_payload(payload_data))
+    await _persist_and_stream_payload(payload_data)
 
     return (
         f"Project: [{target_project}] | Captured {http_method.upper()} payload '{raw_payload[:60]}' for {vuln_type} on param '{target_param}'. "
