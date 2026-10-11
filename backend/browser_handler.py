@@ -88,13 +88,33 @@ async def render_page(
 
         page = await context.new_page()
 
-        # Network hooks to capture AJAX / sub-requests
-        page.on("request", lambda req: intercepted_requests.append({
-            "url": req.url,
-            "method": req.method,
-            "resource_type": req.resource_type,
-            "headers": dict(req.headers)
-        }))
+        # Network hooks to capture AJAX / sub-requests with real status codes and latencies
+        import time as _time
+        request_timings: Dict[str, float] = {}
+
+        def on_req(req):
+            request_timings[req.url] = _time.time()
+            intercepted_requests.append({
+                "url": req.url,
+                "method": req.method,
+                "resource_type": req.resource_type,
+                "headers": dict(req.headers),
+                "status_code": None,
+                "duration_ms": 0,
+                "synthetic": False
+            })
+
+        def on_res(res):
+            start = request_timings.get(res.url)
+            duration = int((_time.time() - start) * 1000) if start else 0
+            for item in reversed(intercepted_requests):
+                if item["url"] == res.url and item["status_code"] is None:
+                    item["status_code"] = res.status
+                    item["duration_ms"] = duration
+                    break
+
+        page.on("request", on_req)
+        page.on("response", on_res)
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)

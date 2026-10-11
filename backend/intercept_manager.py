@@ -168,13 +168,18 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
                 return False, f"Blocked by guardrail: URL contains restricted keyword '{pattern}'"
 
     # 2. Check Allowed Hosts (Domain Boundaries)
-    allowed_list = scope_data["allowed_hosts"]
+    raw_allowed = scope_data.get("allowed_hosts", [])
+    allowed_list = [h.strip().lower() for h in raw_allowed if h and h.strip()]
+
+    # If scope is enabled, having only "*" means scope was enabled but never configured with target domains.
     if "*" in allowed_list or "all" in allowed_list:
-        return True, None
+        explicit_domains = [h for h in allowed_list if h not in ["*", "all"]]
+        if not explicit_domains:
+            return False, f"Scope Enforcement Error: Project '{project_name}' has scope enabled, but allowed_hosts only contains wildcard '*'. Please configure explicit target domain(s) in project scope settings (e.g. ['juice-shop.herokuapp.com'])."
+        allowed_list = explicit_domains
 
     host_allowed = False
     for allowed_pattern in allowed_list:
-        allowed_pattern = allowed_pattern.strip().lower()
         if fnmatch.fnmatch(host, allowed_pattern):
             host_allowed = True
             break

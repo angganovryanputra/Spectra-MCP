@@ -190,6 +190,7 @@ class ImportCookiesRequest(BaseModel):
     domain: str
     raw_cookie: Optional[str] = None
     raw_input: Optional[str] = None
+    raw: Optional[str] = None  # Friendly alias for agents sending {"raw": "..."}
 
 
 class ConfirmAuthRequest(BaseModel):
@@ -1112,9 +1113,9 @@ async def import_cookies_endpoint(req: ImportCookiesRequest):
     - HTTP Request Header block (Cookie: ...)
     - JSON cookies array (from Cookie-Editor extension or Playwright)
     """
-    target_input = (req.raw_cookie or req.raw_input or "").strip()
+    target_input = (req.raw_cookie or req.raw_input or req.raw or "").strip()
     if not target_input:
-        raise HTTPException(status_code=400, detail="Empty cookie input provided.")
+        raise HTTPException(status_code=400, detail="Empty cookie input provided. Use 'raw_cookie', 'raw_input', or 'raw'.")
 
     target_domain = (req.domain or "").strip()
     if not target_domain:

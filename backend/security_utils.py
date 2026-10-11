@@ -95,6 +95,9 @@ def decrypt_secret(stored_text: str) -> str:
 # ==============================================================================
 
 import socket
+import time
+import asyncio
+from typing import Dict, List, Any
 
 # Dangerous IP ranges that must be blocked unless explicitly permitted
 _METADATA_NETWORKS = [
@@ -109,13 +112,74 @@ _PRIVATE_NETWORKS = [
     ipaddress.ip_network("::1/128"),
 ]
 
+# High-concurrency DNS Cache with TTL (default 60s) to prevent hot-path event loop stalling during fuzzing
+_DNS_CACHE: Dict[str, Tuple[float, List[Any]]] = {}
+_DNS_CACHE_TTL = 60.0  # seconds
+
+
+def resolve_hostname_ips(hostname: str) -> List[Any]:
+    """Resolves a hostname to IP addresses using an in-memory TTL cache to prevent socket blocking on hot-paths."""
+    now = time.time()
+    cached = _DNS_CACHE.get(hostname)
+    if cached and (now - cached[0] < _DNS_CACHE_TTL):
+        return cached[1]
+
+    resolved: List[Any] = []
+    if hostname in ["localhost", "ip6-localhost", "ip6-loopback"]:
+        resolved.append(ipaddress.ip_address("127.0.0.1"))
+    else:
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            for item in addr_info:
+                sockaddr = item[4]
+                ip_str = sockaddr[0]
+                try:
+                    resolved.append(ipaddress.ip_address(ip_str))
+                except ValueError:
+                    pass
+        except Exception:
+            pass
+
+    _DNS_CACHE[hostname] = (now, resolved)
+    return resolved
+
+
+async def async_resolve_hostname_ips(hostname: str) -> List[Any]:
+    """Asynchronously resolves a hostname without blocking the event loop, leveraging threadpool executor and TTL cache."""
+    now = time.time()
+    cached = _DNS_CACHE.get(hostname)
+    if cached and (now - cached[0] < _DNS_CACHE_TTL):
+        return cached[1]
+
+    try:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, resolve_hostname_ips, hostname)
+    except RuntimeError:
+        return resolve_hostname_ips(hostname)
+
+
+def _evaluate_ip_list(hostname: str, ips: List[Any], allow_internal: bool) -> Tuple[bool, Optional[str]]:
+    for ip_check in ips:
+        # Check Cloud Metadata (Strictly blocked under all circumstances)
+        for meta_net in _METADATA_NETWORKS:
+            if ip_check in meta_net:
+                return False, f"SSRF Guardrail: Target '{hostname}' ({ip_check}) belongs to cloud instance metadata service (169.254.x.x)."
+
+        # Check Private Networks (Blocked unless allow_internal is enabled)
+        if not allow_internal:
+            for priv_net in _PRIVATE_NETWORKS:
+                if ip_check in priv_net:
+                    return False, f"SSRF Guardrail: Target '{hostname}' resolves to private/loopback IP '{ip_check}'. Enable 'Allow Internal Scope' in project settings to permit."
+    return True, None
+
+
 def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
     """
-    Validates whether a target URL poses an SSRF threat.
+    Validates whether a target URL poses an SSRF threat (Synchronous / Cached).
     - Always blocks Cloud Metadata (169.254.169.254).
     - Always blocks recursive self-loopback requests to Spectra's own backend port.
     - Resolves DNS hostnames to verify that domains do not resolve to private/loopback/metadata IPs.
-    - Blocks private networks (RFC1918) unless allow_internal=True.
+    - Uses in-memory DNS caching with 60s TTL to prevent thread starvation during fuzzing.
     """
     try:
         parsed = urllib.parse.urlparse(url)
@@ -140,47 +204,50 @@ def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_po
     if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
         return False, f"SSRF Guardrail: Target host '{hostname}' matches cloud metadata service."
 
-    # 3. Check IP address (Literal or DNS-Resolved)
-    resolved_ips = []
-    is_ip = False
+    # 3. Check IP address (Literal or DNS-Resolved with TTL cache)
     try:
         ip_obj = ipaddress.ip_address(hostname)
-        resolved_ips.append(ip_obj)
-        is_ip = True
+        return _evaluate_ip_list(hostname, [ip_obj], allow_internal)
     except ValueError:
         pass
 
-    if not is_ip:
-        # Check localhost aliases
-        if hostname in ["localhost", "ip6-localhost", "ip6-loopback"]:
-            resolved_ips.append(ipaddress.ip_address("127.0.0.1"))
-        else:
-            try:
-                addr_info = socket.getaddrinfo(hostname, None)
-                for item in addr_info:
-                    sockaddr = item[4]
-                    ip_str = sockaddr[0]
-                    try:
-                        resolved_ips.append(ipaddress.ip_address(ip_str))
-                    except ValueError:
-                        pass
-            except Exception:
-                # If DNS resolution fails, allow downstream network client to report NXDOMAIN
-                pass
+    resolved_ips = resolve_hostname_ips(hostname)
+    return _evaluate_ip_list(hostname, resolved_ips, allow_internal)
 
-    for ip_check in resolved_ips:
-        # Check Cloud Metadata (Strictly blocked under all circumstances)
-        for meta_net in _METADATA_NETWORKS:
-            if ip_check in meta_net:
-                return False, f"SSRF Guardrail: Target '{hostname}' ({ip_check}) belongs to cloud instance metadata service (169.254.x.x)."
 
-        # Check Private Networks (Blocked unless allow_internal is enabled)
-        if not allow_internal:
-            for priv_net in _PRIVATE_NETWORKS:
-                if ip_check in priv_net:
-                    return False, f"SSRF Guardrail: Target '{hostname}' resolves to private/loopback IP '{ip_check}'. Enable 'Allow Internal Scope' in project settings to permit."
+async def async_check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
+    """
+    Asynchronously validates whether a target URL poses an SSRF threat without blocking the event loop.
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception as ex:
+        return False, f"Malformed URL: {str(ex)}"
 
-    return True, None
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in ["http", "https"]:
+        return False, f"Unsupported scheme '{scheme}'. Only HTTP and HTTPS are permitted."
+
+    hostname = (parsed.hostname or "").strip().lower()
+    if not hostname:
+        return False, "Target URL is missing a valid hostname."
+
+    port = parsed.port or (443 if scheme == "https" else 80)
+
+    if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port == spectra_backend_port:
+        return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({spectra_backend_port})."
+
+    if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
+        return False, f"SSRF Guardrail: Target host '{hostname}' matches cloud metadata service."
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        return _evaluate_ip_list(hostname, [ip_obj], allow_internal)
+    except ValueError:
+        pass
+
+    resolved_ips = await async_resolve_hostname_ips(hostname)
+    return _evaluate_ip_list(hostname, resolved_ips, allow_internal)
 
 
 # ==============================================================================

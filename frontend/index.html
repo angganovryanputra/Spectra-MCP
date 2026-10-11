@@ -647,6 +647,7 @@
                   }" x-text="log.method"></span>
                   <span x-show="log.source === 'REPEATER'" class="text-[8px] text-amber-400">(RPT)</span>
                   <span x-show="log.source === 'FUZZER'" class="text-[8px] text-purple-400">(FUZZ)</span>
+                  <span x-show="log.source === 'BROWSER_RENDER'" class="text-[8px] text-cyan-400" :title="log.reasoning && log.reasoning.includes('Synthetic') ? 'Synthetic Headless Route Asset' : 'SPA Intercepted Asset'" x-text="log.reasoning && log.reasoning.includes('Synthetic') ? '(SYN)' : '(SPA)'"></span>
                 </div>
 
                 <!-- Status -->
@@ -851,9 +852,16 @@
               <!-- AI Reasoning Card -->
               <div x-show="selectedLogDetail.reasoning"
                 class="p-3 rounded-lg bg-indigo-950/40 border border-indigo-700/60">
-                <div class="text-[11px] font-bold text-indigo-300 mb-1 flex items-center">
-                  <i data-lucide="brain" class="w-4 h-4 mr-1.5 text-indigo-400"></i>
-                  AI Agent Hypothesis & Reasoning
+                <div class="text-[11px] font-bold text-indigo-300 mb-1 flex items-center justify-between">
+                  <div class="flex items-center">
+                    <i data-lucide="brain" class="w-4 h-4 mr-1.5 text-indigo-400"></i>
+                    <span>AI Agent Hypothesis & Reasoning</span>
+                  </div>
+                  <template x-if="selectedLogDetail.source === 'BROWSER_RENDER'">
+                    <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold"
+                          :class="selectedLogDetail.reasoning && selectedLogDetail.reasoning.includes('Synthetic') ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-cyan-950 text-cyan-300 border border-cyan-800'"
+                          x-text="selectedLogDetail.reasoning && selectedLogDetail.reasoning.includes('Synthetic') ? 'Synthetic Asset Marker' : 'SPA Intercepted Asset'"></span>
+                  </template>
                 </div>
                 <div class="text-xs text-slate-200 select-text" x-text="selectedLogDetail.reasoning"></div>
               </div>

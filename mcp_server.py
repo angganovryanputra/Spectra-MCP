@@ -425,17 +425,25 @@ async def send_http_request(
                 path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
 
     # --------------------------------------------------------------------------
-    # 3. SESSION COOKIE INJECTION
+    # 3. OUTBOUND HEADER PREPARATION & SESSION COOKIE INJECTION
     # --------------------------------------------------------------------------
+    outbound_headers = dict(headers)
+    if "User-Agent" not in outbound_headers and "user-agent" not in outbound_headers:
+        outbound_headers["User-Agent"] = "SpectraMCP/1.3 (Autonomous Pentest Agent)"
+    if "Accept" not in outbound_headers and "accept" not in outbound_headers:
+        outbound_headers["Accept"] = "*/*"
+    if host and "Host" not in outbound_headers and "host" not in outbound_headers:
+        outbound_headers["Host"] = host
+
     active_cookies = _extract_domain_cookies(url, project=target_project)
     if active_cookies:
         cookie_header = "; ".join([f"{k}={v}" for k, v in active_cookies.items()])
-        if "Cookie" in headers:
-            headers["Cookie"] += f"; {cookie_header}"
-        elif "cookie" in headers:
-            headers["cookie"] += f"; {cookie_header}"
+        if "Cookie" in outbound_headers:
+            outbound_headers["Cookie"] += f"; {cookie_header}"
+        elif "cookie" in outbound_headers:
+            outbound_headers["cookie"] += f"; {cookie_header}"
         else:
-            headers["Cookie"] = cookie_header
+            outbound_headers["Cookie"] = cookie_header
 
     # --------------------------------------------------------------------------
     # 4. REQUEST EXECUTION (With Upstream Proxy Chaining)
@@ -445,6 +453,7 @@ async def send_http_request(
     res_headers = {}
     res_body = ""
     error_note = None
+    final_req_headers = outbound_headers
 
     proxy_cfg = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
 
@@ -454,11 +463,16 @@ async def send_http_request(
         response = await client.request(
             method=method,
             url=url,
-            headers=headers,
+            headers=outbound_headers,
             content=content_bytes
         )
         status_code = response.status_code
         res_headers = dict(response.headers)
+        try:
+            if hasattr(response, "request") and hasattr(response.request, "headers"):
+                final_req_headers = dict(response.request.headers)
+        except Exception:
+            pass
         try:
             res_body = response.text
         except Exception:
@@ -479,7 +493,7 @@ async def send_http_request(
         "path": path,
         "status_code": status_code,
         "duration_ms": duration_ms,
-        "request_headers": headers,
+        "request_headers": final_req_headers,
         "request_body": body or "",
         "response_headers": res_headers,
         "response_body": res_body,
@@ -599,6 +613,9 @@ async def browser_navigate_and_render(
         for sub_req in intercepted:
             if sub_req.get("resource_type") in ["xhr", "fetch", "script"]:
                 sub_parsed = urllib.parse.urlparse(sub_req.get("url", ""))
+                real_status = sub_req.get("status_code")
+                real_duration = sub_req.get("duration_ms", 0)
+                is_synthetic = real_status is None
                 sub_payload = {
                     "project": target_project,
                     "agent_id": target_agent,
@@ -607,13 +624,13 @@ async def browser_navigate_and_render(
                     "url": sub_req.get("url", ""),
                     "host": sub_parsed.netloc,
                     "path": sub_parsed.path or "/",
-                    "status_code": 200,
-                    "duration_ms": 50,
+                    "status_code": real_status if not is_synthetic else 200,
+                    "duration_ms": real_duration if not is_synthetic else 50,
                     "request_headers": sub_req.get("headers", {}),
                     "request_body": "",
                     "response_headers": {},
                     "response_body": f"<Intercepted {sub_req.get('resource_type')} request>",
-                    "reasoning": "Sub-request captured during headless render"
+                    "reasoning": f"[SPA Sub-Request ({sub_req.get('resource_type')})]" if not is_synthetic else f"[Synthetic Asset Marker] Captured {sub_req.get('resource_type')} during headless render"
                 }
                 await _persist_and_stream_log(sub_payload, "CLEAN", [])
 
@@ -885,46 +902,85 @@ async def get_log_detail(
     """
     Retrieves complete headers, full request body, full response body, and triaged findings
     for a specific HTTP transaction by its Log ID.
+    Queries the central Spectra Dashboard API first (with local database fallback) to ensure
+    consistent access in cross-environment (WSL/Windows) setups.
     Essential for bug bounty research to inspect reflected XSS, deep JSON responses, or sensitive leaks without truncation.
     """
-    db = SessionLocal()
+    log_data = None
+    source_info = "Dashboard API"
+
+    # 1. Query running Dashboard API first (Primary in distributed/WSL setups)
     try:
-        log_entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
-        if not log_entry:
-            return f"[!] Log ID #{log_id} was not found in the Spectra database."
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.get(f"{BACKEND_URL}/api/logs/{log_id}")
+            if resp.status_code == 200:
+                log_data = resp.json()
+    except Exception:
+        pass
 
-        findings = db.query(Finding).filter(Finding.log_id == log_id).all()
-        findings_str = ""
-        if findings:
-            findings_str = "\nFindings Detected on this Request:\n" + "\n".join([
-                f"- [{f.severity}] {f.title} ({f.category})\n  Evidence: {f.evidence}\n  Remediation: {f.remediation}"
-                for f in findings
-            ])
-        else:
-            findings_str = "\nFindings: None (Clean)"
+    # 2. Fallback to local SQLite database if Dashboard API is unreachable or returned 404
+    if not log_data:
+        source_info = "Local Database Fallback"
+        db = SessionLocal()
+        try:
+            entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+            if entry:
+                log_data = entry.to_dict(include_body=True)
+        finally:
+            db.close()
 
-        max_len = max(500, min(max_body_chars or 100000, 1000000))
-        req_body = log_entry.request_body or "[Empty Request Body]"
-        res_body = log_entry.response_body or "[Empty Response Body]"
+    if not log_data:
+        return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({BACKEND_URL}) or local database."
 
-        req_body_prev = req_body[:max_len]
-        res_body_prev = res_body[:max_len]
+    findings = log_data.get("findings", [])
+    findings_str = ""
+    if findings:
+        findings_str = "\nFindings Detected on this Request:\n" + "\n".join([
+            f"- [{f.get('severity', 'INFO')}] {f.get('title', 'Unknown')} ({f.get('category', 'General')})\n  Evidence: {f.get('evidence', '')}\n  Remediation: {f.get('remediation', '')}"
+            for f in findings
+        ])
+    else:
+        findings_str = "\nFindings: None (Clean)"
 
-        return (
-            f"=== SPECTRA HTTP LOG DETAIL #{log_entry.id} ===\n"
-            f"Project: [{log_entry.project}] | Agent: [{log_entry.agent_id}] | Source: {log_entry.source}\n"
-            f"Target: {log_entry.method} {log_entry.url}\n"
-            f"Status Code: {log_entry.status_code} | Latency: {log_entry.duration_ms}ms | Flag: {log_entry.flag_status}\n"
-            f"Timestamp: {log_entry.timestamp}\n"
-            f"Hypothesis / Reasoning: {log_entry.reasoning or '[None]'}\n\n"
-            f"--- Request Headers ---\n{log_entry.request_headers}\n\n"
-            f"--- Request Body ({len(req_body)} bytes) ---\n{req_body_prev}\n\n"
-            f"--- Response Headers ---\n{log_entry.response_headers}\n\n"
-            f"--- Response Body ({len(res_body)} bytes) ---\n{res_body_prev}\n"
-            f"{findings_str}"
-        )
-    finally:
-        db.close()
+    max_len = max(500, min(max_body_chars or 100000, 1000000))
+
+    # Accurate length calculation (avoids reporting length of placeholder string)
+    raw_req_body = log_data.get("request_body") or ""
+    req_body_len = len(raw_req_body)
+    display_req_body = raw_req_body if raw_req_body else "[Empty Request Body]"
+
+    raw_res_body = log_data.get("response_body") or ""
+    res_body_len = len(raw_res_body)
+    display_res_body = raw_res_body if raw_res_body else "[Empty Response Body]"
+
+    req_body_prev = display_req_body[:max_len]
+    res_body_prev = display_res_body[:max_len]
+
+    req_hdrs = log_data.get("request_headers", {})
+    if isinstance(req_hdrs, (dict, list)):
+        req_hdrs_str = json.dumps(req_hdrs, indent=2)
+    else:
+        req_hdrs_str = str(req_hdrs)
+
+    res_hdrs = log_data.get("response_headers", {})
+    if isinstance(res_hdrs, (dict, list)):
+        res_hdrs_str = json.dumps(res_hdrs, indent=2)
+    else:
+        res_hdrs_str = str(res_hdrs)
+
+    return (
+        f"=== SPECTRA HTTP LOG DETAIL #{log_data.get('id', log_id)} ({source_info}) ===\n"
+        f"Project: [{log_data.get('project', 'default')}] | Agent: [{log_data.get('agent_id', 'primary_agent')}] | Source: {log_data.get('source', 'HTTP_CLIENT')}\n"
+        f"Target: {log_data.get('method', 'GET')} {log_data.get('url', '')}\n"
+        f"Status Code: {log_data.get('status_code', 'ERR')} | Latency: {log_data.get('duration_ms', 0)}ms | Flag: {log_data.get('flag_status', 'CLEAN')}\n"
+        f"Timestamp: {log_data.get('timestamp', '')}\n"
+        f"Hypothesis / Reasoning: {log_data.get('reasoning') or '[None]'}\n\n"
+        f"--- Request Headers ---\n{req_hdrs_str}\n\n"
+        f"--- Request Body ({req_body_len} bytes) ---\n{req_body_prev}\n\n"
+        f"--- Response Headers ---\n{res_hdrs_str}\n\n"
+        f"--- Response Body ({res_body_len} bytes) ---\n{res_body_prev}\n"
+        f"{findings_str}"
+    )
 
 
 # ==============================================================================
@@ -938,25 +994,53 @@ async def get_traffic_history(
 ) -> str:
     """
     Lists recent HTTP traffic entries recorded in Spectra for the selected project.
+    Queries the central Dashboard API first (with local database fallback) to guarantee
+    consistent visibility across WSL/Windows environments.
     Returns Log IDs, HTTP methods, status codes, URLs, and triage flags so the agent can select IDs for deep inspection.
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
-    db = SessionLocal()
-    try:
-        query = db.query(HttpLog)
-        if target_project and target_project.upper() != "ALL":
-            query = query.filter(HttpLog.project == target_project)
-        logs = query.order_by(HttpLog.id.desc()).limit(min(max(limit or 20, 1), 100)).all()
-        if not logs:
-            return f"No traffic logs recorded for project [{target_project}]."
+    fetch_limit = min(max(limit or 20, 1), 100)
+    logs_list = None
+    source_info = "Dashboard API"
 
-        lines = [f"=== RECENT TRAFFIC HISTORY (Project: {target_project}) ==="]
-        for l in logs:
-            lines.append(f"#{l.id:04d} | {l.method:<5} | {str(l.status_code or 'ERR'):<4} | {l.duration_ms:>4}ms | [{l.flag_status:<9}] | {l.url}")
-        lines.append(f"\nTip: Call get_log_detail(log_id) to read complete headers, full body, or vulnerability findings.")
-        return "\n".join(lines)
-    finally:
-        db.close()
+    # 1. Query running Dashboard API first
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.get(f"{BACKEND_URL}/api/logs?project={target_project}&page=1&page_size={fetch_limit}")
+            if resp.status_code == 200:
+                data = resp.json()
+                logs_list = data.get("logs", [])
+    except Exception:
+        pass
+
+    # 2. Fallback to local SQLite database
+    if logs_list is None:
+        source_info = "Local Database Fallback"
+        db = SessionLocal()
+        try:
+            query = db.query(HttpLog)
+            if target_project and target_project.upper() != "ALL":
+                query = query.filter(HttpLog.project == target_project)
+            db_logs = query.order_by(HttpLog.id.desc()).limit(fetch_limit).all()
+            logs_list = [l.to_dict(include_body=False) for l in db_logs]
+        finally:
+            db.close()
+
+    if not logs_list:
+        return f"No traffic logs recorded for project [{target_project}] ({source_info})."
+
+    lines = [f"=== RECENT TRAFFIC HISTORY (Project: {target_project} | {source_info}) ==="]
+    for l in logs_list:
+        lid = l.get("id", 0)
+        method = l.get("method", "GET")
+        status = str(l.get("status_code") or "ERR")
+        duration = l.get("duration_ms", 0)
+        flag = l.get("flag_status", "CLEAN")
+        url = l.get("url", "")
+        lines.append(f"#{lid:04d} | {method:<5} | {status:<4} | {duration:>4}ms | [{flag:<9}] | {url}")
+
+    lines.append(f"\nTip: Call get_log_detail(log_id) to read complete headers, full body, or vulnerability findings.")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

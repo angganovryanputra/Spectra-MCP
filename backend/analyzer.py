@@ -77,6 +77,13 @@ SECRET_LEAK_PATTERNS = [
         "severity": "CRITICAL",
         "category": "API Token Exposure",
         "remediation": "Revoke token via GitHub Security settings and implement strict repository secret scanning."
+    },
+    {
+        "name": "Exposed Password / Key Field in JSON",
+        "pattern": re.compile(r"\"(?:password|passwd|db_password|jwt_secret|private_key|app_secret)\"\s*:\s*\"(?![\*xX]{3,})([^\"\r\n]{4,})\"", re.IGNORECASE),
+        "severity": "HIGH",
+        "category": "Credential & Secret Exposure",
+        "remediation": "Never return raw authentication credentials or secret keys in client-facing API responses."
     }
 ]
 
@@ -273,6 +280,45 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
             "evidence": f"X-Powered-By: {powered_by}",
             "description": f"Target reveals internal technology stack ({powered_by}).",
             "remediation": "Disable `X-Powered-By` header in application configuration (e.g. `expose_php = Off`)."
+        })
+
+    # 4. Administrative & Sensitive Configuration Endpoint Disclosure
+    path_lower = (log_entry.path or "").lower()
+    is_admin_config_path = any(
+        re.search(p, path_lower) for p in [
+            r"/(?:rest/admin/|api/admin/|admin/|actuator/|\.env|\.git/|api/v[0-9]+/admin|manage/|management/|debug/)",
+            r"(?:application-configuration|application-config|app-config|server-status|swagger\.json|openapi\.json|actuator/env|actuator/health)"
+        ]
+    )
+    if is_admin_config_path and status_code in [200, 206] and len(scan_body) > 60:
+        config_keywords = ["config", "settings", "secret", "database", "version", "port", "key", "host", "token", "auth", "env", "password"]
+        matched_kw = [kw for kw in config_keywords if f'"{kw}"' in scan_body.lower() or f"'{kw}'" in scan_body.lower() or f"{kw}:" in scan_body.lower()]
+        if len(matched_kw) >= 2 or "application-configuration" in path_lower:
+            snippet = scan_body[:250].strip()
+            findings.append({
+                "title": "Administrative Endpoint & Configuration Disclosure",
+                "severity": "HIGH",
+                "category": "Sensitive Configuration Disclosure",
+                "evidence": f"HTTP {status_code} on {log_entry.path} returned {len(scan_body)} bytes with keys {matched_kw[:4]}: {snippet}...",
+                "description": f"Internal administrative or configuration endpoint ({log_entry.path}) returned accessible configuration data to client requests.",
+                "remediation": "Restrict administrative endpoints with strict role-based access control (RBAC) and network boundaries."
+            })
+
+    # 5. Verbose Authentication Error (User Enumeration Hint)
+    user_enum_pattern = re.compile(
+        r"(?:user\s+(?:not\s+found|does\s+not\s+exist)|username\s+not\s+found|invalid\s+password|incorrect\s+password|password\s+(?:is\s+)?incorrect|password\s+does\s+not\s+match|account\s+does\s+not\s+exist|email\s+(?:not\s+registered|is\s+not\s+valid|already\s+exists))",
+        re.IGNORECASE
+    )
+    user_enum_match = user_enum_pattern.search(scan_body)
+    if user_enum_match and (status_code in [401, 403, 400, 422, 200]) and any(k in path_lower for k in ["login", "signin", "auth", "user", "password", "register", "signup"]):
+        matched_str = user_enum_match.group(0)
+        findings.append({
+            "title": "Verbose Authentication Error (User Enumeration Hint)",
+            "severity": "MEDIUM",
+            "category": "User Enumeration",
+            "evidence": f"Response contains: '{matched_str}'",
+            "description": f"Target returns differential authentication responses ({matched_str}), enabling attackers to enumerate valid usernames or emails.",
+            "remediation": "Return generic error responses (e.g. 'Invalid credentials') regardless of whether the account exists."
         })
 
     # 4. Status Code Anomalies (e.g. 500 Internal Server Error, 503 Service Unavailable)
