@@ -99,10 +99,18 @@ Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Spectra 
      - Tool_name: `python`
      - Reasoning: "Validating outbound target connectivity via CLI safe-mode".
 
+5. [TOOL 5: report_vulnerability - Exploit Verification & Findings Flagging]
+   - Panggil tool `report_vulnerability`:
+     - log_id: (Gunakan Log ID dari request pertama send_http_request)
+     - title: "SQL Injection — Parameter Probe Verified"
+     - severity: "HIGH"
+     - category: "SQL Injection"
+     - evidence: "Target returned differential responses on SQL injection probe."
+
 ### TAHAP 6: LAPORAN STATUS AKHIR
 Tampilkan ringkasan verifikasi yang mencakup:
 - Status instalasi Spectra environment.
 - Status koneksi MCP Server & Dashboard (HTTP 200).
-- Ringkasan hasil eksekusi 4 tools di atas (Latency, Status Code, DOM title, dan Payload ID).
-- Konfirmasi bahwa traffic dan payload telah muncul di Spectra Dashboard (http://127.0.0.1:8000).
+- Ringkasan hasil eksekusi 5 tools di atas (Latency, Status Code, DOM title, Payload ID, dan Finding ID).
+- Konfirmasi bahwa traffic, payload, dan finding telah muncul di Spectra Dashboard (http://127.0.0.1:8000).
 ```

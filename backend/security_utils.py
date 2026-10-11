@@ -324,6 +324,34 @@ def check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple
     return True, None
 
 
+async def async_check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple[bool, Optional[str]]:
+    """
+    Asynchronously inspects shell commands against dangerous patterns and SSRF targets
+    without blocking the event loop on DNS resolution.
+    """
+    cmd_clean = command.strip()
+    if not cmd_clean:
+        return False, "Command cannot be empty"
+
+    # 1. Check dangerous system command patterns
+    for pat in EXPANDED_DANGEROUS_PATTERNS:
+        if re.search(pat, cmd_clean, re.IGNORECASE):
+            return False, f"Command blocked by Spectra CLI Safe-Mode (Matched dangerous signature: '{pat}')"
+
+    # 2. Check metadata service targeting in CLI (e.g. curl 169.254.169.254)
+    if re.search(r"\b169\.254\.\d+\.\d+\b", cmd_clean) or "metadata.google.internal" in cmd_clean:
+        return False, "Command blocked by Spectra SSRF Guard: Targeting cloud instance metadata service (169.254.x.x) is strictly forbidden."
+
+    # 3. Extract and asynchronously validate any HTTP/HTTPS URLs present in the command
+    extracted_urls = re.findall(r"https?://[^\s'\"`]+", cmd_clean)
+    for u in extracted_urls:
+        safe, reason = await async_check_ssrf_safety(u, allow_internal=allow_internal)
+        if not safe:
+            return False, f"Command blocked by Spectra SSRF Guard: Embedded target '{u}' violates SSRF policy ({reason})"
+
+    return True, None
+
+
 
 # ==============================================================================
 # 4. Header & Filename Sanitizer

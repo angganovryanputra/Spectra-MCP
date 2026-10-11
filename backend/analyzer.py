@@ -184,6 +184,72 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
                 "remediation": srv_check["remediation"]
             })
 
+    # 4. SQL Injection Authentication Bypass (Successful Login Bypass with SQLi Payload)
+    path_lower = (log_entry.path or "").lower()
+    is_auth_endpoint = any(kw in path_lower for kw in [
+        "login", "signin", "auth", "token", "session", "oauth", "authenticate", "user/login"
+    ])
+    if is_auth_endpoint and status_code in [200, 201, 204]:
+        req_full = ((log_entry.request_body or "") + " " + (log_entry.url or "")).lower()
+        sqli_patterns = [
+            r"['\"]\s*(?:or|\|\|)\s*['\"]?[0-9a-z_]+['\"]?\s*=\s*['\"]?[0-9a-z_]+",
+            r"['\"]\s*(?:or|\|\|)\s*true\b",
+            r"['\"]\s*(?:or|and)\s+[0-9]+\s*=\s*[0-9]+",
+            r"['\"]\s*--",
+            r"['\"]\s*#",
+            r"['\"]\s*\/\*",
+            r"admin['\"]?\s*--",
+            r"admin['\"]?\s*#",
+            r"\bunion\s+(?:all\s+)?select\b"
+        ]
+        sqli_match_str = None
+        for pat in sqli_patterns:
+            m = re.search(pat, req_full, re.IGNORECASE)
+            if m:
+                sqli_match_str = m.group(0)
+                break
+
+        if sqli_match_str:
+            jwt_match = re.search(r"eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}", scan_body)
+            has_token_json = any(
+                tk in scan_body.lower() for tk in [
+                    '"token"', '"accesstoken"', '"jwt"', '"bid"', '"authentication"',
+                    '"auth_token"', '"sessionid"', '"session_id"', '"bearer"'
+                ]
+            )
+            has_auth_cookie = False
+            if log_entry.response_headers:
+                try:
+                    import json as _json
+                    res_hdrs = _json.loads(log_entry.response_headers) if isinstance(log_entry.response_headers, str) else log_entry.response_headers
+                    res_hdrs_lower = {str(k).lower(): str(v).lower() for k, v in res_hdrs.items()}
+                    set_cookie = res_hdrs_lower.get("set-cookie", "")
+                    has_auth_cookie = any(c in set_cookie for c in ["token", "session", "jwt", "auth", "connect.sid"])
+                except Exception:
+                    pass
+
+            has_admin_user = any(u in scan_body.lower() for u in ['"email":"admin', '"email": "admin', '"role":"admin', '"role": "admin', '"admin@'])
+
+            if jwt_match or has_token_json or has_auth_cookie or has_admin_user:
+                evidence_token = ""
+                if jwt_match:
+                    evidence_token = f"JWT: {jwt_match.group(0)[:35]}..."
+                elif has_token_json:
+                    evidence_token = "Auth token issued in JSON response"
+                elif has_auth_cookie:
+                    evidence_token = "Session cookie issued in Set-Cookie header"
+                elif has_admin_user:
+                    evidence_token = "Admin user profile returned in response body"
+
+                findings.append({
+                    "title": "SQL Injection — Authentication Bypass",
+                    "severity": "CRITICAL",
+                    "category": "SQL Injection",
+                    "evidence": f"Injected SQLi pattern '{sqli_match_str}' into auth endpoint ({log_entry.path}) -> HTTP {status_code} with {evidence_token}",
+                    "description": "Authentication endpoint permitted complete login bypass when supplied with boolean-based SQL injection payload (' OR 1=1--), issuing a valid administrative session token without valid credentials.",
+                    "remediation": "Enforce strict parameterized queries (prepared statements) or ORM abstraction for all authentication query execution. Never concatenate untrusted user input directly into SQL statements."
+                })
+
     # If any Track 1 signature matched, we have confirmed findings
     if findings:
         return "CONFIRMED", findings
@@ -210,7 +276,27 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
     except Exception:
         pass
 
-    if request_body and len(request_body) < 5000:
+    if request_body and len(request_body) < 100000:
+        # Check JSON request payload fields
+        try:
+            import json as _json
+            body_json = _json.loads(request_body)
+            def _extract_json_strings(obj, prefix=""):
+                if isinstance(obj, dict):
+                    for k, v in obj.items():
+                        _extract_json_strings(v, f"{prefix}.{k}" if prefix else str(k))
+                elif isinstance(obj, list):
+                    for idx, v in enumerate(obj):
+                        _extract_json_strings(v, f"{prefix}[{idx}]")
+                elif isinstance(obj, (str, int, float)):
+                    clean_v = str(obj).strip()
+                    if len(clean_v) >= 4 and clean_v.lower() not in COMMON_NON_INJECTION_WORDS:
+                        potential_inputs.append((f"JSON field '{prefix}'", clean_v))
+            _extract_json_strings(body_json)
+        except Exception:
+            pass
+
+        # Check URL-encoded form body fields
         try:
             form_params = urllib.parse.parse_qs(request_body)
             for param, vals in form_params.items():
@@ -366,6 +452,7 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
             })
 
     if findings:
-        return "POTENTIAL", findings
+        has_high_or_critical = any(f.get("severity") in ["HIGH", "CRITICAL"] for f in findings)
+        return ("CONFIRMED" if has_high_or_critical else "POTENTIAL"), findings
 
     return "CLEAN", []

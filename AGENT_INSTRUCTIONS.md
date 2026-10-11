@@ -45,6 +45,10 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Spectra Payload Vault (mengembalikan Payload ID).
 8. Jika response body terpotong pada `send_http_request` atau Anda membutuhkan response body/headers utuh untuk analisis mendalam (misal: reflected XSS, token extraction, dump JSON besar), gunakan tool `get_log_detail(log_id=<ID>)` dengan `Log ID` yang didapat dari `send_http_request`.
 9. Jika perlu meninjau riwayat request yang pernah dikirim sebelumnya untuk chaining atau replay, gunakan tool `get_traffic_history(project="default", limit=20)`.
+10. **Pelaporan & Flagging Kerentanan (Sangat Penting):**
+    - Saat mengirim request exploit yang Anda ketahui atau duga sebagai kerentanan, Anda dapat langsung menambahkan parameter di `send_http_request`: `finding_title="SQL Injection — Authentication Bypass"`, `finding_severity="CRITICAL"`, `flag_status="CONFIRMED"`, `finding_category="SQL Injection"`, `finding_evidence="Admin JWT token returned"`.
+    - ATAU setelah menganalisis respons dengan `get_log_detail(log_id)`, panggil tool `report_vulnerability(log_id=<ID>, title="...", severity="CRITICAL"|"HIGH"|"MEDIUM", category="...", evidence="...")` untuk mencatat temuan terkonfirmasi ke dalam Spectra Dashboard Findings Ledger.
+
 ```
 
 ---

@@ -33,9 +33,15 @@ from backend.intercept_manager import (
     is_intercept_enabled,
     create_intercept_trap,
     pop_intercept_result,
-    check_scope
+    check_scope,
+    async_check_scope
 )
-from backend.security_utils import check_command_safe_mode, check_ssrf_safety
+from backend.security_utils import (
+    check_command_safe_mode,
+    async_check_command_safe_mode,
+    check_ssrf_safety,
+    async_check_ssrf_safety
+)
 
 # Initialize FastMCP Server
 mcp = FastMCP("spectra_mcp")
@@ -90,19 +96,28 @@ async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
     return _outbound_clients[key]
 
 
-async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str, findings: list) -> Optional[int]:
+async def _persist_and_stream_log(
+    log_payload: Dict[str, Any],
+    flag_status: Optional[str] = None,
+    findings: Optional[list] = None
+) -> Dict[str, Any]:
     """
     Dispatches log to running FastAPI dashboard via HTTP POST so it broadcasts over WebSockets.
-    Falls back to direct SQLite database write if dashboard is offline.
-    Returns the recorded log_id for programmatic chaining.
+    When the dashboard is online, its centralized triage performs single-pass analysis and returns
+    findings and flag_status. Falls back to direct SQLite database write if dashboard is offline.
+    Returns dict containing {"id": int, "flag_status": str, "findings": list}.
     """
     try:
         client = await _get_dashboard_client()
         resp = await client.post(f"{BACKEND_URL}/api/logs", json=log_payload)
         if resp.status_code == 200:
             data = resp.json()
-            if isinstance(data, dict) and "id" in data:
-                return data["id"]
+            if isinstance(data, dict):
+                return {
+                    "id": data.get("id"),
+                    "flag_status": data.get("flag_status", flag_status or "CLEAN"),
+                    "findings": data.get("findings", findings or [])
+                }
     except Exception:
         pass
 
@@ -128,12 +143,43 @@ async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str,
             response_headers=json.dumps(log_payload.get("response_headers", {})),
             response_body=(log_payload.get("response_body") or "")[:5242880],
             reasoning=log_payload.get("reasoning", "") or "",
-            flag_status=flag_status
+            flag_status="CLEAN"
         )
+        effective_flag = flag_status
+        effective_findings = findings if findings is not None else []
+        if effective_flag is None:
+            effective_flag, effective_findings = analyze_traffic(entry)
+
+        # Check for agent-supplied finding in payload
+        agent_title = (log_payload.get("finding_title") or "").strip()
+        agent_flag = (log_payload.get("flag_status") or "").strip().upper()
+        if agent_title:
+            agent_sev = (log_payload.get("finding_severity") or "HIGH").strip().upper()
+            agent_cat = (log_payload.get("finding_category") or "Agent Reported").strip()
+            agent_ev = log_payload.get("finding_evidence") or log_payload.get("reasoning") or ""
+            agent_desc = log_payload.get("finding_description") or f"Finding explicitly recorded by agent ({log_payload.get('agent_id', 'primary_agent')})."
+            agent_rem = log_payload.get("finding_remediation") or "Apply input validation, parameterized queries, and least privilege controls."
+            effective_findings.insert(0, {
+                "title": agent_title,
+                "severity": agent_sev,
+                "category": agent_cat,
+                "evidence": agent_ev,
+                "description": agent_desc,
+                "remediation": agent_rem
+            })
+            if agent_flag:
+                effective_flag = agent_flag
+            else:
+                effective_flag = "CONFIRMED" if agent_sev in ["HIGH", "CRITICAL"] else "POTENTIAL"
+        elif agent_flag:
+            effective_flag = agent_flag
+
+        entry.flag_status = effective_flag
+
         db.add(entry)
         db.commit()
         db.refresh(entry)
-        for f in findings:
+        for f in effective_findings:
             finding = Finding(
                 log_id=entry.id,
                 title=f["title"],
@@ -145,10 +191,10 @@ async def _persist_and_stream_log(log_payload: Dict[str, Any], flag_status: str,
             )
             db.add(finding)
         db.commit()
-        return entry.id
+        return {"id": entry.id, "flag_status": effective_flag, "findings": effective_findings}
     except Exception:
         db.rollback()
-        return None
+        return {"id": None, "flag_status": "CLEAN", "findings": []}
     finally:
         db.close()
 
@@ -290,7 +336,14 @@ async def send_http_request(
     project: Optional[str] = None,
     agent_id: Optional[str] = "primary_agent",
     reasoning: Optional[str] = None,
-    max_body_chars: Optional[int] = 5000
+    max_body_chars: Optional[int] = 5000,
+    flag_status: Optional[str] = None,
+    finding_title: Optional[str] = None,
+    finding_severity: Optional[str] = None,
+    finding_category: Optional[str] = None,
+    finding_evidence: Optional[str] = None,
+    finding_description: Optional[str] = None,
+    finding_remediation: Optional[str] = None
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
@@ -299,17 +352,27 @@ async def send_http_request(
     Returns Log ID for chaining and body preview. Use get_log_detail(log_id) for full uncompressed body.
     
     NOTE FOR AI AGENTS (Opencode / Hermes):
-    You DO NOT need to ask the user for session cookies or authenticate manually.
-    Spectra automatically injects the authenticated session tokens for the target application!
+    - You DO NOT need to ask the user for session cookies or authenticate manually; Spectra auto-injects them!
+    - DIRECT VULNERABILITY FLAGGING: If this request tests or confirms a known vulnerability, you can directly set
+      'finding_title' (e.g. 'SQL Injection — Authentication Bypass'), 'finding_severity' ('CRITICAL', 'HIGH', etc.),
+      and 'flag_status' ('CONFIRMED'). Spectra will immediately catalog the finding in the dashboard.
+    - If you don't supply finding parameters, Spectra's automated security analyzer evaluates the response automatically.
+    - You can also call 'report_vulnerability(log_id, title, ...)' at any time after inspecting a response with get_log_detail.
     
     Parameters:
       - method: HTTP Method (GET, POST, PUT, DELETE, etc.)
       - url: Full target URL
       - headers: Optional custom HTTP headers dict
       - body: Optional request body string
-      - project: Workspace scope (e.g. 'client-alpha')
+      - project: Workspace scope (e.g. 'default')
       - agent_id: Identifier of the AI agent instance (e.g. 'primary_agent')
-      - reasoning: The AI agent's hypothesis or intent (e.g. 'Testing SQL injection on parameter id')
+      - reasoning: The AI agent's hypothesis or intent (e.g. 'Testing SQL injection login bypass on /rest/user/login')
+      - max_body_chars: Preview length (default 5000)
+      - flag_status: Optional explicit triage flag ('CONFIRMED', 'POTENTIAL', or 'CLEAN')
+      - finding_title: Optional title if this request confirmed a vulnerability (e.g. 'SQL Injection — Authentication Bypass')
+      - finding_severity: 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', or 'INFO'
+      - finding_category: e.g. 'SQL Injection', 'Authentication Bypass', 'Information Disclosure', etc.
+      - finding_evidence: Key proof string (e.g. issued JWT token or admin profile snippet)
     """
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
@@ -328,7 +391,7 @@ async def send_http_request(
     proj_delay_ms = 0
     proj_proxy = ""
     try:
-        is_allowed, block_reason = check_scope(target_project, url, db)
+        is_allowed, block_reason = await async_check_scope(target_project, url, db)
         proj_obj = db.query(Project).filter(Project.name == target_project).first()
         if proj_obj:
             proj_delay_ms = proj_obj.delay_ms or 0
@@ -497,28 +560,21 @@ async def send_http_request(
         "request_body": body or "",
         "response_headers": res_headers,
         "response_body": res_body,
-        "reasoning": reasoning or ""
+        "reasoning": reasoning or "",
+        "flag_status": flag_status,
+        "finding_title": finding_title,
+        "finding_severity": finding_severity,
+        "finding_category": finding_category,
+        "finding_evidence": finding_evidence,
+        "finding_description": finding_description,
+        "finding_remediation": finding_remediation
     }
 
-    in_memory_log = HttpLog(
-        project=target_project,
-        agent_id=target_agent,
-        source="HTTP_CLIENT",
-        method=method,
-        url=url,
-        host=host,
-        path=path,
-        status_code=status_code,
-        duration_ms=duration_ms,
-        request_headers=json.dumps(headers),
-        request_body=(body or "")[:5242880],
-        response_headers=json.dumps(res_headers),
-        response_body=res_body[:5242880],
-        reasoning=reasoning or ""
-    )
-    flag_status, findings_list = analyze_traffic(in_memory_log)
-
-    logged_id = await _persist_and_stream_log(log_payload, flag_status, findings_list)
+    # Single-pass triage: dashboard performs analyzer logic and returns findings + flag_status.
+    persist_res = await _persist_and_stream_log(log_payload)
+    logged_id = persist_res.get("id")
+    flag_status = persist_res.get("flag_status", "CLEAN")
+    findings_list = persist_res.get("findings", [])
 
     max_preview = max(100, min(max_body_chars or 5000, 50000))
     body_snippet = res_body[:max_preview] if res_body else "[Empty response body]"
@@ -565,7 +621,7 @@ async def browser_navigate_and_render(
     proj_delay_ms = 0
     proj_proxy = ""
     try:
-        is_allowed, block_reason = check_scope(target_project, url, db)
+        is_allowed, block_reason = await async_check_scope(target_project, url, db)
         proj_obj = db.query(Project).filter(Project.name == target_project).first()
         if proj_obj:
             proj_delay_ms = proj_obj.delay_ms or 0
@@ -605,7 +661,8 @@ async def browser_navigate_and_render(
             "response_body": result.get("dom_text", "")[:50000],
             "reasoning": reasoning or ""
         }
-        logged_id = await _persist_and_stream_log(log_payload, "CLEAN", [])
+        persist_res = await _persist_and_stream_log(log_payload, "CLEAN", [])
+        logged_id = persist_res.get("id")
 
         # Log intercepted background AJAX/fetch sub-requests
         intercepted = result.get("intercepted_requests", [])
@@ -753,8 +810,8 @@ async def run_pentest_command(
     finally:
         db.close()
 
-    # Hardened Cross-Platform Safety Guardrail & SSRF Check
-    is_safe_cmd, block_reason = check_command_safe_mode(cmd_clean, allow_internal=allow_internal)
+    # Hardened Cross-Platform Safety Guardrail & SSRF Check (Async DNS resolution)
+    is_safe_cmd, block_reason = await async_check_command_safe_mode(cmd_clean, allow_internal=allow_internal)
     if not is_safe_cmd:
         blocked_payload = {
             "project": target_project,
@@ -1006,7 +1063,7 @@ async def get_traffic_history(
     # 1. Query running Dashboard API first
     try:
         async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.get(f"{BACKEND_URL}/api/logs?project={target_project}&page=1&page_size={fetch_limit}")
+            resp = await client.get(f"{BACKEND_URL}/api/logs?project={target_project}&limit={fetch_limit}&offset=0")
             if resp.status_code == 200:
                 data = resp.json()
                 logs_list = data.get("logs", [])
@@ -1041,6 +1098,109 @@ async def get_traffic_history(
 
     lines.append(f"\nTip: Call get_log_detail(log_id) to read complete headers, full body, or vulnerability findings.")
     return "\n".join(lines)
+
+
+# ==============================================================================
+# MCP Tool 8: report_vulnerability (Direct Agent Vulnerability Flagging)
+# ==============================================================================
+
+@mcp.tool()
+async def report_vulnerability(
+    log_id: int,
+    title: str,
+    severity: Optional[str] = "HIGH",
+    category: Optional[str] = "General",
+    evidence: Optional[str] = None,
+    description: Optional[str] = None,
+    remediation: Optional[str] = None,
+    project: Optional[str] = None
+) -> str:
+    """
+    Explicitly flags an existing HTTP Log entry (by Log ID) as a confirmed vulnerability finding in Spectra.
+    Call this tool whenever you inspect a response (via get_log_detail) and verify a vulnerability,
+    such as successful SQL Injection Authentication Bypass, Sensitive Configuration Disclosure, IDOR, or Reflected XSS.
+    This immediately elevates the log's flag_status to 'CONFIRMED' and registers the finding in the dashboard.
+
+    Parameters:
+      - log_id: The integer Log ID returned by send_http_request or listed in get_traffic_history.
+      - title: Clear, concise vulnerability title (e.g. 'SQL Injection — Authentication Bypass', 'Administrative Config Disclosure').
+      - severity: 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', or 'INFO' (default: 'HIGH').
+      - category: Classification (e.g. 'SQL Injection', 'Authentication Bypass', 'Information Disclosure', 'XSS', 'IDOR').
+      - evidence: Key evidence string (e.g. issued JWT token, extracted admin email, sensitive config snippet).
+      - description: Brief description of vulnerability mechanics and impact.
+      - remediation: Recommended fix for developers.
+      - project: Workspace name (defaults to active project).
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    sev_clean = (severity or "HIGH").strip().upper()
+    cat_clean = (category or "General").strip()
+    finding_id = None
+    log_flag = "CONFIRMED" if sev_clean in ["HIGH", "CRITICAL"] else "POTENTIAL"
+    source_info = "Dashboard API"
+
+    # 1. Dispatch to running Dashboard API first (Distributed setup)
+    try:
+        payload = {
+            "log_id": log_id,
+            "title": title.strip(),
+            "severity": sev_clean,
+            "category": cat_clean,
+            "evidence": evidence or "",
+            "description": description or f"Vulnerability confirmed and reported by AI security agent for Log #{log_id}.",
+            "remediation": remediation or "Apply strict input validation, parameterized queries, and principle of least privilege.",
+            "project": target_project
+        }
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.post(f"{BACKEND_URL}/api/findings", json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                finding_id = data.get("id")
+                log_flag = data.get("flag_status", log_flag)
+    except Exception:
+        pass
+
+    # 2. Fallback to local SQLite database if dashboard is unreachable
+    if finding_id is None:
+        source_info = "Local Database Fallback"
+        db = SessionLocal()
+        try:
+            entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+            if not entry:
+                return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({BACKEND_URL}) or local database. Cannot attach finding."
+
+            finding = Finding(
+                log_id=entry.id,
+                title=title.strip(),
+                severity=sev_clean,
+                category=cat_clean,
+                evidence=evidence or "",
+                description=description or f"Vulnerability confirmed and reported by AI security agent for Log #{log_id}.",
+                remediation=remediation or "Apply strict input validation, parameterized queries, and principle of least privilege."
+            )
+            db.add(finding)
+            if sev_clean in ["HIGH", "CRITICAL"]:
+                entry.flag_status = "CONFIRMED"
+            elif sev_clean in ["MEDIUM", "LOW", "INFO"] and entry.flag_status != "CONFIRMED":
+                entry.flag_status = "POTENTIAL"
+            db.commit()
+            db.refresh(finding)
+            finding_id = finding.id
+            log_flag = entry.flag_status
+        except Exception as ex:
+            db.rollback()
+            return f"[!] Failed to attach finding to Log #{log_id}: {str(ex)}"
+        finally:
+            db.close()
+
+    finding_str = f"#{finding_id}" if finding_id else "#recorded"
+    return (
+        f"[+] VULNERABILITY CONFIRMED & RECORDED ({source_info}):\n"
+        f"Project: [{target_project}] | Finding ID: {finding_str} | Linked to Log: #{log_id}\n"
+        f"Title: {title} | Severity: [{sev_clean}] | Category: [{cat_clean}]\n"
+        f"Flag Status Updated: [{log_flag}]\n"
+        f"Evidence: {evidence or '[None provided]'}\n"
+        f"The finding is now actively registered in the Spectra Dashboard and highlighted for operator review."
+    )
 
 
 if __name__ == "__main__":

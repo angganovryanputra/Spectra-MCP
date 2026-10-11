@@ -36,6 +36,7 @@ from backend.intercept_manager import (
     resolve_intercept_trap,
     pop_intercept_result,
     check_scope,
+    async_check_scope,
     invalidate_scope_cache
 )
 from backend.report_generator import generate_har_export, generate_markdown_report
@@ -161,6 +162,24 @@ class LogRecordRequest(BaseModel):
     response_headers: Dict[str, Any] = {}
     response_body: str = ""
     reasoning: Optional[str] = ""
+    flag_status: Optional[str] = None
+    finding_title: Optional[str] = None
+    finding_severity: Optional[str] = None
+    finding_category: Optional[str] = None
+    finding_evidence: Optional[str] = None
+    finding_description: Optional[str] = None
+    finding_remediation: Optional[str] = None
+
+
+class CreateFindingRequest(BaseModel):
+    log_id: int
+    title: str
+    severity: Optional[str] = "HIGH"
+    category: Optional[str] = "General"
+    evidence: Optional[str] = ""
+    description: Optional[str] = ""
+    remediation: Optional[str] = ""
+    project: Optional[str] = None
 
 
 class CreateProjectRequest(BaseModel):
@@ -302,6 +321,32 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
     )
 
     flag_status, findings_data = analyze_traffic(log_entry)
+
+    # Honor explicit finding and flag supplied by agent
+    agent_flag = (log_data.get("flag_status") or "").strip().upper()
+    agent_title = (log_data.get("finding_title") or "").strip()
+    if agent_title:
+        agent_sev = (log_data.get("finding_severity") or "HIGH").strip().upper()
+        agent_cat = (log_data.get("finding_category") or "Agent Reported").strip()
+        agent_ev = log_data.get("finding_evidence") or log_data.get("reasoning") or ""
+        agent_desc = log_data.get("finding_description") or f"Finding explicitly recorded by security agent ({agent_id})."
+        agent_rem = log_data.get("finding_remediation") or "Apply input validation, parameterized queries, and least privilege controls."
+
+        findings_data.insert(0, {
+            "title": agent_title,
+            "severity": agent_sev,
+            "category": agent_cat,
+            "evidence": agent_ev,
+            "description": agent_desc,
+            "remediation": agent_rem
+        })
+        if agent_flag:
+            flag_status = agent_flag
+        else:
+            flag_status = "CONFIRMED" if agent_sev in ["HIGH", "CRITICAL"] else "POTENTIAL"
+    elif agent_flag:
+        flag_status = agent_flag
+
     log_entry.flag_status = flag_status
 
     db.add(log_entry)
@@ -515,8 +560,8 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
     """Executes a request manually via Repeater, saves to DB, triages, and returns full response."""
     import urllib.parse
 
-    # 1. Scope check
-    is_allowed, block_reason = check_scope(req.project, req.url, db)
+    # 1. Scope check (Non-blocking async DNS resolution with TTL cache)
+    is_allowed, block_reason = await async_check_scope(req.project, req.url, db)
     if not is_allowed:
         raise HTTPException(status_code=403, detail=block_reason)
 
@@ -635,7 +680,7 @@ async def run_fuzzer_attack_endpoint(req: RunFuzzRequest, db: Session = Depends(
     """Executes multi-threaded parameter fuzzing with automated baseline differential analysis."""
     import re
     clean_url = re.sub(r"§[^§]*§", "", req.url)
-    is_allowed, block_reason = check_scope(req.project, clean_url, db)
+    is_allowed, block_reason = await async_check_scope(req.project, clean_url, db)
     if not is_allowed:
         raise HTTPException(status_code=403, detail=f"Target URL is out of authorized scope: {block_reason}")
 
@@ -747,13 +792,23 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
 def list_logs(
     project: Optional[str] = None,
     agent: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=2000),
-    offset: int = Query(0, ge=0),
+    limit: Optional[int] = Query(None, ge=1, le=2000),
+    page_size: Optional[int] = Query(None, ge=1, le=2000),
+    offset: Optional[int] = Query(None, ge=0),
+    page: Optional[int] = Query(None, ge=1),
     search: Optional[str] = None,
     flag: Optional[str] = None,
     method: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    eff_limit = limit or page_size or 100
+    if offset is not None:
+        eff_offset = offset
+    elif page is not None and page > 0:
+        eff_offset = (page - 1) * eff_limit
+    else:
+        eff_offset = 0
+
     # Defer heavy body text columns so paginated listings don't load multi-megabytes into memory
     query = db.query(HttpLog).options(defer(HttpLog.request_body), defer(HttpLog.response_body))
 
@@ -774,14 +829,14 @@ def list_logs(
         )
 
     total = query.count()
-    logs = query.order_by(desc(HttpLog.id)).offset(offset).limit(limit).all()
+    logs = query.order_by(desc(HttpLog.id)).offset(eff_offset).limit(eff_limit).all()
 
     return {
         "total": total,
         "project": project or "ALL",
         "agent": agent or "ALL",
-        "limit": limit,
-        "offset": offset,
+        "limit": eff_limit,
+        "offset": eff_offset,
         "logs": [log.to_dict(include_body=False) for log in logs]
     }
 
@@ -829,10 +884,85 @@ def list_findings(project: Optional[str] = None, db: Session = Depends(get_db)):
     return {"findings": results}
 
 
+@app.post("/api/findings")
+async def create_finding_api(data: CreateFindingRequest, db: Session = Depends(get_db)):
+    """Allows security agent to explicitly attach a verified finding to any HTTP log."""
+    log_entry = db.query(HttpLog).filter(HttpLog.id == data.log_id).first()
+    if not log_entry:
+        raise HTTPException(status_code=404, detail=f"Log ID #{data.log_id} was not found")
+
+    sev = (data.severity or "HIGH").strip().upper()
+    finding = Finding(
+        log_id=log_entry.id,
+        title=data.title.strip(),
+        severity=sev,
+        category=(data.category or "General").strip(),
+        evidence=data.evidence or "",
+        description=data.description or f"Finding explicitly recorded by security agent for Log #{log_entry.id}.",
+        remediation=data.remediation or "Apply input validation, parameterized queries, and least privilege controls."
+    )
+    db.add(finding)
+
+    # Upgrade log flag status
+    if sev in ["HIGH", "CRITICAL"]:
+        log_entry.flag_status = "CONFIRMED"
+    elif sev in ["MEDIUM", "LOW", "INFO"] and log_entry.flag_status != "CONFIRMED":
+        log_entry.flag_status = "POTENTIAL"
+
+    db.commit()
+    db.refresh(finding)
+    _invalidate_stats_cache()
+
+    finding_dict = finding.to_dict()
+    finding_dict["project"] = log_entry.project
+    finding_dict["log"] = {
+        "method": log_entry.method,
+        "url": log_entry.url,
+        "status_code": log_entry.status_code,
+        "timestamp": log_entry.timestamp.isoformat() if log_entry.timestamp else ""
+    }
+
+    await ws_manager.broadcast({
+        "type": "NEW_FINDING",
+        "project": log_entry.project,
+        "finding": finding_dict
+    })
+    await ws_manager.broadcast({
+        "type": "LOG_UPDATED",
+        "project": log_entry.project,
+        "log": log_entry.to_dict(include_body=False)
+    })
+
+    return {
+        "status": "created",
+        "id": finding.id,
+        "log_id": log_entry.id,
+        "flag_status": log_entry.flag_status,
+        "finding": finding_dict
+    }
+
+
 @app.post("/api/logs")
 async def record_log_api(data: LogRecordRequest, db: Session = Depends(get_db)):
     log_entry = await record_and_broadcast_log(data.model_dump(), db)
-    return {"status": "recorded", "id": log_entry.id, "project": log_entry.project, "flag_status": log_entry.flag_status}
+    findings = [
+        {
+            "title": f.title,
+            "severity": f.severity,
+            "category": f.category,
+            "evidence": f.evidence,
+            "description": f.description,
+            "remediation": f.remediation
+        }
+        for f in log_entry.findings
+    ]
+    return {
+        "status": "recorded",
+        "id": log_entry.id,
+        "project": log_entry.project,
+        "flag_status": log_entry.flag_status,
+        "findings": findings
+    }
 
 
 @app.post("/api/logs/clear")
