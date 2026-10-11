@@ -347,6 +347,16 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
     elif agent_flag:
         flag_status = agent_flag
 
+    # Deduplicate findings by title, preserving highest priority / agent reported entry
+    deduped_findings = []
+    seen_titles = set()
+    for f in findings_data:
+        t_key = f["title"].strip().lower()
+        if t_key not in seen_titles:
+            seen_titles.add(t_key)
+            deduped_findings.append(f)
+    findings_data = deduped_findings
+
     log_entry.flag_status = flag_status
 
     db.add(log_entry)
@@ -892,16 +902,35 @@ async def create_finding_api(data: CreateFindingRequest, db: Session = Depends(g
         raise HTTPException(status_code=404, detail=f"Log ID #{data.log_id} was not found")
 
     sev = (data.severity or "HIGH").strip().upper()
-    finding = Finding(
-        log_id=log_entry.id,
-        title=data.title.strip(),
-        severity=sev,
-        category=(data.category or "General").strip(),
-        evidence=data.evidence or "",
-        description=data.description or f"Finding explicitly recorded by security agent for Log #{log_entry.id}.",
-        remediation=data.remediation or "Apply input validation, parameterized queries, and least privilege controls."
-    )
-    db.add(finding)
+    title_clean = data.title.strip()
+
+    # Deduplicate: update existing finding if same title already exists on this log
+    existing_finding = db.query(Finding).filter(
+        Finding.log_id == log_entry.id,
+        func.lower(Finding.title) == title_clean.lower()
+    ).first()
+
+    if existing_finding:
+        existing_finding.severity = sev
+        existing_finding.category = (data.category or existing_finding.category).strip()
+        if data.evidence:
+            existing_finding.evidence = data.evidence
+        if data.description:
+            existing_finding.description = data.description
+        if data.remediation:
+            existing_finding.remediation = data.remediation
+        finding = existing_finding
+    else:
+        finding = Finding(
+            log_id=log_entry.id,
+            title=title_clean,
+            severity=sev,
+            category=(data.category or "General").strip(),
+            evidence=data.evidence or "",
+            description=data.description or f"Finding explicitly recorded by security agent for Log #{log_entry.id}.",
+            remediation=data.remediation or "Apply input validation, parameterized queries, and least privilege controls."
+        )
+        db.add(finding)
 
     # Upgrade log flag status
     if sev in ["HIGH", "CRITICAL"]:

@@ -174,6 +174,16 @@ async def _persist_and_stream_log(
         elif agent_flag:
             effective_flag = agent_flag
 
+        # Deduplicate effective findings by normalized title
+        deduped = []
+        seen = set()
+        for f in effective_findings:
+            t = f["title"].strip().lower()
+            if t not in seen:
+                seen.add(t)
+                deduped.append(f)
+        effective_findings = deduped
+
         entry.flag_status = effective_flag
 
         db.add(entry)
@@ -329,21 +339,21 @@ def _extract_domain_cookies(url: str, project: str = "default") -> Dict[str, str
 
 @mcp.tool()
 async def send_http_request(
-    method: str,
-    url: str,
+    method: str = "GET",
+    url: str = "",
     headers: Optional[Dict[str, str]] = None,
-    body: Optional[str] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None,
-    max_body_chars: Optional[int] = 5000,
-    flag_status: Optional[str] = None,
-    finding_title: Optional[str] = None,
-    finding_severity: Optional[str] = None,
-    finding_category: Optional[str] = None,
-    finding_evidence: Optional[str] = None,
-    finding_description: Optional[str] = None,
-    finding_remediation: Optional[str] = None
+    body: str = "",
+    project: str = "default",
+    agent_id: str = "primary_agent",
+    reasoning: str = "",
+    max_body_chars: int = 5000,
+    flag_status: str = "",
+    finding_title: str = "",
+    finding_severity: str = "",
+    finding_category: str = "",
+    finding_evidence: str = "",
+    finding_description: str = "",
+    finding_remediation: str = ""
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
@@ -363,7 +373,7 @@ async def send_http_request(
       - method: HTTP Method (GET, POST, PUT, DELETE, etc.)
       - url: Full target URL
       - headers: Optional custom HTTP headers dict
-      - body: Optional request body string
+      - body: Request body string (or JSON payload)
       - project: Workspace scope (e.g. 'default')
       - agent_id: Identifier of the AI agent instance (e.g. 'primary_agent')
       - reasoning: The AI agent's hypothesis or intent (e.g. 'Testing SQL injection login bypass on /rest/user/login')
@@ -374,9 +384,17 @@ async def send_http_request(
       - finding_category: e.g. 'SQL Injection', 'Authentication Bypass', 'Information Disclosure', etc.
       - finding_evidence: Key proof string (e.g. issued JWT token or admin profile snippet)
     """
+    # Defensive normalization for body in case a client or framework passed dict/list or None
+    if isinstance(body, (dict, list)):
+        body = json.dumps(body)
+    elif body is None:
+        body = ""
+    elif not isinstance(body, str):
+        body = str(body)
+
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
-    method = method.upper().strip()
+    method = (method or "GET").upper().strip()
     headers = headers or {}
     parsed = urllib.parse.urlparse(url)
     host = parsed.netloc
@@ -601,12 +619,12 @@ async def send_http_request(
 @mcp.tool()
 async def browser_navigate_and_render(
     url: str,
-    click_selector: Optional[str] = None,
+    click_selector: str = "",
     fill_inputs: Optional[Dict[str, str]] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None,
-    max_dom_chars: Optional[int] = 10000
+    project: str = "default",
+    agent_id: str = "primary_agent",
+    reasoning: str = "",
+    max_dom_chars: int = 10000
 ) -> str:
     """
     Renders a dynamic webpage headlessly via Playwright, executes automated actions,
@@ -714,12 +732,12 @@ async def browser_navigate_and_render(
 @mcp.tool()
 async def render_webpage(
     url: str,
-    click_selector: Optional[str] = None,
+    click_selector: str = "",
     fill_inputs: Optional[Dict[str, str]] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None,
-    max_dom_chars: Optional[int] = 10000
+    project: str = "default",
+    agent_id: str = "primary_agent",
+    reasoning: str = "",
+    max_dom_chars: int = 10000
 ) -> str:
     """
     Renders a dynamic webpage headlessly via Playwright, executes automated actions,
@@ -745,7 +763,7 @@ async def render_webpage(
 async def request_manual_login(
     login_url: str,
     domain: str,
-    project: Optional[str] = None
+    project: str = "default"
 ) -> str:
     """
     Spawns an interactive headed browser window for Human-in-the-Loop (HITL) authentication.
@@ -784,12 +802,12 @@ DANGEROUS_COMMAND_PATTERNS = [
 @mcp.tool()
 async def run_pentest_command(
     command: str,
-    reasoning: Optional[str] = None,
-    tool_name: Optional[str] = "terminal",
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    timeout: Optional[int] = 60,
-    cwd: Optional[str] = None
+    reasoning: str = "",
+    tool_name: str = "terminal",
+    project: str = "default",
+    agent_id: str = "primary_agent",
+    timeout: int = 60,
+    cwd: str = ""
 ) -> str:
     """
     Executes a security testing command in the local shell environment (e.g. nmap, curl, sqlmap, custom scripts),
@@ -906,15 +924,15 @@ async def record_test_payload(
     target_url: str,
     vuln_type: str,
     raw_payload: str,
-    target_param: Optional[str] = "",
-    mutation_type: Optional[str] = "DIRECT",
-    outcome: Optional[str] = "TESTED",
-    http_method: Optional[str] = "GET",
-    response_signature: Optional[str] = "",
+    target_param: str = "",
+    mutation_type: str = "DIRECT",
+    outcome: str = "TESTED",
+    http_method: str = "GET",
+    response_signature: str = "",
     http_status: Optional[int] = None,
-    reasoning: Optional[str] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent"
+    reasoning: str = "",
+    project: str = "default",
+    agent_id: str = "primary_agent"
 ) -> str:
     """
     Explicitly catalogs a specialized pentest payload (SQLi, XSS, SSRF, SSTI, RCE, IDOR, etc.)
@@ -1046,8 +1064,8 @@ async def get_log_detail(
 
 @mcp.tool()
 async def get_traffic_history(
-    project: Optional[str] = None,
-    limit: Optional[int] = 20
+    project: str = "default",
+    limit: int = 20
 ) -> str:
     """
     Lists recent HTTP traffic entries recorded in Spectra for the selected project.
@@ -1108,12 +1126,12 @@ async def get_traffic_history(
 async def report_vulnerability(
     log_id: int,
     title: str,
-    severity: Optional[str] = "HIGH",
-    category: Optional[str] = "General",
-    evidence: Optional[str] = None,
-    description: Optional[str] = None,
-    remediation: Optional[str] = None,
-    project: Optional[str] = None
+    severity: str = "HIGH",
+    category: str = "General",
+    evidence: str = "",
+    description: str = "",
+    remediation: str = "",
+    project: str = "default"
 ) -> str:
     """
     Explicitly flags an existing HTTP Log entry (by Log ID) as a confirmed vulnerability finding in Spectra.
@@ -1168,16 +1186,33 @@ async def report_vulnerability(
             if not entry:
                 return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({BACKEND_URL}) or local database. Cannot attach finding."
 
-            finding = Finding(
-                log_id=entry.id,
-                title=title.strip(),
-                severity=sev_clean,
-                category=cat_clean,
-                evidence=evidence or "",
-                description=description or f"Vulnerability confirmed and reported by AI security agent for Log #{log_id}.",
-                remediation=remediation or "Apply strict input validation, parameterized queries, and principle of least privilege."
-            )
-            db.add(finding)
+            existing_finding = db.query(Finding).filter(
+                Finding.log_id == entry.id,
+                func.lower(Finding.title) == title.strip().lower()
+            ).first()
+
+            if existing_finding:
+                existing_finding.severity = sev_clean
+                existing_finding.category = cat_clean
+                if evidence:
+                    existing_finding.evidence = evidence
+                if description:
+                    existing_finding.description = description
+                if remediation:
+                    existing_finding.remediation = remediation
+                finding = existing_finding
+            else:
+                finding = Finding(
+                    log_id=entry.id,
+                    title=title.strip(),
+                    severity=sev_clean,
+                    category=cat_clean,
+                    evidence=evidence or "",
+                    description=description or f"Vulnerability confirmed and reported by AI security agent for Log #{log_id}.",
+                    remediation=remediation or "Apply strict input validation, parameterized queries, and principle of least privilege."
+                )
+                db.add(finding)
+
             if sev_clean in ["HIGH", "CRITICAL"]:
                 entry.flag_status = "CONFIRMED"
             elif sev_clean in ["MEDIUM", "LOW", "INFO"] and entry.flag_status != "CONFIRMED":
