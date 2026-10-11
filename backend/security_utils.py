@@ -58,6 +58,11 @@ def _get_fernet() -> Fernet:
     return _FERNET_INSTANCE
 
 
+def get_or_create_encryption_key() -> bytes:
+    """Public helper to initialize and return the master Fernet encryption key."""
+    return _get_or_create_fernet_key()
+
+
 def encrypt_secret(plaintext: str) -> str:
     """Encrypts sensitive session data/token string and prefixes with 'ENC:'."""
     if not plaintext:

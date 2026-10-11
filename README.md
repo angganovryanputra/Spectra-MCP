@@ -190,42 +190,29 @@ flowchart TD
 ## 🚀 Installation & Prerequisites
 
 ### 1. Prerequisites
-- **Python:** 3.10, 3.11, or 3.12
-- **Operating System:** Windows 10/11, Linux (Ubuntu/Debian/Arch), or macOS
-- **Node/Chromium Dependencies:** (Installed automatically via Playwright CLI)
+- **Python:** 3.10, 3.11, 3.12, or newer
+- **Operating System:** Windows 10/11, Linux (Ubuntu/Debian/Kali/Arch), or WSL2
+- **Browsers:** Chromium automation engine (installed automatically via Playwright)
 
-### 2. Clone & Virtual Environment Setup
+---
 
-#### Windows (PowerShell / Command Prompt):
-```powershell
-# Navigate to project directory
-cd d:\PROJECT\01
+### 2. Automated One-Click Installation (Recommended)
 
-# Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate
+SPECTRA provides fully automated environment installers that automatically verify Python, set up the virtual environment, install all core dependencies, download the Playwright Chromium engine, and initialize the cryptographic database vault.
 
-# Install dependencies
-pip install -r requirements.txt
+#### 🪟 Windows:
+```cmd
+:: Using Command Prompt (Batch):
+install.bat
 
-# Install Playwright browser binaries
-playwright install chromium
+:: OR using Windows PowerShell:
+.\install.ps1
 ```
 
-#### Linux / macOS:
+#### 🐧 Linux & WSL2:
 ```bash
-# Navigate to project directory
-cd /path/to/spectra
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install Playwright browser binaries
-playwright install chromium
+chmod +x install.sh run.sh
+./install.sh
 ```
 
 ---
@@ -236,17 +223,22 @@ SPECTRA consists of two runtime components:
 1. **The Backend Web Dashboard & Telemetry API** (`backend/app.py` on port `8000`)
 2. **The MCP Server Engine** (`mcp_server.py` launched by your AI agent)
 
-#### One-Click Startup (Recommended):
-- **Windows:** Run `run.bat`
-- **Linux/macOS:** Run `chmod +x run.sh && ./run.sh`
+#### One-Click Launch Options:
+
+| Platform | Launch Dashboard Only | Launch MCP Server (Stdio) | Launch Both (Dashboard + MCP) |
+|---|---|---|---|
+| **Windows (CMD)** | `run.bat` or `run.bat dashboard` | `run.bat mcp` | `run.bat all` |
+| **Windows (PowerShell)** | `.\run.ps1` | `.\run.ps1 -Mode mcp` | `.\run.ps1 -Mode all` |
+| **Linux / WSL2** | `./run.sh` | `./run.sh mcp` | `./run.sh all` |
 
 #### Manual Launch:
 ```bash
-# Terminal 1: Start the Dashboard & WebSocket Server
-uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
+# Terminal: Start the Dashboard & WebSocket Server
+uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 Once started, open your browser and navigate to:  
 👉 **`http://127.0.0.1:8000`**
+
 
 ---
 
