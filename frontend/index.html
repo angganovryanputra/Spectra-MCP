@@ -255,7 +255,8 @@
       <button @click="clearLogs()"
         class="flex items-center px-3 py-1.5 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-700/80 text-slate-400 hover:text-rose-300 rounded-md text-xs font-mono font-semibold transition shadow-sm group"
         title="Immediately clear all HTTP history and vulnerability findings">
-        <i data-lucide="trash-2" class="w-3.5 h-3.5 mr-1.5 text-slate-500 group-hover:text-rose-400 transition-colors"></i>
+        <i data-lucide="trash-2"
+          class="w-3.5 h-3.5 mr-1.5 text-slate-500 group-hover:text-rose-400 transition-colors"></i>
         <span>Clear History</span>
       </button>
     </div>
@@ -266,12 +267,12 @@
   <!-- ========================================================================= -->
 
   <!-- VIEW 1: PROXY TRAFFIC HISTORY & DEEP INSPECTOR -->
-  <div x-show="currentAppTab === 'proxy'" id="proxySplitPane"
-    class="flex-1 min-h-0 overflow-hidden"
+  <div x-show="currentAppTab === 'proxy'" id="proxySplitPane" class="flex-1 min-h-0 overflow-hidden"
     :class="layoutOrientation === 'vertical' ? 'flex flex-col' : 'flex flex-row'">
 
     <!-- TABLE PANE -->
-    <section :style="maximizedPanel === 'table' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'inspector' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + tableSplitPct + '%; min-height: 140px;' : 'width: ' + tableSplitPct + '%; min-width: 300px;'))"
+    <section
+      :style="maximizedPanel === 'table' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'inspector' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + tableSplitPct + '%; min-height: 140px;' : 'width: ' + tableSplitPct + '%; min-width: 300px;'))"
       class="relative flex flex-col bg-[#0B0F17] overflow-hidden min-h-0"
       :class="layoutOrientation === 'vertical' ? 'border-b border-[#1E293B]' : 'border-r border-[#1E293B]'">
 
@@ -287,8 +288,10 @@
           </div>
 
           <!-- Counter Pill -->
-          <div class="px-2 py-1 rounded bg-[#0B0F17] border border-[#1E293B] text-[11px] font-mono text-slate-400 shrink-0">
-            <span class="text-sky-400 font-bold" x-text="filteredLogs.length"></span> / <span x-text="logs.length"></span>
+          <div
+            class="px-2 py-1 rounded bg-[#0B0F17] border border-[#1E293B] text-[11px] font-mono text-slate-400 shrink-0">
+            <span class="text-sky-400 font-bold" x-text="filteredLogs.length"></span> / <span
+              x-text="logs.length"></span>
           </div>
         </div>
 
@@ -307,8 +310,7 @@
           </button>
 
           <!-- Reset All Active Filters -->
-          <button x-show="getActiveColFiltersCount() > 0 || searchQuery"
-            @click="clearAllColFilters()"
+          <button x-show="getActiveColFiltersCount() > 0 || searchQuery" @click="clearAllColFilters()"
             class="px-2 py-1.5 rounded-md bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-mono flex items-center space-x-1 transition"
             title="Reset all active search and column filters">
             <i data-lucide="x" class="w-3 h-3"></i>
@@ -351,115 +353,145 @@
       <div id="logsTableContainer" class="flex-1 min-h-0 flex flex-col overflow-auto select-none smooth-scroll">
         <div class="min-w-max flex flex-col">
           <!-- 1. RESIZABLE COLUMN HEADERS -->
-          <div class="flex bg-[#111827] border-b border-[#1E293B] text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0 sticky top-0 z-20">
+          <div
+            class="flex bg-[#111827] border-b border-[#1E293B] text-[10px] font-mono uppercase text-slate-400 font-semibold tracking-wider shrink-0 sticky top-0 z-20">
             <!-- Col 1: ID -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'"
-                 @click="sortLogs('id')" title="Click to sort by ID">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'" @click="sortLogs('id')"
+              title="Click to sort by ID">
               <span class="truncate"># ID</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('id', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 2: Flag -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'"
-                 @click="sortLogs('flag_status')" title="Click to sort by Flag">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'"
+              @click="sortLogs('flag_status')" title="Click to sort by Flag">
               <span class="truncate">Flag</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'flag_status' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'flag_status' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('flag', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 3: Project -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'"
-                 @click="sortLogs('project')" title="Click to sort by Project">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'"
+              @click="sortLogs('project')" title="Click to sort by Project">
               <span class="truncate">Project</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'project' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'project' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('project', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 4: Agent -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'"
-                 @click="sortLogs('agent_id')" title="Click to sort by Agent">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'"
+              @click="sortLogs('agent_id')" title="Click to sort by Agent">
               <span class="truncate">Agent</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'agent_id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'agent_id' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('agent', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 5: Method -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'"
-                 @click="sortLogs('method')" title="Click to sort by Method">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'"
+              @click="sortLogs('method')" title="Click to sort by Method">
               <span class="truncate">Method</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'method' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'method' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('method', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 6: Status -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'"
-                 @click="sortLogs('status_code')" title="Click to sort by Status Code">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'"
+              @click="sortLogs('status_code')" title="Click to sort by Status Code">
               <span class="truncate">Status</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'status_code' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'status_code' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('status', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 7: Host -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'"
-                 @click="sortLogs('host')" title="Click to sort by Host">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'" @click="sortLogs('host')"
+              title="Click to sort by Host">
               <span class="truncate">Host</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'host' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'host' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('host', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 8: Path -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'"
-                 @click="sortLogs('path')" title="Click to sort by Path">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'" @click="sortLogs('path')"
+              title="Click to sort by Path">
               <span class="truncate">Path</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'path' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'path' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('path', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 9: Latency -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
-                 :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
-                 @click="sortLogs('duration')" title="Click to sort by Latency">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group border-r border-[#1E293B]/40"
+              :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
+              @click="sortLogs('duration')" title="Click to sort by Latency">
               <span class="truncate">Latency</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'duration' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'duration' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('duration', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
 
             <!-- Col 10: Time -->
-            <div class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group"
-                 :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'"
-                 @click="sortLogs('time')" title="Click to sort by Time">
+            <div
+              class="relative px-2.5 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 select-none group"
+              :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'" @click="sortLogs('time')"
+              title="Click to sort by Time">
               <span class="truncate">Time</span>
-              <span class="text-[9px] text-sky-400 font-bold ml-0.5" x-text="sortCol === 'time' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
+              <span class="text-[9px] text-sky-400 font-bold ml-0.5"
+                x-text="sortCol === 'time' ? (sortDir === 'asc' ? '▲' : '▼') : ''"></span>
               <div @mousedown.stop="startColResize('time', $event)"
-                   class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]" title="Drag to adjust width"></div>
+                class="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-sky-500/80 z-30 group-hover:bg-[#1E293B]"
+                title="Drag to adjust width"></div>
             </div>
           </div>
 
           <!-- 2. STICKY COLUMN FILTER INPUTS ROW -->
           <div x-show="showColFilters"
-               class="flex bg-[#0B0F17]/95 border-b border-[#1E293B] text-[10px] font-mono shrink-0 py-1.5 px-0.5 sticky top-[33px] z-10 backdrop-blur-md shadow-inner">
+            class="flex bg-[#0B0F17]/95 border-b border-[#1E293B] text-[10px] font-mono shrink-0 py-1.5 px-0.5 sticky top-[33px] z-10 backdrop-blur-md shadow-inner">
             <!-- Filter: ID -->
             <div class="px-1" :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'">
-              <input type="text" x-model="colFilters.id" @input.debounce.150ms="filterLogs()"
-                placeholder="ID / >10"
+              <input type="text" x-model="colFilters.id" @input.debounce.150ms="filterLogs()" placeholder="ID / >10"
                 class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
                 :class="colFilters.id ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
             </div>
@@ -528,8 +560,7 @@
 
             <!-- Filter: Host -->
             <div class="px-1" :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'">
-              <input type="text" x-model="colFilters.host" @input.debounce.150ms="filterLogs()"
-                placeholder="Host..."
+              <input type="text" x-model="colFilters.host" @input.debounce.150ms="filterLogs()" placeholder="Host..."
                 class="w-full bg-[#111827] border rounded px-1.5 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
                 :class="colFilters.host ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
             </div>
@@ -544,14 +575,14 @@
 
             <!-- Filter: Latency -->
             <div class="px-1" :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'">
-              <input type="text" x-model="colFilters.duration" @input.debounce.150ms="filterLogs()"
-                placeholder=">50ms"
+              <input type="text" x-model="colFilters.duration" @input.debounce.150ms="filterLogs()" placeholder=">50ms"
                 class="w-full bg-[#111827] border rounded px-1 py-0.5 text-[10px] text-slate-200 placeholder-slate-600 focus:outline-none transition"
                 :class="colFilters.duration ? 'border-sky-500 ring-1 ring-sky-500/30' : 'border-[#1E293B]'">
             </div>
 
             <!-- Action: Reset Filters -->
-            <div class="px-1 flex items-center" :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'">
+            <div class="px-1 flex items-center"
+              :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'">
               <button @click="clearAllColFilters()"
                 class="w-full py-0.5 px-1 bg-slate-800 hover:bg-rose-950 hover:text-rose-300 border border-slate-700 hover:border-rose-800 rounded text-[9px] text-slate-400 font-semibold transition"
                 title="Reset all column filters">
@@ -569,12 +600,11 @@
 
                 <!-- ID -->
                 <div class="px-2.5 py-2 text-slate-500 text-[11px] truncate"
-                     :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'"
-                     x-text="'#' + log.id"></div>
+                  :style="'width:' + colWidths.id + 'px; min-width:' + colWidths.id + 'px'" x-text="'#' + log.id"></div>
 
                 <!-- Flag -->
                 <div class="px-2.5 py-2 flex items-center truncate"
-                     :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'">
+                  :style="'width:' + colWidths.flag + 'px; min-width:' + colWidths.flag + 'px'">
                   <span x-show="log.flag_status === 'CONFIRMED'"
                     class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-950 border border-rose-800 text-rose-300 flex items-center space-x-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
@@ -590,22 +620,24 @@
 
                 <!-- Project -->
                 <div class="px-2.5 py-2 truncate"
-                     :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'">
-                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
-                        x-text="log.project || 'default'" :title="log.project"></span>
+                  :style="'width:' + colWidths.project + 'px; min-width:' + colWidths.project + 'px'">
+                  <span
+                    class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/70 border border-indigo-800/60 text-indigo-300 font-mono truncate"
+                    x-text="log.project || 'default'" :title="log.project"></span>
                 </div>
 
                 <!-- Agent -->
                 <div class="px-2.5 py-2 truncate"
-                     :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'">
-                  <span class="px-1 py-0.5 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
-                        :title="'Agent: ' + (log.agent_id || 'primary_agent')"
-                        x-text="log.agent_id || 'primary_agent'"></span>
+                  :style="'width:' + colWidths.agent + 'px; min-width:' + colWidths.agent + 'px'">
+                  <span
+                    class="px-1 py-0.5 rounded text-[9px] bg-purple-950/70 border border-purple-800/60 text-purple-300 font-mono truncate"
+                    :title="'Agent: ' + (log.agent_id || 'primary_agent')"
+                    x-text="log.agent_id || 'primary_agent'"></span>
                 </div>
 
                 <!-- Method -->
                 <div class="px-2.5 py-2 font-semibold truncate flex items-center space-x-1"
-                     :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'">
+                  :style="'width:' + colWidths.method + 'px; min-width:' + colWidths.method + 'px'">
                   <span :class="{
                     'text-[#38BDF8]': log.method === 'GET',
                     'text-[#34D399]': log.method === 'POST',
@@ -619,8 +651,7 @@
 
                 <!-- Status -->
                 <div class="px-2.5 py-2 font-bold truncate text-center"
-                     :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'"
-                     :class="{
+                  :style="'width:' + colWidths.status + 'px; min-width:' + colWidths.status + 'px'" :class="{
                        'text-emerald-400': log.status_code >= 200 && log.status_code < 300,
                        'text-sky-400': log.status_code >= 300 && log.status_code < 400,
                        'text-amber-400': log.status_code >= 400 && log.status_code < 500,
@@ -630,23 +661,23 @@
 
                 <!-- Host -->
                 <div class="px-2.5 py-2 truncate text-slate-300"
-                     :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'"
-                     x-text="log.host" :title="log.host"></div>
+                  :style="'width:' + colWidths.host + 'px; min-width:' + colWidths.host + 'px'" x-text="log.host"
+                  :title="log.host"></div>
 
                 <!-- Path -->
                 <div class="px-2.5 py-2 truncate text-slate-100 font-medium"
-                     :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'"
-                     x-text="log.path" :title="log.path"></div>
+                  :style="'width:' + colWidths.path + 'px; min-width:' + colWidths.path + 'px'" x-text="log.path"
+                  :title="log.path"></div>
 
                 <!-- Latency -->
                 <div class="px-2.5 py-2 text-slate-400 text-[11px] truncate text-right"
-                     :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
-                     x-text="log.duration_ms + 'ms'"></div>
+                  :style="'width:' + colWidths.duration + 'px; min-width:' + colWidths.duration + 'px'"
+                  x-text="log.duration_ms + 'ms'"></div>
 
                 <!-- Time -->
                 <div class="px-2.5 py-2 text-slate-500 text-[10px] truncate text-right"
-                     :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'"
-                     x-text="formatTime(log.timestamp)"></div>
+                  :style="'width:' + colWidths.time + 'px; min-width:' + colWidths.time + 'px'"
+                  x-text="formatTime(log.timestamp)"></div>
               </div>
             </template>
 
@@ -663,19 +694,19 @@
       </div>
 
       <!-- Floating Badge: Incoming Logs Buffer when reading older pages -->
-      <div x-show="newLogsBufferCount > 0"
-           x-transition:enter="transition ease-out duration-200"
-           x-transition:enter-start="opacity-0 translate-y-2"
-           x-transition:enter-end="opacity-100 translate-y-0"
-           @click="jumpToLatestLogs()"
-           class="absolute bottom-12 right-6 z-30 cursor-pointer bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono font-bold text-xs px-3 py-1.5 rounded-full shadow-2xl flex items-center space-x-2 transition border border-sky-300 select-none">
+      <div x-show="newLogsBufferCount > 0" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+        @click="jumpToLatestLogs()"
+        class="absolute bottom-12 right-6 z-30 cursor-pointer bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono font-bold text-xs px-3 py-1.5 rounded-full shadow-2xl flex items-center space-x-2 transition border border-sky-300 select-none">
         <i data-lucide="zap" class="w-3.5 h-3.5 text-slate-950 animate-bounce"></i>
         <span><span x-text="newLogsBufferCount"></span> new logs captured</span>
-        <span class="text-[10px] bg-slate-950/25 px-1.5 py-0.5 rounded font-semibold text-slate-950">Jump to Latest ↑</span>
+        <span class="text-[10px] bg-slate-950/25 px-1.5 py-0.5 rounded font-semibold text-slate-950">Jump to Latest
+          ↑</span>
       </div>
 
       <!-- 4. PAGINATION & ROWS-PER-PAGE FOOTER BAR -->
-      <div class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-xs select-none">
+      <div
+        class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-xs select-none">
         <!-- Left: Items Info & Rows Per Page Dropdown -->
         <div class="flex items-center space-x-3 text-slate-400 text-[11px]">
           <div class="flex items-center space-x-1">
@@ -693,9 +724,8 @@
           <!-- Rows Per Page Selector -->
           <div class="flex items-center space-x-1 pl-2 border-l border-[#1E293B]">
             <span class="text-slate-500 text-[10px] uppercase">Rows:</span>
-            <select :value="pageSize >= 999999 ? 'ALL' : pageSize"
-                    @change="setPageSize($event.target.value)"
-                    class="bg-[#0B0F17] border border-[#1E293B] text-slate-200 text-[11px] rounded px-1.5 py-0.5 focus:outline-none focus:border-sky-500 cursor-pointer">
+            <select :value="pageSize >= 999999 ? 'ALL' : pageSize" @change="setPageSize($event.target.value)"
+              class="bg-[#0B0F17] border border-[#1E293B] text-slate-200 text-[11px] rounded px-1.5 py-0.5 focus:outline-none focus:border-sky-500 cursor-pointer">
               <option value="25">25</option>
               <option value="50">50</option>
               <option value="100">100</option>
@@ -709,25 +739,22 @@
         <!-- Right: Page Navigation Controls -->
         <div class="flex items-center space-x-1">
           <!-- First Page -->
-          <button @click="setPage(1)"
-                  :disabled="currentPage === 1"
-                  :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
-                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
-                  title="First Page">
+          <button @click="setPage(1)" :disabled="currentPage === 1"
+            :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+            class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition" title="First Page">
             <i data-lucide="chevrons-left" class="w-3.5 h-3.5"></i>
           </button>
 
           <!-- Previous Page -->
-          <button @click="setPage(currentPage - 1)"
-                  :disabled="currentPage === 1"
-                  :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
-                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
-                  title="Previous Page">
+          <button @click="setPage(currentPage - 1)" :disabled="currentPage === 1"
+            :class="currentPage === 1 ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+            class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition" title="Previous Page">
             <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
           </button>
 
           <!-- Current Page Indicator -->
-          <div class="px-2.5 py-0.5 text-[11px] text-slate-300 flex items-center space-x-1 bg-[#0B0F17] border border-[#1E293B] rounded">
+          <div
+            class="px-2.5 py-0.5 text-[11px] text-slate-300 flex items-center space-x-1 bg-[#0B0F17] border border-[#1E293B] rounded">
             <span class="text-slate-500">Page</span>
             <span class="text-sky-400 font-bold" x-text="currentPage"></span>
             <span class="text-slate-500">/</span>
@@ -735,20 +762,16 @@
           </div>
 
           <!-- Next Page -->
-          <button @click="setPage(currentPage + 1)"
-                  :disabled="currentPage >= totalPages()"
-                  :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
-                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
-                  title="Next Page">
+          <button @click="setPage(currentPage + 1)" :disabled="currentPage >= totalPages()"
+            :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+            class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition" title="Next Page">
             <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
           </button>
 
           <!-- Last Page -->
-          <button @click="setPage(totalPages())"
-                  :disabled="currentPage >= totalPages()"
-                  :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
-                  class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition"
-                  title="Last Page">
+          <button @click="setPage(totalPages())" :disabled="currentPage >= totalPages()"
+            :class="currentPage >= totalPages() ? 'opacity-30 cursor-not-allowed text-slate-600' : 'hover:bg-[#1E293B] text-slate-300 hover:text-white'"
+            class="p-1 rounded bg-[#0B0F17] border border-[#1E293B] transition" title="Last Page">
             <i data-lucide="chevrons-right" class="w-3.5 h-3.5"></i>
           </button>
         </div>
@@ -756,16 +779,18 @@
     </section>
 
     <!-- RESIZABLE SPLITTER DIVIDER (Drag to adjust panels) -->
-    <div x-show="maximizedPanel === 'none'"
-      @mousedown="startSplitResize($event)"
+    <div x-show="maximizedPanel === 'none'" @mousedown="startSplitResize($event)"
       class="bg-[#1E293B] hover:bg-sky-500 transition-colors flex items-center justify-center shrink-0 z-20 group select-none"
       :class="layoutOrientation === 'vertical' ? 'h-1.5 hover:h-2 cursor-row-resize w-full' : 'w-1.5 hover:w-2 cursor-col-resize h-full'"
       :title="layoutOrientation === 'vertical' ? 'Drag up/down to adjust vertical layout' : 'Drag left/right to adjust horizontal layout'">
-      <div :class="layoutOrientation === 'vertical' ? 'w-8 h-0.5 bg-slate-500 group-hover:bg-white rounded' : 'h-8 w-0.5 bg-slate-500 group-hover:bg-white rounded'"></div>
+      <div
+        :class="layoutOrientation === 'vertical' ? 'w-8 h-0.5 bg-slate-500 group-hover:bg-white rounded' : 'h-8 w-0.5 bg-slate-500 group-hover:bg-white rounded'">
+      </div>
     </div>
 
     <!-- RIGHT/BOTTOM PANE: DEEP INSPECTOR -->
-    <section :style="maximizedPanel === 'inspector' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'table' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + (100 - tableSplitPct) + '%; min-height: 140px;' : 'width: ' + (100 - tableSplitPct) + '%; min-width: 300px;'))"
+    <section
+      :style="maximizedPanel === 'inspector' ? (layoutOrientation === 'vertical' ? 'height: 100%' : 'width: 100%') : (maximizedPanel === 'table' ? 'display: none' : (layoutOrientation === 'vertical' ? 'height: ' + (100 - tableSplitPct) + '%; min-height: 140px;' : 'width: ' + (100 - tableSplitPct) + '%; min-width: 300px;'))"
       class="flex flex-col bg-[#111827]/90 overflow-hidden min-h-0">
       <!-- Tab Header -->
       <div class="h-10 bg-[#0B0F17] border-b border-[#1E293B] px-3 flex items-center justify-between shrink-0">
@@ -1775,7 +1800,8 @@
   <!-- ========================================================================= -->
   <div x-show="currentAppTab === 'ai_activity'" class="flex-1 overflow-hidden flex flex-col bg-[#0B0F17]">
     <!-- Top Sub-Bar: Sub-tab switcher & Search/Actions -->
-    <div class="h-12 bg-[#111827]/90 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-xs">
+    <div
+      class="h-12 bg-[#111827]/90 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-xs">
       <!-- Left: Sub-Tab Pills -->
       <div class="flex items-center space-x-2 bg-[#0B0F17] p-1 rounded-lg border border-[#1E293B]">
         <!-- Sub-Tab 1: Command History -->
@@ -1785,7 +1811,7 @@
           <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
           <span>Command Audit Trail</span>
           <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-teal-500/20 text-teal-300 font-bold ml-1"
-                x-text="commands.length"></span>
+            x-text="commands.length"></span>
         </button>
 
         <!-- Sub-Tab 2: Payload Vault -->
@@ -1795,7 +1821,7 @@
           <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
           <span>Payload Vault &amp; Matrix</span>
           <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 font-bold ml-1"
-                x-text="payloads.length"></span>
+            x-text="payloads.length"></span>
         </button>
       </div>
 
@@ -1806,7 +1832,8 @@
           <div class="flex items-center space-x-2">
             <div class="relative">
               <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
-              <input type="text" x-model="commandSearch" @input.debounce.150ms="filterCommands()" placeholder="Search commands, reasoning..."
+              <input type="text" x-model="commandSearch" @input.debounce.150ms="filterCommands()"
+                placeholder="Search commands, reasoning..."
                 class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-teal-500 w-56">
             </div>
             <select x-model="commandStatusFilter" @change="filterCommands()"
@@ -1831,7 +1858,8 @@
           <div class="flex items-center space-x-2">
             <div class="relative">
               <i data-lucide="search" class="w-3 h-3 text-slate-500 absolute left-2 top-2"></i>
-              <input type="text" x-model="payloadSearch" @input.debounce.150ms="filterPayloads()" placeholder="Search payload, param, URL..."
+              <input type="text" x-model="payloadSearch" @input.debounce.150ms="filterPayloads()"
+                placeholder="Search payload, param, URL..."
                 class="bg-[#0B0F17] border border-[#1E293B] rounded pl-7 pr-2.5 py-1 text-slate-200 text-[11px] placeholder-slate-600 focus:outline-none focus:border-amber-500 w-56">
             </div>
             <select x-model="payloadTypeFilter" @change="filterPayloads()"
@@ -1872,8 +1900,10 @@
     <div x-show="aiSubTab === 'commands'" class="flex-1 min-h-0 overflow-hidden flex flex-row">
       <!-- Left: List of Commands -->
       <div class="w-[45%] border-r border-[#1E293B] flex flex-col bg-[#0B0F17] overflow-hidden min-h-0">
-        <div class="p-2 bg-[#111827]/70 border-b border-[#1E293B] text-[11px] font-mono text-slate-400 flex items-center justify-between shrink-0">
-          <span>Captured Commands (<span class="text-teal-400 font-bold" x-text="filteredCommandsList.length"></span>)</span>
+        <div
+          class="p-2 bg-[#111827]/70 border-b border-[#1E293B] text-[11px] font-mono text-slate-400 flex items-center justify-between shrink-0">
+          <span>Captured Commands (<span class="text-teal-400 font-bold"
+              x-text="filteredCommandsList.length"></span>)</span>
           <span class="text-[10px] text-slate-500">Live Telemetry from MCP / Terminal</span>
         </div>
 
@@ -1891,7 +1921,8 @@
                     'bg-amber-950 border-amber-700 text-amber-300': cmd.status === 'BLOCKED',
                     'bg-purple-950 border-purple-700 text-purple-300': cmd.status === 'TIMEOUT'
                   }" class="px-1.5 py-0.2 rounded text-[9px] font-bold border" x-text="cmd.status"></span>
-                  <span class="px-1 py-0.2 rounded text-[9px] bg-slate-800 text-slate-400" x-text="cmd.tool_name || 'terminal'"></span>
+                  <span class="px-1 py-0.2 rounded text-[9px] bg-slate-800 text-slate-400"
+                    x-text="cmd.tool_name || 'terminal'"></span>
                 </div>
                 <div class="text-[10px] text-slate-500 flex items-center space-x-1.5">
                   <span x-text="cmd.duration_ms + 'ms'"></span>
@@ -1901,7 +1932,8 @@
               </div>
 
               <!-- Command String Preview -->
-              <div class="bg-[#0B0F17] rounded p-1.5 border border-[#1E293B]/70 font-mono text-[11px] text-teal-300 truncate mb-1">
+              <div
+                class="bg-[#0B0F17] rounded p-1.5 border border-[#1E293B]/70 font-mono text-[11px] text-teal-300 truncate mb-1">
                 <span class="text-slate-500 select-none">$ </span><span x-text="cmd.command"></span>
               </div>
 
@@ -1913,15 +1945,18 @@
             </div>
           </template>
 
-          <div x-show="filteredCommandsList.length === 0" class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
+          <div x-show="filteredCommandsList.length === 0"
+            class="p-8 text-center text-slate-500 font-mono text-xs space-y-2">
             <i data-lucide="terminal" class="w-8 h-8 mx-auto opacity-30 text-teal-400"></i>
             <p>No terminal commands recorded yet.</p>
-            <p class="text-[10px] text-slate-600">Commands executed by AI via MCP tool <code>run_pentest_command</code> will stream here live.</p>
+            <p class="text-[10px] text-slate-600">Commands executed by AI via MCP tool <code>run_pentest_command</code>
+              will stream here live.</p>
           </div>
         </div>
 
         <!-- Bottom Pagination Bar for Commands -->
-        <div class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
+        <div
+          class="h-10 bg-[#111827] border-t border-[#1E293B] px-3 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
           <div class="flex items-center space-x-1.5">
             <span class="text-slate-500">Showing</span>
             <span class="text-teal-400 font-bold" x-text="commandPageStartItem() + '-' + commandPageEndItem()"></span>
@@ -1959,7 +1994,8 @@
 
           <div class="flex items-center space-x-1">
             <span class="text-slate-500 text-[10px]">Rows:</span>
-            <select :value="commandPageSize >= 999999 ? 'ALL' : commandPageSize" @change="setCommandPageSize($event.target.value)"
+            <select :value="commandPageSize >= 999999 ? 'ALL' : commandPageSize"
+              @change="setCommandPageSize($event.target.value)"
               class="bg-[#0B0F17] border border-[#1E293B] text-teal-400 font-bold rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer">
               <option value="25">25</option>
               <option value="50">50</option>
@@ -1976,14 +2012,15 @@
         <template x-if="selectedCommand">
           <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
             <!-- Header bar of selected command -->
-            <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0 font-mono text-xs">
+            <div
+              class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0 font-mono text-xs">
               <div class="flex items-center space-x-2">
                 <span class="text-teal-400 font-bold" x-text="'Command #' + selectedCommand.id"></span>
                 <span class="px-2 py-0.5 rounded text-[10px] bg-[#0B0F17] border border-[#1E293B] text-slate-300"
-                      x-text="'Agent: ' + (selectedCommand.agent_id || 'primary_agent')"></span>
+                  x-text="'Agent: ' + (selectedCommand.agent_id || 'primary_agent')"></span>
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                      :class="selectedCommand.exit_code === 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'"
-                      x-text="'Exit Code: ' + (selectedCommand.exit_code !== null ? selectedCommand.exit_code : 'N/A')"></span>
+                  :class="selectedCommand.exit_code === 0 ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'"
+                  x-text="'Exit Code: ' + (selectedCommand.exit_code !== null ? selectedCommand.exit_code : 'N/A')"></span>
               </div>
 
               <div class="flex items-center space-x-1.5">
@@ -2000,7 +2037,8 @@
               <!-- Raw Command Block -->
               <div>
                 <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Executed Command:</label>
-                <div class="bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-teal-300 text-xs font-mono leading-relaxed select-text flex items-start justify-between">
+                <div
+                  class="bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-teal-300 text-xs font-mono leading-relaxed select-text flex items-start justify-between">
                   <div>
                     <span class="text-slate-600 select-none">$ </span>
                     <span x-text="selectedCommand.command"></span>
@@ -2009,7 +2047,8 @@
               </div>
 
               <!-- AI Reasoning Card -->
-              <div x-show="selectedCommand.reasoning" class="p-3 bg-gradient-to-r from-teal-950/40 to-[#0B0F17] border border-teal-800/40 rounded-lg">
+              <div x-show="selectedCommand.reasoning"
+                class="p-3 bg-gradient-to-r from-teal-950/40 to-[#0B0F17] border border-teal-800/40 rounded-lg">
                 <div class="flex items-center space-x-1.5 text-teal-400 text-[10px] font-bold uppercase mb-1">
                   <i data-lucide="sparkles" class="w-3 h-3"></i>
                   <span>AI Agent Intent &amp; Reasoning</span>
@@ -2024,18 +2063,21 @@
                   <button @click="copyText(selectedCommand.stdout)" x-show="selectedCommand.stdout"
                     class="text-[10px] text-slate-500 hover:text-slate-300 underline">Copy Output</button>
                 </div>
-                <pre class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-slate-200 text-xs font-mono overflow-x-auto max-h-72 select-text whitespace-pre-wrap leading-relaxed"
-                     x-text="selectedCommand.stdout || '[No standard output produced]'"></pre>
+                <pre
+                  class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-slate-200 text-xs font-mono overflow-x-auto max-h-72 select-text whitespace-pre-wrap leading-relaxed"
+                  x-text="selectedCommand.stdout || '[No standard output produced]'"></pre>
               </div>
 
               <!-- Standard Error (STDERR) -->
               <div x-show="selectedCommand.stderr">
                 <div class="flex items-center justify-between mb-1">
                   <label class="text-[10px] uppercase font-bold text-rose-400">Standard Error (STDERR):</label>
-                  <button @click="copyText(selectedCommand.stderr)" class="text-[10px] text-rose-400 hover:text-rose-300 underline">Copy Stderr</button>
+                  <button @click="copyText(selectedCommand.stderr)"
+                    class="text-[10px] text-rose-400 hover:text-rose-300 underline">Copy Stderr</button>
                 </div>
-                <pre class="w-full bg-rose-950/20 border border-rose-900/50 rounded-lg p-3 text-rose-300 text-xs font-mono overflow-x-auto max-h-48 select-text whitespace-pre-wrap leading-relaxed"
-                     x-text="selectedCommand.stderr"></pre>
+                <pre
+                  class="w-full bg-rose-950/20 border border-rose-900/50 rounded-lg p-3 text-rose-300 text-xs font-mono overflow-x-auto max-h-48 select-text whitespace-pre-wrap leading-relaxed"
+                  x-text="selectedCommand.stderr"></pre>
               </div>
             </div>
           </div>
@@ -2051,16 +2093,18 @@
 
     <!-- SUB-VIEW 2: PAYLOAD VAULT & ATTACK MATRIX -->
     <div x-show="aiSubTab === 'payloads'" class="flex-1 min-h-0 overflow-hidden p-4 flex flex-col font-mono text-xs">
-      <div class="bg-[#111827] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col flex-1 min-h-0 shadow-lg">
+      <div
+        class="bg-[#111827] border border-[#1E293B] rounded-xl overflow-hidden flex flex-col flex-1 min-h-0 shadow-lg">
         <!-- Vault Header & Counter -->
         <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0">
           <div class="flex items-center space-x-2">
             <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i>
             <span class="font-bold text-slate-100">Security Test Payloads Vault</span>
             <span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-bold"
-                  x-text="filteredPayloadsList.length + ' captured'"></span>
+              x-text="filteredPayloadsList.length + ' captured'"></span>
           </div>
-          <span class="text-[10px] text-slate-400">Captured security test mutations ready for verification and 1-click replay</span>
+          <span class="text-[10px] text-slate-400">Captured security test mutations ready for verification and 1-click
+            replay</span>
         </div>
 
         <!-- Table of Payloads -->
@@ -2094,15 +2138,18 @@
                   </td>
                   <!-- Parameter -->
                   <td class="px-3 py-2.5 font-bold text-slate-200">
-                    <span x-text="p.target_param || '-'" class="px-1.5 py-0.5 rounded bg-[#0B0F17] border border-[#1E293B]"></span>
+                    <span x-text="p.target_param || '-'"
+                      class="px-1.5 py-0.5 rounded bg-[#0B0F17] border border-[#1E293B]"></span>
                   </td>
                   <!-- Raw Payload Syntax Box -->
                   <td class="px-3 py-2.5">
-                    <div class="bg-[#0B0F17] border border-[#1E293B] rounded px-2 py-1 text-amber-300 font-mono text-[11px] truncate max-w-md select-text"
-                         :title="p.raw_payload" x-text="p.raw_payload"></div>
+                    <div
+                      class="bg-[#0B0F17] border border-[#1E293B] rounded px-2 py-1 text-amber-300 font-mono text-[11px] truncate max-w-md select-text"
+                      :title="p.raw_payload" x-text="p.raw_payload"></div>
                   </td>
                   <!-- Target URL -->
-                  <td class="px-3 py-2.5 text-slate-400 text-[11px] truncate max-w-xs" :title="p.target_url" x-text="p.target_url || '-'"></td>
+                  <td class="px-3 py-2.5 text-slate-400 text-[11px] truncate max-w-xs" :title="p.target_url"
+                    x-text="p.target_url || '-'"></td>
                   <!-- Outcome Badge -->
                   <td class="px-3 py-2.5">
                     <span :class="{
@@ -2132,15 +2179,18 @@
             </tbody>
           </table>
 
-          <div x-show="filteredPayloadsList.length === 0" class="p-12 text-center text-slate-500 font-mono text-xs space-y-2">
+          <div x-show="filteredPayloadsList.length === 0"
+            class="p-12 text-center text-slate-500 font-mono text-xs space-y-2">
             <i data-lucide="shield-alert" class="w-8 h-8 mx-auto opacity-30 text-amber-400"></i>
             <p>No test payloads cataloged yet.</p>
-            <p class="text-[10px] text-slate-600">Payloads tested by AI via MCP tool <code>record_test_payload</code> or security fuzzer will appear here.</p>
+            <p class="text-[10px] text-slate-600">Payloads tested by AI via MCP tool <code>record_test_payload</code> or
+              security fuzzer will appear here.</p>
           </div>
         </div>
 
         <!-- Bottom Pagination Bar for Payloads -->
-        <div class="h-10 bg-[#0B0F17] border-t border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
+        <div
+          class="h-10 bg-[#0B0F17] border-t border-[#1E293B] px-4 flex items-center justify-between shrink-0 font-mono text-[11px] text-slate-400 select-none">
           <div class="flex items-center space-x-1.5">
             <span class="text-slate-500">Showing</span>
             <span class="text-amber-400 font-bold" x-text="payloadPageStartItem() + '-' + payloadPageEndItem()"></span>
@@ -2179,7 +2229,8 @@
 
           <div class="flex items-center space-x-1">
             <span class="text-slate-500 text-[10px]">Rows:</span>
-            <select :value="payloadPageSize >= 999999 ? 'ALL' : payloadPageSize" @change="setPayloadPageSize($event.target.value)"
+            <select :value="payloadPageSize >= 999999 ? 'ALL' : payloadPageSize"
+              @change="setPayloadPageSize($event.target.value)"
               class="bg-[#111827] border border-[#1E293B] text-amber-400 font-bold rounded px-1.5 py-0.5 text-[10px] focus:outline-none cursor-pointer">
               <option value="25">25</option>
               <option value="50">50</option>
@@ -2217,7 +2268,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
     <div @click.away="openLoginModal = false"
       class="w-full max-w-3xl bg-[#111827] border border-[#1E293B] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-2xl my-auto">
-      
+
       <!-- Modal Header -->
       <div class="flex items-center justify-between border-b border-[#1E293B] pb-3.5">
         <div class="flex items-center space-x-3">
@@ -2227,23 +2278,27 @@
           <div>
             <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
               <span>Session &amp; Cookie Credentials</span>
-              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold flex items-center">
+              <span
+                class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold flex items-center">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
                 AI Auto-Injection Active
               </span>
             </h3>
             <p class="text-[11px] text-slate-400 mt-0.5">
-              Manage authenticated target sessions. AI Agents automatically inject matching cookies into tool requests with zero prompts.
+              Manage authenticated target sessions. AI Agents automatically inject matching cookies into tool requests
+              with zero prompts.
             </p>
           </div>
         </div>
-        <button @click="openLoginModal = false" class="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition">
+        <button @click="openLoginModal = false"
+          class="text-slate-500 hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-800/60 transition">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
       <!-- AI Auto-Injection Callout Banner -->
-      <div class="p-3.5 bg-gradient-to-r from-emerald-950/40 via-[#0B0F17]/90 to-slate-900 border border-emerald-800/40 rounded-xl flex items-start space-x-3">
+      <div
+        class="p-3.5 bg-gradient-to-r from-emerald-950/40 via-[#0B0F17]/90 to-slate-900 border border-emerald-800/40 rounded-xl flex items-start space-x-3">
         <div class="p-1.5 bg-emerald-900/60 rounded-lg text-emerald-400 mt-0.5 shrink-0 border border-emerald-700/40">
           <i data-lucide="zap" class="w-4 h-4"></i>
         </div>
@@ -2252,7 +2307,11 @@
             <span>ZERO-PROMPT CREDENTIAL INJECTION</span>
           </div>
           <p class="text-slate-300 mt-0.5">
-            When MCP AI Agents (e.g. Opencode, Hermes, Claude) call <code class="text-amber-300 font-semibold bg-amber-950/60 px-1 py-0.5 rounded">send_http_request</code> targeting any domain listed below, the <code class="text-emerald-300 font-semibold bg-emerald-950/60 px-1 py-0.5 rounded">Cookie</code> header is automatically populated. No re-authentication or prompt interruptions required.
+            When MCP AI Agents (e.g. Opencode, Hermes, Claude) call <code
+              class="text-amber-300 font-semibold bg-amber-950/60 px-1 py-0.5 rounded">send_http_request</code>
+            targeting any domain listed below, the <code
+              class="text-emerald-300 font-semibold bg-emerald-950/60 px-1 py-0.5 rounded">Cookie</code> header is
+            automatically populated. No re-authentication or prompt interruptions required.
           </p>
         </div>
       </div>
@@ -2267,13 +2326,13 @@
               </label>
               <span class="text-[10px] text-slate-500">Auto-extracted if omitted</span>
             </div>
-            <input type="text" x-model="importCookieForm.domain"
-              placeholder="e.g. target.example.com"
+            <input type="text" x-model="importCookieForm.domain" placeholder="e.g. target.example.com"
               class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500 placeholder:text-slate-600 transition">
           </div>
           <div class="flex flex-col justify-end">
             <span class="text-[11px] text-slate-400 mb-1">Active Project Scope:</span>
-            <div class="px-3 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-400 font-bold truncate flex items-center space-x-1.5">
+            <div
+              class="px-3 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-400 font-bold truncate flex items-center space-x-1.5">
               <i data-lucide="folder" class="w-3.5 h-3.5 text-indigo-400 shrink-0"></i>
               <span x-text="selectedProject === 'ALL' ? 'default' : selectedProject"></span>
             </div>
@@ -2284,7 +2343,9 @@
           <div class="flex items-center justify-between mb-1.5">
             <label class="text-[11px] text-slate-300 font-semibold flex items-center space-x-1.5">
               <span>Paste Cookie / cURL / Headers / JSON:</span>
-              <span class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-400 border border-slate-700">Supports HttpOnly &amp; Raw</span>
+              <span
+                class="px-1.5 py-0.2 rounded text-[9px] bg-slate-800 text-emerald-400 border border-slate-700">Supports
+                HttpOnly &amp; Raw</span>
             </label>
             <button @click="copyConsoleHelper()"
               class="text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-mono transition bg-amber-950/40 hover:bg-amber-950/70 border border-amber-800/40 px-2 py-0.5 rounded"
@@ -2298,9 +2359,11 @@
             class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y placeholder:text-slate-600 transition"></textarea>
         </div>
 
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1 border-t border-[#1E293B]/60">
+        <div
+          class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1 border-t border-[#1E293B]/60">
           <div class="text-[10px] text-slate-500 leading-tight">
-            💡 <strong class="text-slate-400">Pro-tip:</strong> For HttpOnly session cookies, right-click any request in DevTools (F12) Network tab &gt; <code class="text-sky-400">Copy as cURL</code>, then paste directly above.
+            💡 <strong class="text-slate-400">Pro-tip:</strong> For HttpOnly session cookies, right-click any request in
+            DevTools (F12) Network tab &gt; <code class="text-sky-400">Copy as cURL</code>, then paste directly above.
           </div>
           <div class="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
             <button @click="importCookieForm.rawInput = ''"
@@ -2319,7 +2382,8 @@
         <div class="flex items-center justify-between">
           <div class="text-[11px] font-bold text-slate-300 flex items-center space-x-2">
             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
-            <span>Active Stored Credentials (<span class="text-emerald-400" x-text="activeSessions.length"></span>)</span>
+            <span>Active Stored Credentials (<span class="text-emerald-400"
+                x-text="activeSessions.length"></span>)</span>
           </div>
           <div class="flex items-center space-x-2">
             <button x-show="activeSessions.length > 0" @click="clearAllSessions()"
@@ -2338,15 +2402,18 @@
 
         <div class="max-h-56 overflow-y-auto space-y-2 pr-1">
           <template x-if="activeSessions.length === 0">
-            <div class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-xl text-center text-slate-500 text-[11px] space-y-1">
+            <div
+              class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-xl text-center text-slate-500 text-[11px] space-y-1">
               <i data-lucide="cookie" class="w-6 h-6 mx-auto opacity-30 text-amber-400"></i>
               <p>No stored session credentials found.</p>
-              <p class="text-[10px] text-slate-600">Paste cookie string, cURL command, or JSON array in the form above to activate credentials for AI Agents.</p>
+              <p class="text-[10px] text-slate-600">Paste cookie string, cURL command, or JSON array in the form above
+                to activate credentials for AI Agents.</p>
             </div>
           </template>
 
           <template x-for="s in activeSessions" :key="s.id || s.domain">
-            <div class="p-3 bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 rounded-xl space-y-2 transition">
+            <div
+              class="p-3 bg-[#0B0F17] border border-[#1E293B] hover:border-slate-700 rounded-xl space-y-2 transition">
               <div class="flex items-center justify-between">
                 <!-- Left: Domain info & badges -->
                 <div class="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -2354,10 +2421,13 @@
                     <i data-lucide="globe" class="w-3.5 h-3.5 text-sky-400"></i>
                     <span class="font-bold text-sky-300 font-mono text-xs select-text" x-text="s.domain"></span>
                   </div>
-                  <span class="px-2 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"
+                  <span
+                    class="px-2 py-0.2 rounded text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold"
                     x-text="s.cookie_count + (s.cookie_count === 1 ? ' cookie' : ' cookies')"></span>
-                  <span class="text-[10px] text-indigo-400 font-mono" x-text="'[' + (s.project || 'default') + ']'"></span>
-                  <span class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.2 rounded">
+                  <span class="text-[10px] text-indigo-400 font-mono"
+                    x-text="'[' + (s.project || 'default') + ']'"></span>
+                  <span
+                    class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.2 rounded">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
                     Auto-Injected
                   </span>
@@ -2365,8 +2435,9 @@
 
                 <!-- Right: Action Buttons (Copy, Inspect, Revoke) -->
                 <div class="flex items-center space-x-1.5 shrink-0">
-                  <span class="text-[9px] text-slate-500 font-mono mr-1 hidden sm:inline" x-text="s.updated_at ? s.updated_at.split('T')[0] : ''"></span>
-                  
+                  <span class="text-[9px] text-slate-500 font-mono mr-1 hidden sm:inline"
+                    x-text="s.updated_at ? s.updated_at.split('T')[0] : ''"></span>
+
                   <!-- Copy Cookie String Button -->
                   <button @click="copySessionCookieString(s)"
                     class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] transition font-semibold flex items-center space-x-1"
@@ -2396,15 +2467,19 @@
               <!-- Cookie Name Badges with Individual Revoke (✕) -->
               <div class="flex items-center flex-wrap gap-1.5 pt-0.5">
                 <span class="text-[10px] text-slate-500 font-semibold mr-0.5">Keys:</span>
-                <template x-for="cName in (s.cookie_names && s.cookie_names.length ? s.cookie_names : (s.cookies || []).map(c => c.name))" :key="cName">
-                  <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900 border border-slate-700 text-emerald-300 font-mono">
+                <template
+                  x-for="cName in (s.cookie_names && s.cookie_names.length ? s.cookie_names : (s.cookies || []).map(c => c.name))"
+                  :key="cName">
+                  <span
+                    class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900 border border-slate-700 text-emerald-300 font-mono">
                     <span x-text="cName"></span>
                     <button @click.stop="deleteSingleCookie(s.id, cName, s.domain)"
                       class="text-slate-500 hover:text-rose-400 ml-1 transition"
                       :title="'Revoke only ' + cName">✕</button>
                   </span>
                 </template>
-                <span x-show="!s.cookie_names || s.cookie_names.length === 0" class="text-[10px] text-slate-500 italic">No cookie keys parsed</span>
+                <span x-show="!s.cookie_names || s.cookie_names.length === 0"
+                  class="text-[10px] text-slate-500 italic">No cookie keys parsed</span>
               </div>
 
               <!-- Expanded Detailed Cookie Inspector Table -->
@@ -2426,14 +2501,17 @@
                       <template x-for="ck in (s.cookies || [])" :key="ck.name">
                         <tr class="border-b border-[#1E293B]/40 hover:bg-slate-800/30">
                           <td class="py-1 px-1.5 text-emerald-300 font-semibold select-text" x-text="ck.name"></td>
-                          <td class="py-1 px-1.5 text-slate-300 select-text truncate max-w-[150px]" x-text="ck.value" :title="ck.value"></td>
+                          <td class="py-1 px-1.5 text-slate-300 select-text truncate max-w-[150px]" x-text="ck.value"
+                            :title="ck.value"></td>
                           <td class="py-1 px-1.5 text-slate-400 select-text" x-text="ck.domain || s.domain"></td>
                           <td class="py-1 px-1.5 text-slate-400" x-text="ck.path || '/'"></td>
                           <td class="py-1 px-1.5 text-center">
-                            <span :class="ck.httpOnly ? 'text-amber-400' : 'text-slate-600'" x-text="ck.httpOnly ? 'YES' : 'NO'"></span>
+                            <span :class="ck.httpOnly ? 'text-amber-400' : 'text-slate-600'"
+                              x-text="ck.httpOnly ? 'YES' : 'NO'"></span>
                           </td>
                           <td class="py-1 px-1.5 text-center">
-                            <span :class="ck.secure ? 'text-emerald-400' : 'text-slate-600'" x-text="ck.secure ? 'YES' : 'NO'"></span>
+                            <span :class="ck.secure ? 'text-emerald-400' : 'text-slate-600'"
+                              x-text="ck.secure ? 'YES' : 'NO'"></span>
                           </td>
                           <td class="py-1 px-1.5 text-right">
                             <button @click="deleteSingleCookie(s.id, ck.name, s.domain)"
