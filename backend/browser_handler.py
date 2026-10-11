@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from backend.database import SessionLocal, ActiveSession
+from backend.security_utils import check_ssrf_safety
 
 logger = logging.getLogger("spectra.browser")
 
@@ -74,9 +75,9 @@ async def render_page(
         db = SessionLocal()
         try:
             sess_record = db.query(ActiveSession).filter(ActiveSession.domain == domain).first()
-            if sess_record and sess_record.storage_state:
+            if sess_record:
                 try:
-                    state_data = json.loads(sess_record.storage_state)
+                    state_data = sess_record.get_decrypted_state()
                     cookies = state_data.get("cookies", [])
                     if cookies:
                         await context.add_cookies(cookies)
@@ -139,21 +140,21 @@ async def render_page(
 
 
 def _save_session_cookies(project: str, domain: str, storage_state: dict):
-    """Upserts captured session state into SQLite ActiveSession table."""
+    """Upserts captured session state into SQLite ActiveSession table with encryption."""
     db = SessionLocal()
     try:
         existing = db.query(ActiveSession).filter(ActiveSession.domain == domain).first()
         if existing:
             existing.project = project
-            existing.storage_state = json.dumps(storage_state)
+            existing.set_encrypted_state(storage_state)
             existing.updated_at = datetime.now(timezone.utc)
         else:
             new_session = ActiveSession(
                 project=project,
                 domain=domain,
-                storage_state=json.dumps(storage_state),
                 updated_at=datetime.now(timezone.utc)
             )
+            new_session.set_encrypted_state(storage_state)
             db.add(new_session)
         db.commit()
     except Exception as ex:

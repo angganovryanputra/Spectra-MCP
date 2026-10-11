@@ -35,6 +35,7 @@ from backend.intercept_manager import (
     pop_intercept_result,
     check_scope
 )
+from backend.security_utils import check_command_safe_mode, check_ssrf_safety
 
 # Initialize FastMCP Server
 mcp = FastMCP("spectra_mcp")
@@ -75,9 +76,10 @@ async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
         _outbound_clients.clear()
         _outbound_loop = current_loop
     key = proxy_cfg.strip() if proxy_cfg else "direct"
+    verify_ssl = os.getenv("SPECTRA_VERIFY_SSL", "false").lower() == "true"
     if key not in _outbound_clients or _outbound_clients[key].is_closed:
         kwargs = {
-            "verify": False,
+            "verify": verify_ssl,
             "follow_redirects": True,
             "timeout": 30.0,
             "limits": httpx.Limits(max_keepalive_connections=30, max_connections=100, keepalive_expiry=60.0)
@@ -245,13 +247,16 @@ def _extract_domain_cookies(url: str, project: str = "default") -> Dict[str, str
                     (stored_dom in target_host and len(stored_dom) > 3)
                 )
 
-                if is_match and s.storage_state:
-                    state_data = json.loads(s.storage_state)
-                    for c in state_data.get("cookies", []):
-                        c_name = c.get("name")
-                        c_val = c.get("value")
-                        if c_name and c_val:
-                            cookies[c_name] = c_val
+                if is_match:
+                    try:
+                        state_data = s.get_decrypted_state()
+                        for c in state_data.get("cookies", []):
+                            c_name = c.get("name")
+                            c_val = c.get("value")
+                            if c_name and c_val:
+                                cookies[c_name] = c_val
+                    except Exception:
+                        pass
         finally:
             db.close()
     except Exception:
@@ -683,31 +688,31 @@ async def run_pentest_command(
     streams the command and outputs to Spectra for full operator observability and audit history,
     and applies automated safety guardrails to prevent destructive system commands.
     """
-    import re
     target_project = (project or DEFAULT_PROJECT).strip().lower()
     target_agent = (agent_id or "primary_agent").strip()
     cmd_clean = command.strip()
 
-    # Safety guardrail check
-    for pat in DANGEROUS_COMMAND_PATTERNS:
-        if re.search(pat, cmd_clean, re.IGNORECASE):
-            blocked_payload = {
-                "project": target_project,
-                "agent_id": target_agent,
-                "command": cmd_clean,
-                "tool_name": tool_name or "terminal",
-                "reasoning": reasoning or "",
-                "exit_code": -1,
-                "stdout": "",
-                "stderr": f"Command blocked by Spectra CLI Safe-Mode Guardrail (Matched dangerous pattern '{pat}')",
-                "duration_ms": 0,
-                "status": "BLOCKED"
-            }
-            await _persist_and_stream_command(blocked_payload)
-            return (
-                f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE:\n"
-                f"The command '{cmd_clean}' was blocked because it contains potentially destructive instructions."
-            )
+    # Hardened Cross-Platform Safety Guardrail Check
+    is_safe_cmd, block_reason = check_command_safe_mode(cmd_clean)
+    if not is_safe_cmd:
+        blocked_payload = {
+            "project": target_project,
+            "agent_id": target_agent,
+            "command": cmd_clean,
+            "tool_name": tool_name or "terminal",
+            "reasoning": reasoning or "",
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": block_reason,
+            "duration_ms": 0,
+            "status": "BLOCKED"
+        }
+        await _persist_and_stream_command(blocked_payload)
+        return (
+            f"[!] BLOCKED BY SPECTRA CLI SAFE-MODE:\n"
+            f"{block_reason}\n"
+            f"Please restrict commands to authorized non-destructive reconnaissance and assessment utilities."
+        )
 
     start_time = time.time()
     stdout_text = ""
@@ -718,6 +723,7 @@ async def run_pentest_command(
     try:
         proc = await asyncio.create_subprocess_shell(
             cmd_clean,
+            cwd=CURRENT_DIR,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )

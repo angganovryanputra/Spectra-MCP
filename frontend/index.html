@@ -1757,6 +1757,38 @@
         </button>
       </div>
 
+      <!-- SSRF Guardrail: Internal Networks Toggle -->
+      <div class="flex items-center justify-between p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+        <div>
+          <div class="font-bold text-slate-200 text-sm flex items-center">
+            <i data-lucide="shield-alert" class="w-4 h-4 mr-1.5 text-amber-400"></i>
+            <span>SSRF Protection: Permit Private RFC1918 Subnets</span>
+          </div>
+          <div class="text-slate-400 text-xs">Allow testing targets on private subnets (10.x, 192.168.x, 172.16.x). When disabled, requests to private IPs are blocked to prevent internal SSRF. (Cloud metadata 169.254.x.x is strictly blocked).</div>
+        </div>
+        <button @click="scopeForm.allow_internal_networks = !scopeForm.allow_internal_networks"
+          :class="scopeForm.allow_internal_networks ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-4 py-1.5 rounded font-bold transition">
+          <span x-text="scopeForm.allow_internal_networks ? 'PERMITTED' : 'BLOCKED'"></span>
+        </button>
+      </div>
+
+      <!-- TLS / SSL Verification Toggle -->
+      <div class="flex items-center justify-between p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+        <div>
+          <div class="font-bold text-slate-200 text-sm flex items-center">
+            <i data-lucide="lock" class="w-4 h-4 mr-1.5 text-sky-400"></i>
+            <span>Enforce Strict SSL / TLS Certificate Validation</span>
+          </div>
+          <div class="text-slate-400 text-xs">Validate HTTPS certificates against root CAs. Disable when testing targets with self-signed certs or Burp Suite CA.</div>
+        </div>
+        <button @click="scopeForm.verify_ssl = !scopeForm.verify_ssl"
+          :class="scopeForm.verify_ssl ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400'"
+          class="px-4 py-1.5 rounded font-bold transition">
+          <span x-text="scopeForm.verify_ssl ? 'STRICT' : 'IGNORED'"></span>
+        </button>
+      </div>
+
       <!-- Rate Limiting / Throttling -->
       <div class="space-y-2">
         <label class="block font-bold text-amber-400">Request Rate Limiting / Throttling (Delay ms):</label>
@@ -2614,6 +2646,8 @@
           scope_enabled: false,
           allowedRaw: '*\n127.0.0.1',
           blockedRaw: 'logout\ndelete.*user\npayment\ncheckout',
+          allow_internal_networks: false,
+          verify_ssl: false,
           delay_ms: 0,
           upstream_proxy: ''
         },
@@ -3585,6 +3619,8 @@
               this.scopeForm.scope_enabled = Boolean(data.scope_enabled);
               this.scopeForm.allowedRaw = (data.allowed_hosts || []).join('\n');
               this.scopeForm.blockedRaw = (data.blocked_patterns || []).join('\n');
+              this.scopeForm.allow_internal_networks = Boolean(data.allow_internal_networks);
+              this.scopeForm.verify_ssl = Boolean(data.verify_ssl);
               this.scopeForm.delay_ms = data.delay_ms || 0;
               this.scopeForm.upstream_proxy = data.upstream_proxy || '';
             }
@@ -3604,6 +3640,8 @@
                 scope_enabled: this.scopeForm.scope_enabled,
                 allowed_hosts: allowed,
                 blocked_patterns: blocked,
+                allow_internal_networks: Boolean(this.scopeForm.allow_internal_networks),
+                verify_ssl: Boolean(this.scopeForm.verify_ssl),
                 delay_ms: this.scopeForm.delay_ms || 0,
                 upstream_proxy: this.scopeForm.upstream_proxy || ''
               })

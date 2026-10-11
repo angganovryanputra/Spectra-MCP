@@ -28,13 +28,12 @@ async def _ping_session(session_record: ActiveSession) -> bool:
     url = f"https://{domain}/" if not domain.startswith("http") else domain
     cookies = {}
     try:
-        if session_record.storage_state:
-            data = json.loads(session_record.storage_state)
-            for c in data.get("cookies", []):
-                name = c.get("name")
-                val = c.get("value")
-                if name and val:
-                    cookies[name] = val
+        data = session_record.get_decrypted_state()
+        for c in data.get("cookies", []):
+            name = c.get("name")
+            val = c.get("value")
+            if name and val:
+                cookies[name] = val
     except Exception:
         pass
 

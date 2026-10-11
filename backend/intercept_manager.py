@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
 from backend.database import Project
+from backend.security_utils import check_ssrf_safety
 
 # ==============================================================================
 # Intercept Trap State
@@ -104,17 +105,12 @@ def invalidate_scope_cache(project_name: Optional[str] = None):
 
 def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optional[str]]:
     """
-    Validates whether a URL is within the authorized scope of a project.
-    Utilizes an in-memory TTL cache to eliminate redundant SQLite queries during rapid bursts.
+    Validates whether a URL is within the authorized scope of a project and safe from SSRF.
+    - Always enforces anti-SSRF protections (cloud metadata, recursive loopback).
+    - Checks private networks unless allow_internal_networks is enabled.
+    - Checks domain whitelist and pattern blacklist if scope_enabled is True.
     Returns: (is_allowed: bool, reason_if_blocked: str | None)
     """
-    try:
-        parsed = urllib.parse.urlparse(url)
-        host = (parsed.netloc or "").split(":")[0].lower()
-        full_path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
-    except Exception as ex:
-        return False, f"Malformed target URL: {str(ex)}"
-
     import time
     now = time.time()
     cache_entry = _SCOPE_CACHE.get(project_name.lower())
@@ -122,7 +118,7 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
         scope_data = cache_entry[1]
     else:
         project = db.query(Project).filter(Project.name == project_name.lower()).first()
-        if not project or not project.scope_enabled:
+        if not project:
             scope_data = None
         else:
             try:
@@ -134,13 +130,30 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
             except Exception:
                 allowed_list = ["*"]
             scope_data = {
+                "scope_enabled": bool(project.scope_enabled),
+                "allow_internal_networks": bool(getattr(project, "allow_internal_networks", False)),
                 "blocked_patterns": blocked_list,
                 "allowed_hosts": allowed_list
             }
         _SCOPE_CACHE[project_name.lower()] = (now, scope_data)
 
-    if not scope_data:
+    # 1. SSRF & Dangerous Network Target Check (Always enforced)
+    allow_internal = scope_data.get("allow_internal_networks", False) if scope_data else False
+    is_safe_ssrf, ssrf_reason = check_ssrf_safety(url, allow_internal=allow_internal)
+    if not is_safe_ssrf:
+        return False, ssrf_reason
+
+    # If project not found or scope guardrail disabled, permit request
+    if not scope_data or not scope_data.get("scope_enabled"):
         return True, None
+
+    try:
+        parsed = urllib.parse.urlparse(url)
+        host = (parsed.netloc or "").split(":")[0].lower()
+        full_path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
+    except Exception as ex:
+        return False, f"Malformed target URL: {str(ex)}"
+
 
     # 1. Check Blocked Regex Patterns (Anti-destructive / Out-of-bounds keywords)
     for pattern in scope_data["blocked_patterns"]:

@@ -22,6 +22,8 @@ from sqlalchemy import (
     Index
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
+from backend.security_utils import encrypt_secret, decrypt_secret
+
 
 DB_PATH = os.getenv("SPECTRA_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "spectra.db"))
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -61,6 +63,8 @@ class Project(Base):
     scope_enabled = Column(Boolean, default=False)
     allowed_hosts = Column(Text, default="[\"*\"]")  # JSON List, e.g. ["*.target.local", "127.0.0.1"]
     blocked_patterns = Column(Text, default="[\"logout\", \"delete.*user\", \"payment\", \"stripe\", \"checkout\"]")  # JSON List
+    allow_internal_networks = Column(Boolean, default=False)  # SSRF Protection: must be explicitly enabled for private RFC1918 subnets
+    verify_ssl = Column(Boolean, default=False)  # Enforce TLS certificate validation for targets
     
     # Rate Limiting & Proxy Chaining settings
     delay_ms = Column(Integer, default=0)  # Throttling delay between requests in milliseconds
@@ -84,6 +88,8 @@ class Project(Base):
             "scope_enabled": bool(self.scope_enabled),
             "allowed_hosts": allowed,
             "blocked_patterns": blocked,
+            "allow_internal_networks": bool(self.allow_internal_networks),
+            "verify_ssl": bool(self.verify_ssl),
             "delay_ms": self.delay_ms or 0,
             "upstream_proxy": self.upstream_proxy or ""
         }
@@ -181,23 +187,43 @@ class ActiveSession(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     project = Column(String(100), default="default", index=True)
     domain = Column(String(255), index=True, nullable=False)
-    storage_state = Column(Text, nullable=False, default="{}")  # Cookies, LocalStorage, SessionStorage
+    storage_state = Column(Text, nullable=False, default="{}")  # Encrypted Cookies, LocalStorage, SessionStorage
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    def to_dict(self):
+    def get_decrypted_state(self) -> dict:
+        """Decrypts and parses the stored session state dictionary."""
+        raw = decrypt_secret(self.storage_state or "{}")
         try:
-            state = json.loads(self.storage_state)
+            return json.loads(raw)
         except Exception:
-            state = {}
+            return {}
+
+    def set_encrypted_state(self, state_data: dict):
+        """Serializes and encrypts session state dictionary before persisting."""
+        raw = json.dumps(state_data)
+        self.storage_state = encrypt_secret(raw)
+
+    def to_dict(self, include_secrets: bool = True):
+        state = self.get_decrypted_state()
         cookies = state.get("cookies", [])
         cookie_names = [c.get("name") for c in cookies if isinstance(c, dict) and c.get("name")]
+        display_cookies = []
+        for c in cookies:
+            if isinstance(c, dict):
+                c_copy = dict(c)
+                if not include_secrets and "value" in c_copy:
+                    val = str(c_copy["value"])
+                    c_copy["value"] = (val[:4] + "..." + val[-3:]) if len(val) > 10 else "***"
+                display_cookies.append(c_copy)
+
         return {
             "id": self.id,
             "project": self.project or "default",
             "domain": self.domain,
             "cookie_count": len(cookies),
             "cookie_names": cookie_names,
-            "cookies": cookies,
+            "cookies": display_cookies,
+            "is_encrypted": bool(self.storage_state and self.storage_state.startswith("ENC:")),
             "updated_at": self.updated_at.isoformat() if self.updated_at else ""
         }
 
@@ -291,6 +317,10 @@ def _run_migrations():
             cur.execute("ALTER TABLE projects ADD COLUMN delay_ms INTEGER DEFAULT 0")
         if "upstream_proxy" not in proj_cols:
             cur.execute("ALTER TABLE projects ADD COLUMN upstream_proxy VARCHAR(255) DEFAULT ''")
+        if "allow_internal_networks" not in proj_cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN allow_internal_networks BOOLEAN DEFAULT 0")
+        if "verify_ssl" not in proj_cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN verify_ssl BOOLEAN DEFAULT 0")
 
         cur.execute("PRAGMA table_info(http_logs)")
         log_cols = [row[1] for row in cur.fetchall()]

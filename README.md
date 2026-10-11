@@ -684,6 +684,12 @@ SPECTRA is configured via environment variables or `.env` file settings:
 | `SPECTRA_PROJECT` | `default` | Default workspace project name |
 | `SPECTRA_UPSTREAM_PROXY` | `""` *(empty)* | Optional upstream proxy URL for chaining (e.g. `http://127.0.0.1:8080` for Burp Suite) |
 | `SPECTRA_DB_PATH` | `./spectra.db` | File path to the SQLite WAL database |
+| `SPECTRA_SECRET_KEY` | *(auto-generated)* | Key for Fernet authenticated encryption of stored session credentials and cookies |
+| `SPECTRA_API_KEY` | `""` *(empty)* | Optional API token to require `X-Spectra-Key` authentication on REST/WS endpoints |
+| `SPECTRA_ALLOW_REMOTE` | `false` | When false, restricts dashboard access strictly to loopback (`127.0.0.1`) |
+| `SPECTRA_ALLOWED_ORIGINS` | `http://127.0.0.1:8000,http://localhost:8000` | Whitelist of allowed origins for secure CORS policy |
+| `SPECTRA_VERIFY_SSL` | `false` | Set to `true` to enforce strict SSL/TLS root CA verification for target connections |
+| `SPECTRA_MAX_BODY_SIZE` | `524288` (512 KB) | Maximum byte threshold for request/response bodies saved to SQLite |
 | `PYTHONIOENCODING` | `utf-8` | Ensures standard UTF-8 stream encoding across Windows and POSIX shells |
 
 ---

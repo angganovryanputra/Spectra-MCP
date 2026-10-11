@@ -42,6 +42,7 @@ from backend.report_generator import generate_har_export, generate_markdown_repo
 from backend.openapi_generator import generate_openapi_spec
 from backend.fuzzer import run_fuzz_attack, BUILTIN_PAYLOADS
 from backend.session_keeper import start_session_keeper, stop_session_keeper, get_session_keeper_status
+from backend.security_utils import sanitize_attachment_filename
 
 # Initialize SQLite database
 init_db()
@@ -56,13 +57,53 @@ app = FastAPI(
 async def startup_event():
     start_session_keeper(interval=120)
 
+# Security Configuration from Environment
+ALLOWED_ORIGINS_ENV = os.getenv(
+    "SPECTRA_ALLOWED_ORIGINS",
+    "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:3000,http://localhost:3000"
+)
+SPECTRA_ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
+SPECTRA_API_KEY = os.getenv("SPECTRA_API_KEY", "").strip()
+SPECTRA_ALLOW_REMOTE = os.getenv("SPECTRA_ALLOW_REMOTE", "false").lower() == "true"
+SPECTRA_MAX_BODY = int(os.getenv("SPECTRA_MAX_BODY_SIZE", "524288"))  # 512 KB default limit per body
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=SPECTRA_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def host_and_auth_security_middleware(request, call_next):
+    client_host = request.client.host if request.client else "unknown"
+    # 1. Localhost enforcement: if remote access is not explicitly enabled, block remote IPs
+    if not SPECTRA_ALLOW_REMOTE:
+        if client_host not in ["127.0.0.1", "localhost", "::1", "testclient"]:
+            return JSONResponse(
+                {"detail": "Remote access forbidden: Spectra dashboard is restricted to localhost (127.0.0.1). Set SPECTRA_ALLOW_REMOTE=true in environment to permit."},
+                status_code=403
+            )
+
+    # 2. API Key enforcement (if SPECTRA_API_KEY is configured in env)
+    if SPECTRA_API_KEY and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        provided_key = (
+            request.headers.get("X-Spectra-Key") or
+            request.query_params.get("api_key") or
+            ""
+        )
+        auth_hdr = request.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            provided_key = auth_hdr[7:].strip()
+        
+        if provided_key != SPECTRA_API_KEY:
+            return JSONResponse(
+                {"detail": "Unauthorized: Invalid or missing Spectra API Key (X-Spectra-Key header)."},
+                status_code=401
+            )
+
+    return await call_next(request)
 
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
@@ -127,6 +168,8 @@ class UpdateScopeRequest(BaseModel):
     scope_enabled: bool
     allowed_hosts: List[str]
     blocked_patterns: List[str]
+    allow_internal_networks: Optional[bool] = False
+    verify_ssl: Optional[bool] = False
     delay_ms: Optional[int] = 0
     upstream_proxy: Optional[str] = ""
 
@@ -231,8 +274,8 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
             db.commit()
         _KNOWN_PROJECTS.add(project_name)
 
-    req_body = (log_data.get("request_body") or "")[:5242880]
-    res_body = (log_data.get("response_body") or "")[:5242880]
+    req_body = (log_data.get("request_body") or "")[:SPECTRA_MAX_BODY]
+    res_body = (log_data.get("response_body") or "")[:SPECTRA_MAX_BODY]
     agent_id = (log_data.get("agent_id") or "primary_agent").strip()
 
     log_entry = HttpLog(
@@ -394,6 +437,10 @@ async def update_project_scope(name: str, req: UpdateScopeRequest, db: Session =
     proj.scope_enabled = req.scope_enabled
     proj.allowed_hosts = json.dumps(req.allowed_hosts)
     proj.blocked_patterns = json.dumps(req.blocked_patterns)
+    if req.allow_internal_networks is not None:
+        proj.allow_internal_networks = req.allow_internal_networks
+    if req.verify_ssl is not None:
+        proj.verify_ssl = req.verify_ssl
     if req.delay_ms is not None:
         proj.delay_ms = max(0, req.delay_ms)
     if req.upstream_proxy is not None:
@@ -437,12 +484,14 @@ async def handle_intercept_decision(intercept_id: str, req: InterceptActionReque
 
 _repeater_clients: Dict[str, Any] = {}
 
-async def _get_repeater_client(proxy_cfg: str = ""):
+async def _get_repeater_client(proxy_cfg: str = "", verify_ssl: bool = False):
     import httpx
-    key = proxy_cfg.strip() if proxy_cfg else "direct"
+    verify_env = os.getenv("SPECTRA_VERIFY_SSL", "false").lower() == "true"
+    final_verify = verify_ssl or verify_env
+    key = f"{proxy_cfg.strip() if proxy_cfg else 'direct'}_{final_verify}"
     if key not in _repeater_clients or _repeater_clients[key].is_closed:
         kwargs = {
-            "verify": False,
+            "verify": final_verify,
             "follow_redirects": True,
             "timeout": 30.0,
             "limits": httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=60.0)
@@ -466,9 +515,10 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
     if not is_allowed:
         raise HTTPException(status_code=403, detail=block_reason)
 
-    # 2. Upstream proxy lookup
+    # 2. Upstream proxy & TLS verification lookup
     proj = db.query(Project).filter(Project.name == req.project.lower()).first()
     proxy_cfg = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("SPECTRA_UPSTREAM_PROXY")
+    verify_ssl = bool(proj.verify_ssl) if proj else False
 
     parsed = urllib.parse.urlparse(req.url)
     host = parsed.netloc
@@ -487,7 +537,7 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
         req_headers["User-Agent"] = "SpectraRepeater/1.3"
 
     try:
-        client = await _get_repeater_client(proxy_cfg or "")
+        client = await _get_repeater_client(proxy_cfg or "", verify_ssl=verify_ssl)
         content_bytes = req.body.encode("utf-8") if req.body else None
         response = await client.request(
             method=req.method.upper(),
@@ -536,9 +586,10 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
 def export_har(name: str, db: Session = Depends(get_db)):
     """Exports project traffic into standard HTTP Archive (HAR 1.2) for Burp/ZAP."""
     har_data = generate_har_export(name, db)
+    safe_filename = sanitize_attachment_filename(f"spectra_{name}_traffic", "har")
     return JSONResponse(
         content=har_data,
-        headers={"Content-Disposition": f"attachment; filename=spectra_{name}_traffic.har"}
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
 
@@ -546,9 +597,10 @@ def export_har(name: str, db: Session = Depends(get_db)):
 def export_markdown_report(name: str, db: Session = Depends(get_db)):
     """Exports vulnerability findings into an executive Markdown report."""
     md_content = generate_markdown_report(name, db)
+    safe_filename = sanitize_attachment_filename(f"spectra_{name}_report", "md")
     return PlainTextResponse(
         content=md_content,
-        headers={"Content-Disposition": f"attachment; filename=spectra_{name}_report.md"}
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
 
@@ -556,9 +608,10 @@ def export_markdown_report(name: str, db: Session = Depends(get_db)):
 def export_openapi(name: str, db: Session = Depends(get_db)):
     """Generates and exports an OpenAPI 3.0.3 specification from observed project traffic."""
     spec_data = generate_openapi_spec(name, db)
+    safe_filename = sanitize_attachment_filename(f"spectra_{name}_openapi", "json")
     return JSONResponse(
         content=spec_data,
-        headers={"Content-Disposition": f"attachment; filename=spectra_{name}_openapi.json"}
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
 
@@ -589,13 +642,17 @@ async def run_fuzzer_attack_endpoint(req: RunFuzzRequest, db: Session = Depends(
     proj = db.query(Project).filter(Project.name == req.project.lower()).first()
     proxy = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("SPECTRA_UPSTREAM_PROXY")
 
+    req_concurrency = min(max(req.concurrency, 1), 10)
+    if req.custom_payloads and len(req.custom_payloads) > 1000:
+        raise HTTPException(status_code=400, detail="Custom payloads list exceeds security threshold of 1,000 entries.")
+
     results = await run_fuzz_attack(
         base_url=req.url,
         method=req.method,
         headers=req.headers,
         body=req.body,
         payloads=payloads,
-        concurrency=min(max(req.concurrency, 1), 10),
+        concurrency=req_concurrency,
         upstream_proxy=proxy
     )
 
@@ -1086,12 +1143,12 @@ async def confirm_auth_session(req: ConfirmAuthRequest):
 
 
 @app.get("/api/auth/session")
-def inspect_session(project: Optional[str] = None, db: Session = Depends(get_db)):
+def inspect_session(project: Optional[str] = None, show_tokens: bool = False, db: Session = Depends(get_db)):
     query = db.query(ActiveSession)
     if project and project.upper() != "ALL":
         query = query.filter(ActiveSession.project == project.lower())
     sessions = query.order_by(desc(ActiveSession.updated_at)).all()
-    return {"sessions": [s.to_dict() for s in sessions]}
+    return {"sessions": [s.to_dict(include_secrets=show_tokens) for s in sessions]}
 
 
 @app.delete("/api/auth/session/id/{session_id}")
@@ -1110,15 +1167,13 @@ def remove_single_cookie(session_id: int, cookie_name: str, db: Session = Depend
     session_obj = db.query(ActiveSession).filter(ActiveSession.id == session_id).first()
     if not session_obj:
         raise HTTPException(status_code=404, detail=f"Session ID {session_id} not found.")
-    try:
-        state = json.loads(session_obj.storage_state or "{}")
-    except Exception:
-        state = {}
+    
+    state = session_obj.get_decrypted_state()
     cookies = state.get("cookies", [])
     initial_len = len(cookies)
     cookies = [c for c in cookies if c.get("name") != cookie_name]
     state["cookies"] = cookies
-    session_obj.storage_state = json.dumps(state)
+    session_obj.set_encrypted_state(state)
     session_obj.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"status": "updated", "id": session_id, "removed_cookie": cookie_name, "remaining_cookies": len(cookies)}
