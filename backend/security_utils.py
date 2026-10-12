@@ -195,10 +195,21 @@ def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_po
         return False, "Target URL is missing a valid hostname."
 
     port = parsed.port or (443 if scheme == "https" else 80)
+    detected_port = None
+    backend_url_env = os.getenv("SPECTRA_BACKEND_URL", "")
+    if backend_url_env:
+        try:
+            b_parsed = urllib.parse.urlparse(backend_url_env)
+            if b_parsed.port:
+                detected_port = b_parsed.port
+        except Exception:
+            pass
+    current_backend_port = (detected_port if spectra_backend_port == 8000 and detected_port else spectra_backend_port) or int(os.getenv("SPECTRA_PORT", "8000"))
+    current_proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
 
     # 1. Anti-Self-Loopback: Prevent recursive infinite loops back to Spectra
-    if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port == spectra_backend_port:
-        return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({spectra_backend_port})."
+    if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [current_backend_port, current_proxy_port]:
+        return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({port})."
 
     # 2. Check for obvious metadata hostname aliases
     if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
@@ -233,9 +244,20 @@ async def async_check_ssrf_safety(url: str, allow_internal: bool = False, spectr
         return False, "Target URL is missing a valid hostname."
 
     port = parsed.port or (443 if scheme == "https" else 80)
+    detected_port = None
+    backend_url_env = os.getenv("SPECTRA_BACKEND_URL", "")
+    if backend_url_env:
+        try:
+            b_parsed = urllib.parse.urlparse(backend_url_env)
+            if b_parsed.port:
+                detected_port = b_parsed.port
+        except Exception:
+            pass
+    current_backend_port = (detected_port if spectra_backend_port == 8000 and detected_port else spectra_backend_port) or int(os.getenv("SPECTRA_PORT", "8000"))
+    current_proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
 
-    if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port == spectra_backend_port:
-        return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({spectra_backend_port})."
+    if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [current_backend_port, current_proxy_port]:
+        return False, f"Recursive proxy loop blocked: Target points to Spectra's own port ({port})."
 
     if hostname in ["metadata.google.internal", "instance-data", "metadata"]:
         return False, f"SSRF Guardrail: Target host '{hostname}' matches cloud metadata service."

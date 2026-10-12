@@ -60,14 +60,18 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 13. **OAST Engine (Deteksi Blind Vulnerabilities Out-of-Band):**
     - Untuk mendeteksi Blind SSRF, Blind SQLi, Blind RCE, XXE, atau Log4j/JNDI, gunakan `generate_oast_token(vuln_type="SSRF", description="...")`.
     - Masukkan `callback_url` yang diberikan ke dalam payload eksploitasi Anda.
-    - Panggil `poll_oast_events(token="...", timeout_seconds=5)` untuk memverifikasi apakah target server melakukan callback balik ke Spectra.
+14. **Custom Pentest Scripts & Transparent Proxy Interception (OpenCode / Hermes):**
+    - Saat Anda membuat dan mengeksekusi script pentest mandiri (misal: Python `requests`/`httpx`/`urllib`, `curl`, `sqlmap`, `ffuf`, `nuclei`) melalui tool `run_pentest_command`, Spectra **secara otomatis menginjeksi environment proxy** (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, disable TLS verify).
+    - Seluruh target hit dari script Anda akan **otomatis tertangkap di Spectra Forward Interception Proxy (:8088)**, divalidasi scope-nya, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph tanpa Anda perlu mengubah cara penulisan script Anda!
+    - Untuk script Python canggih, Anda juga dapat mengimpor micro-SDK bawaan: `from spectra_client import SpectraSession, report_finding`.
 ```
 
 ---
 
 ## 3. Fitur Utama yang Aktif
 
-- **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian.
+- **Built-in Forward Interception Proxy (Port :8088):** Menangkap seluruh lalu lintas HTTP/HTTPS dari script pentest yang dibuat OpenCode/Hermes (Python, curl, sqlmap) secara transparan via auto-injected environment variables.
+- **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian & auto-ingestion dari script traffic.
 - **OAST Engine (Out-of-Band Callback Listener):** Deteksi blind vulnerabilities dengan korelasi token unik dan live WebSocket hit notification.
 - **Token-Saving JSON & Differential Analysis:** Output JSON terstruktur dan diffing baseline terotomatisasi untuk efisiensi context window agen.
 - **Traffic Isolation:** Request inferensi LLM (OpenCode/Hermes ke OpenAI/Anthropic/Ollama) tidak tercampur atau terganggu oleh lalu lintas pengujian.

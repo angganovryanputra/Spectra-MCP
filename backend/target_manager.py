@@ -246,9 +246,28 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
         return
     try:
         parsed = urllib.parse.urlparse(url)
-        host = (parsed.netloc or "").split(":")[0].strip().lower()
-        if host and host not in ["localhost", "127.0.0.1"]:
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        backend_url_env = os.getenv("SPECTRA_BACKEND_URL", "")
+        backend_port = None
+        if backend_url_env:
+            try:
+                b_parsed = urllib.parse.urlparse(backend_url_env)
+                if b_parsed.port:
+                    backend_port = b_parsed.port
+            except Exception:
+                pass
+        if not backend_port:
+            try:
+                backend_port = int(os.getenv("SPECTRA_PORT", "8000"))
+            except Exception:
+                backend_port = 8000
+        proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        # Do not ingest Spectra's own server infrastructure
+        if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [backend_port, proxy_port]:
+            return
+
+        if host:
             service_name = "https" if parsed.scheme == "https" else "http"
             add_or_update_service(project=project, host=host, port=port, service_name=service_name)
             add_or_update_endpoint(project=project, host=host, url=url, method=method)

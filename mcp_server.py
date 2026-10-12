@@ -57,7 +57,10 @@ from backend.oast_engine import (
 # Initialize FastMCP Server
 mcp = FastMCP("spectra_mcp")
 
-BACKEND_URL = os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000")
+def get_backend_url() -> str:
+    return os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+
+BACKEND_URL = get_backend_url()
 DEFAULT_PROJECT = os.getenv("SPECTRA_PROJECT", "default").strip().lower()
 
 # Ensure DB is created
@@ -120,7 +123,7 @@ async def _persist_and_stream_log(
     """
     try:
         client = await _get_dashboard_client()
-        resp = await client.post(f"{BACKEND_URL}/api/logs", json=log_payload)
+        resp = await client.post(f"{get_backend_url()}/api/logs", json=log_payload)
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict):
@@ -224,7 +227,7 @@ async def _persist_and_stream_command(cmd_payload: Dict[str, Any]) -> Optional[i
     """Dispatches command log to dashboard or writes directly to SQLite. Returns command_id."""
     try:
         client = await _get_dashboard_client()
-        resp = await client.post(f"{BACKEND_URL}/api/commands", json=cmd_payload)
+        resp = await client.post(f"{get_backend_url()}/api/commands", json=cmd_payload)
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict) and "id" in data:
@@ -263,7 +266,7 @@ async def _persist_and_stream_payload(payload_data: Dict[str, Any]) -> Optional[
     """Dispatches captured payload to dashboard or writes directly to SQLite. Returns payload_id."""
     try:
         client = await _get_dashboard_client()
-        resp = await client.post(f"{BACKEND_URL}/api/payloads", json=payload_data)
+        resp = await client.post(f"{get_backend_url()}/api/payloads", json=payload_data)
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict) and "id" in data:
@@ -486,7 +489,7 @@ async def send_http_request(
         # Notify running dashboard via HTTP so it pops up in Intercept UI
         try:
             async with httpx.AsyncClient(timeout=1.0) as client:
-                await client.post(f"{BACKEND_URL}/api/logs", json={
+                await client.post(f"{get_backend_url()}/api/logs", json={
                     "project": target_project,
                     "agent_id": target_agent,
                     "source": "HTTP_CLIENT",
@@ -947,10 +950,36 @@ async def run_pentest_command(
     exit_code = 0
     status = "SUCCESS"
 
+    proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+    proxy_url = f"http://127.0.0.1:{proxy_port}"
+
+    sub_env = os.environ.copy()
+    sub_env["HTTP_PROXY"] = proxy_url
+    sub_env["HTTPS_PROXY"] = proxy_url
+    sub_env["http_proxy"] = proxy_url
+    sub_env["https_proxy"] = proxy_url
+    sub_env["ALL_PROXY"] = proxy_url
+    sub_env["all_proxy"] = proxy_url
+    sub_env["SPECTRA_PROJECT"] = target_project
+    sub_env["SPECTRA_AGENT"] = target_agent
+    sub_env["PYTHONHTTPSVERIFY"] = "0"
+    sub_env["REQUESTS_CA_BUNDLE"] = ""
+    sub_env["CURL_INSECURE"] = "1"
+    sub_env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+
     try:
+        from backend.forward_proxy import ProxyContext
+        proxy_ctx = ProxyContext(target_project, target_agent)
+    except Exception:
+        proxy_ctx = None
+
+    try:
+        if proxy_ctx:
+            proxy_ctx.__enter__()
         proc = await asyncio.create_subprocess_shell(
             cmd_clean,
             cwd=work_dir,
+            env=sub_env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
@@ -969,6 +998,9 @@ async def run_pentest_command(
             exit_code = -1
             status = "TIMEOUT"
             stderr_text = f"Execution timed out after {timeout} seconds."
+        finally:
+            if proxy_ctx:
+                proxy_ctx.__exit__(None, None, None)
     except Exception as ex:
         exit_code = 1
         status = "FAILED"
@@ -1087,7 +1119,7 @@ async def get_log_detail(
     # 1. Query running Dashboard API first (Primary in distributed/WSL setups)
     try:
         async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.get(f"{BACKEND_URL}/api/logs/{log_id}")
+            resp = await client.get(f"{get_backend_url()}/api/logs/{log_id}")
             if resp.status_code == 200:
                 log_data = resp.json()
     except Exception:
@@ -1105,7 +1137,7 @@ async def get_log_detail(
             db.close()
 
     if not log_data:
-        return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({BACKEND_URL}) or local database."
+        return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({get_backend_url()}) or local database."
 
     findings = log_data.get("findings", [])
     findings_str = ""
@@ -1181,7 +1213,7 @@ async def get_traffic_history(
     # 1. Query running Dashboard API first
     try:
         async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.get(f"{BACKEND_URL}/api/logs?project={target_project}&limit={fetch_limit}&offset=0")
+            resp = await client.get(f"{get_backend_url()}/api/logs?project={target_project}&limit={fetch_limit}&offset=0")
             if resp.status_code == 200:
                 data = resp.json()
                 logs_list = data.get("logs", [])
@@ -1269,7 +1301,7 @@ async def report_vulnerability(
             "project": target_project
         }
         async with httpx.AsyncClient(timeout=2.5) as client:
-            resp = await client.post(f"{BACKEND_URL}/api/findings", json=payload)
+            resp = await client.post(f"{get_backend_url()}/api/findings", json=payload)
             if resp.status_code == 200:
                 data = resp.json()
                 finding_id = data.get("id")
@@ -1284,7 +1316,7 @@ async def report_vulnerability(
         try:
             entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
             if not entry:
-                return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({BACKEND_URL}) or local database. Cannot attach finding."
+                return f"[!] Log ID #{log_id} was not found in the Spectra Dashboard ({get_backend_url()}) or local database. Cannot attach finding."
 
             existing_finding = db.query(Finding).filter(
                 Finding.log_id == entry.id,

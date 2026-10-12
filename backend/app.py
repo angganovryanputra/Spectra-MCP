@@ -58,6 +58,20 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     start_session_keeper(interval=120)
+    try:
+        from backend.forward_proxy import start_forward_proxy
+        await start_forward_proxy()
+    except Exception as ex:
+        print(f"[!] Notice: Spectra Forward Proxy startup error: {ex}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    stop_session_keeper()
+    try:
+        from backend.forward_proxy import stop_forward_proxy
+        await stop_forward_proxy()
+    except Exception:
+        pass
 
 # Security Configuration from Environment
 ALLOWED_ORIGINS_ENV = os.getenv(
@@ -525,6 +539,17 @@ async def update_project_scope(name: str, req: UpdateScopeRequest, db: Session =
 
     await ws_manager.broadcast({"type": "SCOPE_UPDATED", "project": proj.to_dict()})
     return proj.to_dict()
+
+
+@app.get("/api/proxy/status")
+def get_forward_proxy_status():
+    """Returns the running status and port of the Spectra Forward Proxy."""
+    from backend.forward_proxy import is_proxy_running, get_proxy_port, get_proxy_url
+    return {
+        "running": is_proxy_running(),
+        "port": get_proxy_port(),
+        "url": get_proxy_url()
+    }
 
 
 # ==============================================================================

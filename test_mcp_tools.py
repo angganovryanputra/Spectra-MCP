@@ -3,6 +3,10 @@ import sys
 import json
 import asyncio
 
+# Ensure test uses alternate port 8081 to avoid touching user's WSL2 port 8000
+os.environ["SPECTRA_BACKEND_URL"] = "http://127.0.0.1:8081"
+os.environ["SPECTRA_PORT"] = "8081"
+
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -132,7 +136,7 @@ async def main():
     print("\n[MCP TEST 9] send_http_request (scope blocked) JSON output...")
     req_res_str = await mcp_server.send_http_request(
         method="GET",
-        url="http://127.0.0.1:8000/api/health",
+        url="http://127.0.0.1:8081/api/health",
         project="default",
         output_format="json"
     )

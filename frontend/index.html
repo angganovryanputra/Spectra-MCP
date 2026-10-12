@@ -246,6 +246,15 @@
         <span x-text="interceptEnabled ? 'INTERCEPT IS ON' : 'INTERCEPT IS OFF'"></span>
       </button>
 
+      <!-- BUILT-IN FORWARD PROXY STATUS BADGE -->
+      <div class="hidden md:flex items-center px-2.5 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs shadow-sm"
+        :title="'Built-in Forward Interception Proxy for Agent Scripts (HTTP_PROXY=http://127.0.0.1:' + proxyPort + ')'">
+        <span class="w-2 h-2 rounded-full mr-1.5"
+          :class="proxyRunning ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-500'"></span>
+        <span class="text-[10px] text-slate-400 mr-1 font-bold">PROXY</span>
+        <span class="text-cyan-300 font-semibold" x-text="':' + (proxyPort || '8088')"></span>
+      </div>
+
       <!-- EXPORT DROPDOWN BUTTONS -->
       <div class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs">
         <button @click="exportHar()"
@@ -2611,7 +2620,7 @@
             <span>OAST Interaction Console</span>
             <span class="flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-ping"></span>
-              LISTENER ACTIVE (:8000/oast/*)
+              <span x-text="'LISTENER ACTIVE (:' + (window.location.port || '8000') + '/oast/*)'"></span>
             </span>
           </div>
           <p class="text-[10px] text-slate-400 mt-0.5">Catch and verify blind exploits (SSRF, JNDI, Blind SQLi, RCE callbacks)</p>
@@ -3277,6 +3286,8 @@
         // Session & Cookie Config
         openLoginModal: false,
         activeSessions: [],
+        proxyPort: 8088,
+        proxyRunning: false,
         importCookieForm: { domain: '', rawInput: '' },
         expandedSessionId: null,
         copiedCurl: false,
@@ -3400,6 +3411,7 @@
           this.fetchPayloads();
           this.fetchAttackSurface();
           this.fetchOastEvents();
+          this.fetchProxyStatus();
           this.connectWebSocket();
           this.$nextTick(() => lucide.createIcons());
         },
@@ -3927,7 +3939,18 @@
           this.fetchOastEvents();
         },
 
-        // INTERCEPT ACTIONS
+        // INTERCEPT & PROXY ACTIONS
+        async fetchProxyStatus() {
+          try {
+            const res = await fetch('/api/proxy/status');
+            if (res.ok) {
+              const data = await res.json();
+              this.proxyPort = data.port || 8088;
+              this.proxyRunning = data.running;
+            }
+          } catch (e) { }
+        },
+
         async fetchInterceptStatus() {
           try {
             const res = await fetch('/api/intercept/status');
@@ -4875,7 +4898,7 @@
         sendPayloadToRepeater(p) {
           if (!p) return;
           const method = p.http_method || 'GET';
-          let url = p.target_url || 'http://127.0.0.1:8000/api/test';
+          let url = p.target_url || `${window.location.origin}/api/test`;
           let body = '';
 
           if (method === 'GET') {
