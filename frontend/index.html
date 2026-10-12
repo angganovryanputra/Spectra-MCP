@@ -3655,6 +3655,7 @@
             // Quick Top Method Filter
             if (this.selectedMethod !== 'ALL' && log.method !== this.selectedMethod) return false;
             if (this.colFilters.method !== 'ALL' && log.method !== this.colFilters.method) return false;
+            if (this.selectedMethod === 'ALL' && this.colFilters.method === 'ALL' && log.method === 'CONNECT') return false;
 
             // Flag Filter
             if (this.selectedFlag !== 'ALL' && log.flag_status !== this.selectedFlag) return false;

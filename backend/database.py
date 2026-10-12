@@ -59,11 +59,11 @@ class Project(Base):
     description = Column(Text, nullable=True, default="")
     created_at = Column(DateTime, default=datetime.now)
     
-    # Scope & Guardrail settings
+    # Scope & Guardrail settings (No guardrails by default - manual configuration required)
     scope_enabled = Column(Boolean, default=False)
-    allowed_hosts = Column(Text, default="[\"*\"]")  # JSON List, e.g. ["*.target.local", "127.0.0.1"]
-    blocked_patterns = Column(Text, default="[\"logout\", \"delete.*user\", \"payment\", \"stripe\", \"checkout\"]")  # JSON List
-    allow_internal_networks = Column(Boolean, default=False)  # SSRF Protection: must be explicitly enabled for private RFC1918 subnets
+    allowed_hosts = Column(Text, default="[\"*\"]")  # Unrestricted by default
+    blocked_patterns = Column(Text, default="[]")  # Empty by default
+    allow_internal_networks = Column(Boolean, default=True)  # Internal/lab networks allowed by default
     verify_ssl = Column(Boolean, default=False)  # Enforce TLS certificate validation for targets
     
     # Rate Limiting & Proxy Chaining settings
@@ -463,7 +463,7 @@ def _run_migrations():
         if "upstream_proxy" not in proj_cols:
             cur.execute("ALTER TABLE projects ADD COLUMN upstream_proxy VARCHAR(255) DEFAULT ''")
         if "allow_internal_networks" not in proj_cols:
-            cur.execute("ALTER TABLE projects ADD COLUMN allow_internal_networks BOOLEAN DEFAULT 0")
+            cur.execute("ALTER TABLE projects ADD COLUMN allow_internal_networks BOOLEAN DEFAULT 1")
         if "verify_ssl" not in proj_cols:
             cur.execute("ALTER TABLE projects ADD COLUMN verify_ssl BOOLEAN DEFAULT 0")
 
@@ -498,7 +498,7 @@ def _run_migrations():
 
 
 def init_db():
-    """Create all database tables, perform schema migrations, and ensure default project exists."""
+    """Create all database tables, perform schema migrations, and ensure default project exists with zero default guardrails."""
     Base.metadata.create_all(bind=engine)
     
     # Run column migrations for SQLite
@@ -510,14 +510,33 @@ def init_db():
         if not default_proj:
             db.add(Project(
                 name="default",
-                description="Default security testing workspace",
+                description="Default security testing workspace (unrestricted guardrails)",
                 scope_enabled=False,
                 allowed_hosts=json.dumps(["*"]),
-                blocked_patterns=json.dumps(["logout", "delete.*user", "payment", "checkout"]),
+                blocked_patterns=json.dumps([]),
+                allow_internal_networks=True,
+                verify_ssl=False,
                 delay_ms=0,
                 upstream_proxy=""
             ))
             db.commit()
+        else:
+            # Ensure existing default project has guardrails disabled by default
+            updated = False
+            if default_proj.scope_enabled:
+                default_proj.scope_enabled = False
+                updated = True
+            if default_proj.blocked_patterns != "[]":
+                default_proj.blocked_patterns = json.dumps([])
+                updated = True
+            if default_proj.allowed_hosts != '["*"]':
+                default_proj.allowed_hosts = json.dumps(["*"])
+                updated = True
+            if not default_proj.allow_internal_networks:
+                default_proj.allow_internal_networks = True
+                updated = True
+            if updated:
+                db.commit()
     except Exception:
         db.rollback()
     finally:

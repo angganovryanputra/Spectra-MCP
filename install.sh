@@ -85,7 +85,12 @@ fi
 echo -e "${CYAN}[*] Initializing SQLite database schema & cryptographic vault...${NC}"
 python3 -c "from backend.database import init_db; init_db(); from backend.security_utils import get_or_create_encryption_key; get_or_create_encryption_key(); print('[+] Database initialized and Fernet master encryption key active.')"
 
-# 8. Set Executable Permissions
+# 8. Install AI Agent Proxy Enforcer Hook
+echo -e "${CYAN}[*] Installing AI Agent Proxy Enforcer into venv...${NC}"
+cp sitecustomize.py $(python3 -c "import site; print(site.getsitepackages()[-1])")/sitecustomize.py 2>/dev/null || true
+echo -e "${GREEN}[+] AI Agent transparent proxy hook installed in venv.${NC}"
+
+# 9. Set Executable Permissions
 chmod +x run.sh install.sh 2>/dev/null || true
 
 echo ""

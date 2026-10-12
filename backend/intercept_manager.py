@@ -3,6 +3,7 @@ Spectra MCP - Intercept & Scope Guardrail Manager
 Manages real-time request traps (breakpoints) and out-of-scope domain boundaries.
 """
 
+import os
 import re
 import json
 import uuid
@@ -132,8 +133,32 @@ def _get_project_scope_data(project_name: str, db: Session) -> Optional[Dict[str
     return scope_data
 
 
+def _is_self_loop(url: str) -> Tuple[bool, Optional[str]]:
+    """Prevents recursive infinite proxy loops directed at Spectra's own service ports."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        hostname = (parsed.hostname or "").strip().lower()
+        if hostname in ["localhost", "127.0.0.1", "0.0.0.0", "::1"]:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            current_proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+            backend_url_env = os.getenv("SPECTRA_BACKEND_URL", "")
+            current_backend_port = int(os.getenv("SPECTRA_PORT", "8000"))
+            if backend_url_env:
+                try:
+                    b_parsed = urllib.parse.urlparse(backend_url_env)
+                    if b_parsed.port:
+                        current_backend_port = b_parsed.port
+                except Exception:
+                    pass
+            if port in [current_proxy_port, current_backend_port]:
+                return True, f"Recursive proxy loop blocked: Target points to Spectra's own service port ({port})."
+    except Exception:
+        pass
+    return False, None
+
+
 def _evaluate_scope_rules(project_name: str, url: str, scope_data: Optional[Dict[str, Any]]) -> Tuple[bool, Optional[str]]:
-    # If project not found or scope guardrail disabled, permit request
+    # If project not found or scope guardrail disabled, permit request immediately
     if not scope_data or not scope_data.get("scope_enabled"):
         return True, None
 
@@ -145,7 +170,7 @@ def _evaluate_scope_rules(project_name: str, url: str, scope_data: Optional[Dict
         return False, f"Malformed target URL: {str(ex)}"
 
     # 1. Check Blocked Regex Patterns (Anti-destructive / Out-of-bounds keywords)
-    for pattern in scope_data["blocked_patterns"]:
+    for pattern in scope_data.get("blocked_patterns", []):
         if not pattern:
             continue
         try:
@@ -160,12 +185,9 @@ def _evaluate_scope_rules(project_name: str, url: str, scope_data: Optional[Dict
     raw_allowed = scope_data.get("allowed_hosts", [])
     allowed_list = [h.strip().lower() for h in raw_allowed if h and h.strip()]
 
-    # If scope is enabled, having only "*" means scope was enabled but never configured with target domains.
-    if "*" in allowed_list or "all" in allowed_list:
-        explicit_domains = [h for h in allowed_list if h not in ["*", "all"]]
-        if not explicit_domains:
-            return False, f"Scope Enforcement Error: Project '{project_name}' has scope enabled, but allowed_hosts only contains wildcard '*'. Please configure explicit target domain(s) in project scope settings (e.g. ['juice-shop.herokuapp.com'])."
-        allowed_list = explicit_domains
+    # If allowed_hosts contains "*" or "all", or is empty, all hosts are permitted
+    if not allowed_list or "*" in allowed_list or "all" in allowed_list:
+        return True, None
 
     host_allowed = False
     for allowed_pattern in allowed_list:
@@ -181,14 +203,22 @@ def _evaluate_scope_rules(project_name: str, url: str, scope_data: Optional[Dict
 
 def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optional[str]]:
     """
-    Validates whether a URL is within the authorized scope of a project and safe from SSRF (Synchronous).
-    - Always enforces anti-SSRF protections (cloud metadata, recursive loopback).
-    - Checks private networks unless allow_internal_networks is enabled.
-    - Checks domain whitelist and pattern blacklist if scope_enabled is True.
-    Returns: (is_allowed: bool, reason_if_blocked: str | None)
+    Validates whether a URL is within authorized scope (Synchronous).
+    - If scope_enabled is False (DEFAULT): NO GUARDRAILS (all internal/external targets permitted).
+    - Only anti-self-loopback to Spectra's own proxy/backend port is prevented to avoid crash loops.
+    - When scope_enabled is True: enforces configured allowed hosts, blocked patterns, and SSRF policies.
     """
+    is_loop, loop_reason = _is_self_loop(url)
+    if is_loop:
+        return False, loop_reason
+
     scope_data = _get_project_scope_data(project_name, db)
-    allow_internal = scope_data.get("allow_internal_networks", False) if scope_data else False
+    # Default: Guardrails OFF unless manually enabled
+    if not scope_data or not scope_data.get("scope_enabled", False):
+        return True, None
+
+    # Manually enabled scope guardrails
+    allow_internal = scope_data.get("allow_internal_networks", True)
     is_safe_ssrf, ssrf_reason = check_ssrf_safety(url, allow_internal=allow_internal)
     if not is_safe_ssrf:
         return False, ssrf_reason
@@ -198,12 +228,22 @@ def check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optiona
 
 async def async_check_scope(project_name: str, url: str, db: Session) -> Tuple[bool, Optional[str]]:
     """
-    Asynchronously validates whether a URL is within the authorized scope and safe from SSRF
-    using non-blocking async DNS resolution with TTL cache.
-    Ideal for hot-paths such as high-concurrency fuzzing and automated agent crawls.
+    Asynchronously validates whether a URL is within authorized scope.
+    - If scope_enabled is False (DEFAULT): NO GUARDRAILS (all internal/external targets permitted).
+    - Only anti-self-loopback to Spectra's own proxy/backend port is prevented to avoid crash loops.
+    - When scope_enabled is True: enforces configured allowed hosts, blocked patterns, and SSRF policies.
     """
+    is_loop, loop_reason = _is_self_loop(url)
+    if is_loop:
+        return False, loop_reason
+
     scope_data = _get_project_scope_data(project_name, db)
-    allow_internal = scope_data.get("allow_internal_networks", False) if scope_data else False
+    # Default: Guardrails OFF unless manually enabled
+    if not scope_data or not scope_data.get("scope_enabled", False):
+        return True, None
+
+    # Manually enabled scope guardrails
+    allow_internal = scope_data.get("allow_internal_networks", True)
     is_safe_ssrf, ssrf_reason = await async_check_ssrf_safety(url, allow_internal=allow_internal)
     if not is_safe_ssrf:
         return False, ssrf_reason

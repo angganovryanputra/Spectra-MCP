@@ -61,22 +61,26 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
     - Untuk mendeteksi Blind SSRF, Blind SQLi, Blind RCE, XXE, atau Log4j/JNDI, gunakan `generate_oast_token(vuln_type="SSRF", description="...")`.
     - Masukkan `callback_url` yang diberikan ke dalam payload eksploitasi Anda.
 14. **Custom Pentest Scripts & Transparent Proxy Interception (OpenCode / Hermes):**
-    - Saat Anda membuat dan mengeksekusi script pentest mandiri (misal: Python `requests`/`httpx`/`urllib`, `curl`, `sqlmap`, `ffuf`, `nuclei`) melalui tool `run_pentest_command`, Spectra **secara otomatis menginjeksi environment proxy** (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, disable TLS verify).
-    - Seluruh target hit dari script Anda akan **otomatis tertangkap di Spectra Forward Interception Proxy (:8088)**, divalidasi scope-nya, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph tanpa Anda perlu mengubah cara penulisan script Anda!
-    - Untuk script Python canggih, Anda juga dapat mengimpor micro-SDK bawaan: `from spectra_client import SpectraSession, report_finding`.
+    - Saat Anda membuat dan mengeksekusi script pentest mandiri (misal: Python `requests`/`httpx`/`urllib`, `curl`, `sqlmap`, `ffuf`, `nuclei`):
+      - **Enforcement Otomatis**: Melalui runtime hook `sitecustomize.py` dan environment proxy (`HTTP_PROXY`, `HTTPS_PROXY`), bahkan jika Anda menjalankan script Python via terminal biasa (`python script.py`), lalu lintasnya **pasti otomatis melewati Spectra Forward Proxy (:8088)** dengan TLS MITM decryption tanpa perlu konfigurasi proxy manual di script Anda.
+      - **Zero Guardrails by Default**: Secara default tidak ada guardrail yang memblokir target internal/lab (`127.0.0.1`, RFC1918) maupun external domain, sehingga seluruh pengujian berjalan lancar tanpa terhalang SSRF filter bawaan kecuali operator sengaja mengaktifkan Scope Guardrail di Dashboard.
+      - Seluruh target hit dari script Anda akan **otomatis tertangkap di Spectra Forward Interception Proxy (:8088)**, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph!
+    - Untuk script Python tingkat lanjut, Anda juga dapat mengimpor micro-SDK bawaan: `from spectra_client import SpectraSession, report_finding`.
 ```
 
 ---
 
 ## 3. Fitur Utama yang Aktif
 
-- **Built-in Forward Interception Proxy (Port :8088):** Menangkap seluruh lalu lintas HTTP/HTTPS dari script pentest yang dibuat OpenCode/Hermes (Python, curl, sqlmap) secara transparan via auto-injected environment variables.
+- **Transparent Auto-Enforcement (`sitecustomize.py` & `.env`):** Menjamin bahwa setiap script Python yang dieksekusi agen otomatis diarahkan ke Forward Interception Proxy Spectra (:8088), bahkan saat agen memanggil terminal host langsung.
+- **Zero Default Guardrails:** Secara default guardrail berada dalam status nonaktif (`scope_enabled = False`, `allow_internal_networks = True`, `blocked_patterns = []`). Pengguna memiliki kontrol penuh dan hanya perlu mengatur guardrail manual jika pengujian membutuhkan pembatasan scope ketat.
+- **TLS MITM Decryption Engine (Dynamic Cert Generator):** Mendekripsi lalu lintas HTTPS dari script agen secara transparan sehingga payload riil, status code, response body, dan findings langsung tercatat (bukan sekadar tunneling CONNECT blind).
 - **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian & auto-ingestion dari script traffic.
 - **OAST Engine (Out-of-Band Callback Listener):** Deteksi blind vulnerabilities dengan korelasi token unik dan live WebSocket hit notification.
 - **Token-Saving JSON & Differential Analysis:** Output JSON terstruktur dan diffing baseline terotomatisasi untuk efisiensi context window agen.
 - **Traffic Isolation:** Request inferensi LLM (OpenCode/Hermes ke OpenAI/Anthropic/Ollama) tidak tercampur atau terganggu oleh lalu lintas pengujian.
 - **Interactive Intercept (Proxy Trap):** Operator dapat menahan (pause), memodifikasi, atau membatalkan request agen sebelum dikirim ke target.
-- **Scope & Guardrails:** Memblokir tautan destruktif (`logout`, `delete`, `payment`) atau domain eksternal secara otomatis.
+- **Scope & Guardrails:** Pembatasan scope fleksibel yang dapat dikonfigurasi sesuai kebutuhan proyek.
 - **Repeater Console:** Operator dapat menguji ulang request agen dengan payload kustom secara berdampingan.
 - **Export HAR 1.2 & Markdown:** Ekspor seluruh lalu lintas pengujian untuk dianalisis di Burp Suite atau dibuat laporan pentest eksekutif.
 - **Automated Dual-Track Triage:** Klasifikasi otomatis kerentanan Confirmed vs Potential.

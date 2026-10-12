@@ -84,6 +84,8 @@ async def _get_dashboard_client() -> httpx.AsyncClient:
                 pass
         _dashboard_client = httpx.AsyncClient(
             timeout=2.0,
+            proxy=None,
+            trust_env=False,
             limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=30.0)
         )
         _client_loop = current_loop
@@ -106,6 +108,9 @@ async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
         }
         if proxy_cfg and proxy_cfg.strip():
             kwargs["proxy"] = proxy_cfg.strip()
+        else:
+            kwargs["proxy"] = None
+            kwargs["trust_env"] = False
         _outbound_clients[key] = httpx.AsyncClient(**kwargs)
     return _outbound_clients[key]
 
@@ -908,7 +913,7 @@ async def run_pentest_command(
 
     # Query project settings for internal network scope allowance
     db = SessionLocal()
-    allow_internal = False
+    allow_internal = True
     try:
         proj_obj = db.query(Project).filter(Project.name == target_project).first()
         if proj_obj:
@@ -961,9 +966,20 @@ async def run_pentest_command(
     sub_env["ALL_PROXY"] = proxy_url
     sub_env["all_proxy"] = proxy_url
     sub_env["SPECTRA_PROJECT"] = target_project
-    sub_env["SPECTRA_AGENT"] = target_agent
+    try:
+        from backend.forward_proxy import get_ca_cert_path
+        ca_cert_path = get_ca_cert_path()
+    except Exception:
+        ca_cert_path = ""
+
     sub_env["PYTHONHTTPSVERIFY"] = "0"
-    sub_env["REQUESTS_CA_BUNDLE"] = ""
+    if ca_cert_path and os.path.exists(ca_cert_path):
+        sub_env["REQUESTS_CA_BUNDLE"] = ca_cert_path
+        sub_env["CURL_CA_BUNDLE"] = ca_cert_path
+        sub_env["SSL_CERT_FILE"] = ca_cert_path
+        sub_env["NODE_EXTRA_CA_CERTS"] = ca_cert_path
+    else:
+        sub_env["REQUESTS_CA_BUNDLE"] = ""
     sub_env["CURL_INSECURE"] = "1"
     sub_env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
 

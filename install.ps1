@@ -81,6 +81,12 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[!] Warning: Database pre-initialization check failed." -ForegroundColor Yellow
 }
 
+# 7. Install AI Agent Proxy Enforcer Hook
+Write-Host "[*] Installing AI Agent Transparent Proxy Enforcer..." -ForegroundColor Cyan
+$SitePackages = Join-Path $VenvDir "Lib\site-packages\sitecustomize.py"
+Copy-Item (Join-Path $PSScriptRoot "sitecustomize.py") $SitePackages -Force
+Write-Host "[+] AI Agent transparent proxy hook installed in venv." -ForegroundColor Green
+
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Green
 Write-Host "  [SUCCESS] Spectra Installation Complete!                              " -ForegroundColor Green

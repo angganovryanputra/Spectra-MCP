@@ -11,7 +11,7 @@ if sys.platform == "win32":
 
 # Ensure environment uses alternate ports so port 8000 in WSL2 is not touched!
 TARGET_MOCK_PORT = 8999
-PROXY_TEST_PORT = 8088
+PROXY_TEST_PORT = 8090
 
 os.environ["SPECTRA_PROXY_PORT"] = str(PROXY_TEST_PORT)
 os.environ["SPECTRA_BACKEND_URL"] = "http://127.0.0.1:8081" # Not 8000!
@@ -152,6 +152,71 @@ print("BLOCKED_SCRIPT_BODY:", resp.text)
     assert "BLOCKED_SCRIPT_CODE: 403" in res_blocked["stdout"]
     assert "BLOCKED BY SPECTRA SCOPE GUARD" in res_blocked["stdout"]
     print("  ✓ Forward Proxy successfully intercepted and BLOCKED out-of-scope script attempt with HTTP 403!")
+
+    # 6. TEST HTTPS TLS MITM INTERCEPTION & DECRYPTION
+    print("\n[TEST 6] Verifying HTTPS TLS MITM Interception & Request Decryption...")
+    from backend.forward_proxy import get_ssl_context_for_host
+
+    class TargetHttpsHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status": "https_vulnerable", "flag": "SPECTRA_HTTPS_DECRYPTED_SUCCESS", "path": "' + self.path.encode() + b'"}')
+        def log_message(self, format, *args): pass
+
+    https_target = HTTPServer(("127.0.0.1", 9443), TargetHttpsHandler)
+    mock_https_ctx = get_ssl_context_for_host("127.0.0.1")
+    https_target.socket = mock_https_ctx.wrap_socket(https_target.socket, server_side=True)
+    https_thread = threading.Thread(target=https_target.serve_forever, daemon=True)
+    https_thread.start()
+
+    https_script_content = f'''import requests
+url = "https://127.0.0.1:9443/api/v1/auth/https-sqli-test?id=admin'%20OR%201=1--"
+resp = requests.get(url, timeout=5, verify=False)
+print("HTTPS_SCRIPT_STATUS_CODE:", resp.status_code)
+print("HTTPS_SCRIPT_BODY:", resp.text)
+'''
+    https_script_path = os.path.abspath("test_https_script.py")
+    with open(https_script_path, "w", encoding="utf-8") as f:
+        f.write(https_script_content)
+
+    res_https_cmd_str = await mcp_server.run_pentest_command(
+        command=f'"{python_exe}" "{https_script_path}"',
+        reasoning="Executing HTTPS exploit script through proxy",
+        project="auto_proxy_proj",
+        output_format="json"
+    )
+    res_https_cmd = json.loads(res_https_cmd_str)
+    assert res_https_cmd["status"] == "SUCCESS", f"HTTPS script failed: {res_https_cmd}"
+    assert "HTTPS_SCRIPT_STATUS_CODE: 200" in res_https_cmd["stdout"]
+    assert "SPECTRA_HTTPS_DECRYPTED_SUCCESS" in res_https_cmd["stdout"]
+
+    # Verify that Spectra captured the DECRYPTED GET request (NOT just a blind CONNECT)
+    db = SessionLocal()
+    https_captured_log = db.query(HttpLog).filter(
+        HttpLog.project == "auto_proxy_proj",
+        HttpLog.url.like("%https-sqli-test%")
+    ).order_by(HttpLog.id.desc()).first()
+
+    assert https_captured_log is not None, "FATAL: Decrypted HTTPS traffic was NOT logged!"
+    assert https_captured_log.method == "GET", f"Expected GET, got {https_captured_log.method}"
+    assert https_captured_log.status_code == 200
+    assert "SPECTRA_HTTPS_DECRYPTED_SUCCESS" in https_captured_log.response_body
+    print(f"  ✓ Decrypted HTTPS Request verified in DB! (Log #{https_captured_log.id}, Method: {https_captured_log.method}, Path: {https_captured_log.path})")
+    print(f"  ✓ Full Decrypted Response Body captured: {https_captured_log.response_body[:80]}...")
+
+    # Ensure NO dummy CONNECT log with path '/9443' was recorded
+    dummy_connect_log = db.query(HttpLog).filter(
+        HttpLog.project == "auto_proxy_proj",
+        HttpLog.method == "CONNECT"
+    ).first()
+    assert dummy_connect_log is None, f"Found unwanted dummy CONNECT log: {dummy_connect_log.id}"
+    print("  ✓ Confirmed: Zero noisy 'CONNECT' logs recorded in database!")
+    db.close()
+    https_target.shutdown()
+    if os.path.exists(https_script_path):
+        os.remove(https_script_path)
 
     # 7. CLEANUP
     await stop_forward_proxy()

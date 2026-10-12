@@ -173,7 +173,7 @@ def _evaluate_ip_list(hostname: str, ips: List[Any], allow_internal: bool) -> Tu
     return True, None
 
 
-def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
+def check_ssrf_safety(url: str, allow_internal: bool = True, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
     """
     Validates whether a target URL poses an SSRF threat (Synchronous / Cached).
     - Always blocks Cloud Metadata (169.254.169.254).
@@ -226,7 +226,7 @@ def check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_po
     return _evaluate_ip_list(hostname, resolved_ips, allow_internal)
 
 
-async def async_check_ssrf_safety(url: str, allow_internal: bool = False, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
+async def async_check_ssrf_safety(url: str, allow_internal: bool = True, spectra_backend_port: int = 8000) -> Tuple[bool, Optional[str]]:
     """
     Asynchronously validates whether a target URL poses an SSRF threat without blocking the event loop.
     """
@@ -316,7 +316,7 @@ EXPANDED_DANGEROUS_PATTERNS = [
     r"Restart-Computer",
 ]
 
-def check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple[bool, Optional[str]]:
+def check_command_safe_mode(command: str, allow_internal: bool = True) -> Tuple[bool, Optional[str]]:
     """
     Inspects shell commands against:
     1. Dangerous filesystem/system destruction patterns.
@@ -346,7 +346,7 @@ def check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple
     return True, None
 
 
-async def async_check_command_safe_mode(command: str, allow_internal: bool = False) -> Tuple[bool, Optional[str]]:
+async def async_check_command_safe_mode(command: str, allow_internal: bool = True) -> Tuple[bool, Optional[str]]:
     """
     Asynchronously inspects shell commands against dangerous patterns and SSRF targets
     without blocking the event loop on DNS resolution.

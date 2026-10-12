@@ -71,6 +71,11 @@ if errorlevel 1 (
     echo [!] Warning: Database pre-initialization check failed.
 )
 
+:: 7. Install AI Agent Proxy Enforcer Hook
+echo [*] Installing AI Agent Proxy Enforcer into venv...
+copy /Y sitecustomize.py venv\Lib\site-packages\sitecustomize.py >nul
+echo [+] AI Agent transparent proxy hook installed in venv.
+
 echo.
 echo ========================================================================
 echo   [SUCCESS] Spectra Installation Complete!

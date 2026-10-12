@@ -479,7 +479,9 @@ async def create_project(data: CreateProjectRequest, db: Session = Depends(get_d
         description=data.description or "",
         scope_enabled=False,
         allowed_hosts=json.dumps(["*"]),
-        blocked_patterns=json.dumps(["logout", "delete.*user", "payment", "checkout"])
+        blocked_patterns=json.dumps([]),
+        allow_internal_networks=True,
+        verify_ssl=False
     )
     db.add(new_p)
     db.commit()
@@ -869,6 +871,8 @@ def list_logs(
         query = query.filter(HttpLog.flag_status == flag.upper())
     if method and method.upper() != "ALL":
         query = query.filter(HttpLog.method == method.upper())
+    else:
+        query = query.filter(HttpLog.method != "CONNECT")
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
