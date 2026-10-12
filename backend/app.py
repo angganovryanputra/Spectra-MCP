@@ -11,7 +11,8 @@ import time
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, HTTPException, BackgroundTasks, Response
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, HTTPException, BackgroundTasks, Response, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -19,7 +20,7 @@ import urllib.parse
 from sqlalchemy.orm import Session, defer
 from sqlalchemy import desc, func, or_
 
-from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project, AgentCommandLog, CapturedPayload
+from backend.database import init_db, get_db, HttpLog, Finding, ActiveSession, Project, AgentCommandLog, CapturedPayload, TargetAsset, TargetService, TargetEndpoint, OastEvent
 from backend.analyzer import analyze_traffic
 from backend.browser_handler import (
     spawn_interactive_login,
@@ -77,7 +78,11 @@ app.add_middleware(
 )
 
 @app.middleware("http")
-async def host_and_auth_security_middleware(request, call_next):
+async def host_and_auth_security_middleware(request: Request, call_next):
+    # 0. Allow out-of-band OAST callbacks from target servers without host or API key restrictions
+    if request.url.path.startswith("/oast/"):
+        return await call_next(request)
+
     client_host = request.client.host if request.client else "unknown"
     # 1. Localhost enforcement: if remote access is not explicitly enabled, block remote IPs
     if not SPECTRA_ALLOW_REMOTE:
@@ -111,6 +116,8 @@ async def host_and_auth_security_middleware(request, call_next):
     return await call_next(request)
 
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
 # ==============================================================================
@@ -375,6 +382,13 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
         db.add(finding)
 
     db.commit()
+
+    # Auto-ingest URL into attack surface knowledge graph
+    try:
+        from backend.target_manager import auto_ingest_url_to_target_graph
+        auto_ingest_url_to_target_graph(project_name, log_entry.url, log_entry.method)
+    except Exception:
+        pass
 
     # Invalidate stats cache on new log
     _invalidate_stats_cache()
@@ -1369,6 +1383,239 @@ def clear_all_sessions(project: Optional[str] = None, db: Session = Depends(get_
     count = query.delete(synchronize_session=False)
     db.commit()
     return {"status": "cleared", "count": count, "project": project or "ALL"}
+
+
+# ==============================================================================
+# Target Knowledge Graph & Attack Surface Endpoints
+# ==============================================================================
+
+class CreateTargetAssetRequest(BaseModel):
+    project: str = "default"
+    host: str
+    ip: Optional[str] = ""
+    os_info: Optional[str] = ""
+    tags: Optional[List[str]] = []
+    notes: Optional[str] = ""
+
+
+class CreateTargetServiceRequest(BaseModel):
+    project: str = "default"
+    host: str
+    port: int
+    protocol: Optional[str] = "tcp"
+    service_name: Optional[str] = "unknown"
+    banner: Optional[str] = ""
+    state: Optional[str] = "open"
+
+
+class CreateTargetEndpointRequest(BaseModel):
+    project: str = "default"
+    host: str
+    url: str
+    method: Optional[str] = "GET"
+    parameters: Optional[List[str]] = []
+    auth_required: Optional[bool] = False
+    tested_status: Optional[str] = "UNTESTED"
+    notes: Optional[str] = ""
+
+
+class UpdateEndpointStatusRequest(BaseModel):
+    tested_status: str
+    notes: Optional[str] = None
+
+
+@app.get("/api/targets/graph")
+def get_targets_graph_endpoint(project: str = "default", host: Optional[str] = None):
+    """Returns the attack surface graph topology for a project."""
+    from backend.target_manager import get_attack_surface_graph
+    return get_attack_surface_graph(project=project, host=host)
+
+
+@app.post("/api/targets/assets")
+def create_target_asset_endpoint(req: CreateTargetAssetRequest):
+    """Upserts a target asset in the attack surface graph."""
+    from backend.target_manager import upsert_target_asset
+    return upsert_target_asset(
+        project=req.project,
+        host=req.host,
+        ip=req.ip or "",
+        os_info=req.os_info or "",
+        tags=req.tags,
+        notes=req.notes or ""
+    )
+
+
+@app.post("/api/targets/services")
+def create_target_service_endpoint(req: CreateTargetServiceRequest):
+    """Records an open port or network service under a target asset."""
+    from backend.target_manager import add_or_update_service
+    return add_or_update_service(
+        project=req.project,
+        host=req.host,
+        port=req.port,
+        protocol=req.protocol or "tcp",
+        service_name=req.service_name or "unknown",
+        banner=req.banner or "",
+        state=req.state or "open"
+    )
+
+
+@app.post("/api/targets/endpoints")
+def create_target_endpoint_endpoint(req: CreateTargetEndpointRequest):
+    """Records a web API route/endpoint under a target asset."""
+    from backend.target_manager import add_or_update_endpoint
+    return add_or_update_endpoint(
+        project=req.project,
+        host=req.host,
+        url=req.url,
+        method=req.method or "GET",
+        parameters=req.parameters,
+        auth_required=bool(req.auth_required),
+        tested_status=req.tested_status or "UNTESTED",
+        notes=req.notes or ""
+    )
+
+
+@app.delete("/api/targets/assets/{asset_id}")
+def delete_target_asset_endpoint(asset_id: int, db: Session = Depends(get_db)):
+    """Deletes an asset and all its cascading services/endpoints."""
+    asset = db.query(TargetAsset).filter(TargetAsset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail=f"Asset ID #{asset_id} not found.")
+    db.delete(asset)
+    db.commit()
+    return {"status": "deleted", "id": asset_id}
+
+
+@app.patch("/api/targets/endpoints/{endpoint_id}")
+def update_target_endpoint_status(endpoint_id: int, req: UpdateEndpointStatusRequest, db: Session = Depends(get_db)):
+    """Updates testing progress status for a specific endpoint."""
+    ep = db.query(TargetEndpoint).filter(TargetEndpoint.id == endpoint_id).first()
+    if not ep:
+        raise HTTPException(status_code=404, detail=f"Endpoint ID #{endpoint_id} not found.")
+    ep.tested_status = req.tested_status.upper()
+    if req.notes is not None:
+        ep.notes = req.notes
+    db.commit()
+    db.refresh(ep)
+    return ep.to_dict()
+
+
+@app.delete("/api/targets/graph")
+def clear_target_graph_endpoint(project: str = "default", db: Session = Depends(get_db)):
+    """Clears target assets, services, and endpoints for a project."""
+    target_project = (project or "default").strip().lower()
+    q = db.query(TargetAsset)
+    if target_project != "all":
+        q = q.filter(TargetAsset.project == target_project)
+    assets = q.all()
+    count = len(assets)
+    for a in assets:
+        db.delete(a)
+    db.commit()
+    return {"status": "cleared", "deleted_assets": count}
+
+
+# ==============================================================================
+# OAST (Out-of-Band Application Security Testing) Endpoints
+# ==============================================================================
+
+class GenerateOastRequest(BaseModel):
+    project: str = "default"
+    description: Optional[str] = ""
+    vuln_type: Optional[str] = "BLIND_CALLBACK"
+
+
+@app.api_route("/oast/{token}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
+@app.api_route("/oast/{token}/{subpath:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
+async def handle_oast_callback(token: str, request: Request, subpath: str = ""):
+    """Catches out-of-band HTTP/S callbacks from target servers triggered by blind exploits."""
+    from backend.oast_engine import record_oast_hit
+    client_ip = request.client.host if request.client else "unknown"
+    headers = dict(request.headers)
+    query_params = dict(request.query_params)
+    try:
+        body_bytes = await request.body()
+        body_text = body_bytes.decode("utf-8", errors="replace")
+    except Exception:
+        body_text = ""
+
+    path = f"/oast/{token}" + (f"/{subpath}" if subpath else "")
+    hit_event = record_oast_hit(
+        token=token,
+        client_ip=client_ip,
+        method=request.method,
+        path=path,
+        headers=headers,
+        query_params=query_params,
+        body=body_text,
+        protocol="HTTP",
+        project="default",
+        description=f"Out-of-band {request.method} callback captured"
+    )
+
+    if hit_event:
+        await ws_manager.broadcast({
+            "type": "OAST_HIT",
+            "event": hit_event,
+            "alert": True
+        })
+
+    return JSONResponse({
+        "status": "captured",
+        "token": token,
+        "method": request.method,
+        "client_ip": client_ip,
+        "timestamp": datetime.now().isoformat()
+    })
+
+
+@app.get("/api/oast/events")
+def get_oast_events_endpoint(project: str = "default", limit: int = 50):
+    """Returns recent out-of-band interactions captured by the OAST engine."""
+    from backend.oast_engine import list_recent_oast_events
+    return {"events": list_recent_oast_events(project=project, limit=limit)}
+
+
+@app.post("/api/oast/generate")
+def generate_oast_token_endpoint(req: GenerateOastRequest):
+    """Generates a new OAST token and callback payload URLs for the agent."""
+    from backend.oast_engine import generate_oast_token
+    return generate_oast_token(
+        project=req.project,
+        description=req.description or "",
+        vuln_type=req.vuln_type or "BLIND_CALLBACK"
+    )
+
+
+@app.delete("/api/oast/events")
+def clear_oast_events_endpoint(project: Optional[str] = None, db: Session = Depends(get_db)):
+    """Clears captured OAST interaction logs."""
+    q = db.query(OastEvent)
+    if project and project.upper() != "ALL":
+        q = q.filter(OastEvent.project == project.lower())
+    deleted = q.delete(synchronize_session=False)
+    db.commit()
+    return {"status": "cleared", "deleted_count": deleted}
+
+
+class OastConfigRequest(BaseModel):
+    callback_url: str
+
+
+@app.get("/api/oast/config")
+def get_oast_config_endpoint():
+    """Returns the current base URL used for generating OAST callback URLs."""
+    from backend.oast_engine import get_base_callback_url
+    return {"callback_url": get_base_callback_url()}
+
+
+@app.post("/api/oast/config")
+def update_oast_config_endpoint(req: OastConfigRequest):
+    """Dynamically updates the base URL for OAST callbacks (e.g. ngrok tunnel or external VPS IP)."""
+    from backend.oast_engine import set_base_callback_url, get_base_callback_url
+    set_base_callback_url(req.callback_url)
+    return {"status": "updated", "callback_url": get_base_callback_url()}
 
 
 # ==============================================================================

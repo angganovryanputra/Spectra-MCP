@@ -305,6 +305,151 @@ class CapturedPayload(Base):
         }
 
 
+class TargetAsset(Base):
+    __tablename__ = "target_assets"
+    __table_args__ = (Index("ix_target_assets_proj_host", "project", "host"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    host = Column(String(255), nullable=False, index=True)
+    ip = Column(String(64), nullable=True)
+    os_info = Column(String(128), default="")
+    tags = Column(String(255), default="")
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    services = relationship("TargetService", back_populates="asset", cascade="all, delete-orphan", lazy="selectin")
+    endpoints = relationship("TargetEndpoint", back_populates="asset", cascade="all, delete-orphan", lazy="selectin")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "host": self.host,
+            "ip": self.ip or "",
+            "os_info": self.os_info or "",
+            "tags": [t.strip() for t in self.tags.split(",") if t.strip()] if self.tags else [],
+            "notes": self.notes or "",
+            "created_at": self.created_at.isoformat() if self.created_at else "",
+            "updated_at": self.updated_at.isoformat() if self.updated_at else "",
+            "services_count": len(self.services or []),
+            "endpoints_count": len(self.endpoints or []),
+            "services": [s.to_dict() for s in (self.services or [])],
+            "endpoints": [e.to_dict() for e in (self.endpoints or [])]
+        }
+
+
+class TargetService(Base):
+    __tablename__ = "target_services"
+    __table_args__ = (Index("ix_target_services_asset_port", "asset_id", "port"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    asset_id = Column(Integer, ForeignKey("target_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    port = Column(Integer, nullable=False)
+    protocol = Column(String(16), default="tcp")
+    service_name = Column(String(64), default="unknown")
+    banner = Column(Text, default="")
+    state = Column(String(32), default="open")  # open, closed, filtered
+    created_at = Column(DateTime, default=datetime.now)
+
+    asset = relationship("TargetAsset", back_populates="services")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "asset_id": self.asset_id,
+            "port": self.port,
+            "protocol": self.protocol or "tcp",
+            "service_name": self.service_name or "unknown",
+            "banner": self.banner or "",
+            "state": self.state or "open",
+            "created_at": self.created_at.isoformat() if self.created_at else ""
+        }
+
+
+class TargetEndpoint(Base):
+    __tablename__ = "target_endpoints"
+    __table_args__ = (Index("ix_target_endpoints_asset_method", "asset_id", "method"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    asset_id = Column(Integer, ForeignKey("target_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    method = Column(String(16), default="GET")
+    path = Column(Text, nullable=False)
+    url = Column(Text, nullable=False)
+    auth_required = Column(Boolean, default=False)
+    parameters = Column(Text, default="[]")
+    tested_status = Column(String(32), default="UNTESTED")  # UNTESTED, IN_PROGRESS, TESTED, VULNERABLE
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    asset = relationship("TargetAsset", back_populates="endpoints")
+
+    def to_dict(self):
+        try:
+            params = json.loads(self.parameters) if self.parameters else []
+        except Exception:
+            params = [self.parameters] if self.parameters else []
+        return {
+            "id": self.id,
+            "asset_id": self.asset_id,
+            "method": self.method or "GET",
+            "path": self.path or "/",
+            "url": self.url or "",
+            "auth_required": bool(self.auth_required),
+            "parameters": params,
+            "tested_status": self.tested_status or "UNTESTED",
+            "notes": self.notes or "",
+            "created_at": self.created_at.isoformat() if self.created_at else ""
+        }
+
+
+class OastEvent(Base):
+    __tablename__ = "oast_events"
+    __table_args__ = (
+        Index("ix_oast_events_proj_id", "project", "id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    token = Column(String(64), nullable=False, index=True)
+    vuln_type = Column(String(64), default="BLIND_CALLBACK")
+    protocol = Column(String(16), default="HTTP")  # HTTP, DNS
+    client_ip = Column(String(64), nullable=True)
+    method = Column(String(16), default="GET")
+    path = Column(Text, default="")
+    request_headers = Column(Text, default="{}")
+    query_params = Column(Text, default="{}")
+    request_body = Column(Text, default="")
+    description = Column(Text, default="")
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+
+    def to_dict(self):
+        try:
+            hdrs = json.loads(self.request_headers) if self.request_headers else {}
+        except Exception:
+            hdrs = {}
+        try:
+            params = json.loads(self.query_params) if self.query_params else {}
+        except Exception:
+            params = {}
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "token": self.token,
+            "vuln_type": self.vuln_type or "BLIND_CALLBACK",
+            "protocol": self.protocol or "HTTP",
+            "client_ip": self.client_ip or "",
+            "method": self.method or "GET",
+            "path": self.path or "",
+            "headers": hdrs,
+            "query_params": params,
+            "request_body": self.request_body or "",
+            "description": self.description or "",
+            "timestamp": self.timestamp.isoformat() if self.timestamp else ""
+        }
+
+
 def _run_migrations():
     """Safely adds newly introduced columns and high-performance indexes to existing SQLite tables."""
     import sqlite3
@@ -339,6 +484,13 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_id_desc ON captured_payloads(id DESC)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_vuln_type ON captured_payloads(vuln_type)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_captured_payloads_outcome ON captured_payloads(outcome)")
+
+        # Target Knowledge Graph & OAST indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_target_assets_proj_host ON target_assets(project, host)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_target_services_asset_port ON target_services(asset_id, port)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_target_endpoints_asset_method ON target_endpoints(asset_id, method)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_oast_events_token ON oast_events(token)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_oast_events_proj_id ON oast_events(project, id DESC)")
         con.commit()
         con.close()
     except Exception as ex:

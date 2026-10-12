@@ -49,12 +49,27 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
     - Saat mengirim request exploit yang Anda ketahui atau duga sebagai kerentanan, Anda dapat langsung menambahkan parameter di `send_http_request`: `finding_title="SQL Injection — Authentication Bypass"`, `finding_severity="CRITICAL"`, `flag_status="CONFIRMED"`, `finding_category="SQL Injection"`, `finding_evidence="Admin JWT token returned"`.
     - ATAU setelah menganalisis respons dengan `get_log_detail(log_id)`, panggil tool `report_vulnerability(log_id=<ID>, title="...", severity="CRITICAL"|"HIGH"|"MEDIUM", category="...", evidence="...")` untuk mencatat temuan terkonfirmasi ke dalam Spectra Dashboard Findings Ledger.
 
+11. **Standardisasi Output JSON & Token-Saving (Hemat Konteks LLM):**
+    - Gunakan `output_format="json"` pada `send_http_request` atau `run_pentest_command` untuk mendapatkan output terstruktur yang mudah diparsing.
+    - Gunakan parameter `diff_baseline_id=<ID>` pada `send_http_request` saat mengirim payload variasi/mutasi untuk membandingkan respons dengan baseline awal. Spectra akan menghitung diff unified secara otomatis sehingga menghemat token LLM hingga 90%.
+12. **Target Knowledge Graph (Stateful Recon & Surface Mapping):**
+    - Gunakan `get_attack_surface(project="...")` untuk melihat topologi aset target, port/layanan terbuka, dan status endpoint yang sudah maupun belum diuji.
+    - Catat host/IP baru dengan `record_target_asset(...)`.
+    - Catat port terbuka hasil nmap/portscan dengan `record_target_service(...)`.
+    - Catat rute/endpoint baru dan update status progresnya (`UNTESTED`, `IN_PROGRESS`, `TESTED_CLEAN`, `TESTED_VULNERABLE`) dengan `record_target_endpoint(...)`.
+13. **OAST Engine (Deteksi Blind Vulnerabilities Out-of-Band):**
+    - Untuk mendeteksi Blind SSRF, Blind SQLi, Blind RCE, XXE, atau Log4j/JNDI, gunakan `generate_oast_token(vuln_type="SSRF", description="...")`.
+    - Masukkan `callback_url` yang diberikan ke dalam payload eksploitasi Anda.
+    - Panggil `poll_oast_events(token="...", timeout_seconds=5)` untuk memverifikasi apakah target server melakukan callback balik ke Spectra.
 ```
 
 ---
 
 ## 3. Fitur Utama yang Aktif
 
+- **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian.
+- **OAST Engine (Out-of-Band Callback Listener):** Deteksi blind vulnerabilities dengan korelasi token unik dan live WebSocket hit notification.
+- **Token-Saving JSON & Differential Analysis:** Output JSON terstruktur dan diffing baseline terotomatisasi untuk efisiensi context window agen.
 - **Traffic Isolation:** Request inferensi LLM (OpenCode/Hermes ke OpenAI/Anthropic/Ollama) tidak tercampur atau terganggu oleh lalu lintas pengujian.
 - **Interactive Intercept (Proxy Trap):** Operator dapat menahan (pause), memodifikasi, atau membatalkan request agen sebelum dikirim ke target.
 - **Scope & Guardrails:** Memblokir tautan destruktif (`logout`, `delete`, `payment`) atau domain eksternal secara otomatis.

@@ -26,7 +26,8 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-from backend.database import init_db, SessionLocal, ActiveSession, HttpLog, Finding, Project, AgentCommandLog, CapturedPayload
+import difflib
+from backend.database import init_db, SessionLocal, ActiveSession, HttpLog, Finding, Project, AgentCommandLog, CapturedPayload, TargetAsset, TargetService, TargetEndpoint, OastEvent
 from backend.analyzer import analyze_traffic
 from backend.browser_handler import render_page, spawn_interactive_login
 from backend.intercept_manager import (
@@ -41,6 +42,16 @@ from backend.security_utils import (
     async_check_command_safe_mode,
     check_ssrf_safety,
     async_check_ssrf_safety
+)
+from backend.target_manager import (
+    upsert_target_asset,
+    add_or_update_service,
+    add_or_update_endpoint,
+    get_attack_surface_graph
+)
+from backend.oast_engine import (
+    generate_oast_token as engine_generate_oast_token,
+    poll_oast_events as engine_poll_oast_events
 )
 
 # Initialize FastMCP Server
@@ -353,7 +364,9 @@ async def send_http_request(
     finding_category: str = "",
     finding_evidence: str = "",
     finding_description: str = "",
-    finding_remediation: str = ""
+    finding_remediation: str = "",
+    output_format: str = "json",
+    diff_baseline_id: Optional[int] = None
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
@@ -436,6 +449,15 @@ async def send_http_request(
             "reasoning": reasoning or ""
         }
         await _persist_and_stream_log(blocked_payload, "BLOCKED", [])
+        if (output_format or "").strip().lower() == "json":
+            return json.dumps({
+                "status": "blocked",
+                "error": "SCOPE_GUARD_BLOCKED",
+                "reason": block_reason,
+                "url": url,
+                "project": target_project,
+                "message": f"Blocked by Spectra Scope Guard: {block_reason}. Restrict testing to authorized domains."
+            }, indent=2)
         return (
             f"[!] BLOCKED BY SPECTRA SCOPE GUARD:\n"
             f"The target '{url}' was blocked because: {block_reason}.\n"
@@ -488,11 +510,23 @@ async def send_http_request(
             await asyncio.wait_for(trap_event.wait(), timeout=180.0)
         except asyncio.TimeoutError:
             pop_intercept_result(intercept_id)
+            if (output_format or "").strip().lower() == "json":
+                return json.dumps({
+                    "status": "intercept_timeout",
+                    "intercept_id": intercept_id,
+                    "message": "Request paused for 180s without human response. Execution resumed."
+                }, indent=2)
             return "[!] INTERCEPT TIMEOUT: Request paused for 180s without human response. Execution resumed."
 
         result_item = pop_intercept_result(intercept_id)
         if result_item:
             if result_item.get("decision") == "drop":
+                if (output_format or "").strip().lower() == "json":
+                    return json.dumps({
+                        "status": "dropped",
+                        "intercept_id": intercept_id,
+                        "message": "The request was dropped by the human operator in the Spectra Intercept Console."
+                    }, indent=2)
                 return "[!] REQUEST DROPPED: The request was dropped by the human operator in the Spectra Intercept Console."
             elif result_item.get("modified_data"):
                 # Apply modifications made by human operator
@@ -598,6 +632,55 @@ async def send_http_request(
     body_snippet = res_body[:max_preview] if res_body else "[Empty response body]"
     log_id_str = f"#{logged_id}" if logged_id else "#untracked"
 
+    # Compute differential against baseline response if diff_baseline_id requested
+    diff_text = None
+    if diff_baseline_id:
+        baseline_body = ""
+        try:
+            db_base = SessionLocal()
+            base_entry = db_base.query(HttpLog).filter(HttpLog.id == int(diff_baseline_id)).first()
+            if base_entry:
+                baseline_body = base_entry.response_body or ""
+            db_base.close()
+        except Exception:
+            pass
+        if baseline_body:
+            base_lines = baseline_body.splitlines(keepends=True)
+            curr_lines = res_body.splitlines(keepends=True)
+            diff_lines = list(difflib.unified_diff(base_lines, curr_lines, fromfile=f"log_{diff_baseline_id}", tofile=f"current_{logged_id}", n=2))
+            diff_text = "".join(diff_lines[:80])
+
+    fmt_choice = (output_format or "json").strip().lower()
+
+    if fmt_choice == "json":
+        res_dict = {
+            "status": "success" if (status_code and status_code < 500) else "warning",
+            "log_id": logged_id,
+            "project": target_project,
+            "agent_id": target_agent,
+            "http_status": status_code,
+            "latency_ms": duration_ms,
+            "flag_status": flag_status,
+            "findings": findings_list,
+            "cookies_injected": len(active_cookies),
+            "response_headers": res_headers,
+            "response_body_preview": body_snippet,
+            "body_total_chars": len(res_body),
+            "diff_with_baseline": diff_text
+        }
+        return json.dumps(res_dict, indent=2)
+
+    if fmt_choice == "compact":
+        return json.dumps({
+            "log_id": logged_id,
+            "status": status_code,
+            "latency": duration_ms,
+            "flag": flag_status,
+            "findings": [f.get("title") for f in findings_list],
+            "body_len": len(res_body),
+            "diff": diff_text[:500] if diff_text else None
+        })
+
     triage_info = ""
     if flag_status == "CONFIRMED":
         triage_info = f"\n[!] ALERT: CONFIRMED FINDING DETECTED: {[f['title'] for f in findings_list]}"
@@ -605,10 +688,11 @@ async def send_http_request(
         triage_info = f"\n[*] NOTICE: POTENTIAL ANOMALY DETECTED: {[f['title'] for f in findings_list]}"
 
     session_tag = f" | [Spectra: Auto-injected {len(active_cookies)} cookies]" if active_cookies else ""
+    diff_section = f"\n\n--- Diff against Baseline #{diff_baseline_id} ---\n{diff_text}" if diff_text else ""
     return (
         f"Project: [{target_project}] | Log ID: {log_id_str} | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms{session_tag} | Flag: {flag_status}{triage_info}\n"
         f"Headers: {json.dumps(res_headers)}\n\n"
-        f"Body Preview (showing {min(len(body_snippet), len(res_body))} of {len(res_body)} chars. Call tool get_log_detail({logged_id or 0}) to read complete uncompressed body):\n{body_snippet}"
+        f"Body Preview (showing {min(len(body_snippet), len(res_body))} of {len(res_body)} chars. Call tool get_log_detail({logged_id or 0}) to read complete uncompressed body):\n{body_snippet}{diff_section}"
     )
 
 
@@ -807,7 +891,8 @@ async def run_pentest_command(
     project: str = "default",
     agent_id: str = "primary_agent",
     timeout: int = 60,
-    cwd: str = ""
+    cwd: str = "",
+    output_format: str = "json"
 ) -> str:
     """
     Executes a security testing command in the local shell environment (e.g. nmap, curl, sqlmap, custom scripts),
@@ -908,6 +993,21 @@ async def run_pentest_command(
 
     stdout_snippet = stdout_text[:5000] if stdout_text else "[No standard output]"
     stderr_snippet = f"\nSTDERR:\n{stderr_text[:2000]}" if stderr_text else ""
+    fmt_choice = (output_format or "json").strip().lower()
+    if fmt_choice == "json":
+        return json.dumps({
+            "command_id": cmd_id,
+            "project": target_project,
+            "agent_id": target_agent,
+            "command": cmd_clean,
+            "cwd": work_dir,
+            "status": status,
+            "exit_code": exit_code,
+            "duration_ms": duration_ms,
+            "stdout": stdout_snippet,
+            "stderr": stderr_text[:2000] if stderr_text else ""
+        }, indent=2)
+
     return (
         f"Project: [{target_project}] | Command ID: {cmd_id_str} | Agent: [{target_agent}] | Exit Code: {exit_code} | Duration: {duration_ms}ms | CWD: [{work_dir}] | Status: {status}\n"
         f"Command: {cmd_clean}\n\n"
@@ -1236,6 +1336,231 @@ async def report_vulnerability(
         f"Evidence: {evidence or '[None provided]'}\n"
         f"The finding is now actively registered in the Spectra Dashboard and highlighted for operator review."
     )
+
+
+# ==============================================================================
+# MCP Tool 9: get_attack_surface (Target Knowledge Graph Query)
+# ==============================================================================
+
+@mcp.tool()
+async def get_attack_surface(
+    project: str = "default",
+    host: str = "",
+    output_format: str = "json"
+) -> str:
+    """
+    Retrieves the stateful Attack Surface Knowledge Graph for the project.
+    Provides inventory of known target assets, open ports, services, endpoints,
+    and testing progress (UNTESTED, IN_PROGRESS, TESTED, VULNERABLE).
+    Essential for autonomous agents (OpenCode/Hermes) to plan and track reconnaissance and exploitation.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    graph_data = get_attack_surface_graph(project=target_project, host=host.strip() or None)
+    if (output_format or "json").strip().lower() == "text":
+        summary = graph_data.get("summary", {})
+        assets = graph_data.get("assets", [])
+        lines = [
+            f"=== TARGET ATTACK SURFACE GRAPH [Project: {target_project}] ===",
+            f"Assets: {summary.get('total_assets')} | Services: {summary.get('total_services')} | Endpoints: {summary.get('total_endpoints')}",
+            f"Status Breakdown: Untested: {summary.get('untested_endpoints')} | Tested: {summary.get('tested_endpoints')} | Vulnerable: {summary.get('vulnerable_endpoints')}\n"
+        ]
+        for a in assets[:20]:
+            lines.append(f"- Host: {a.get('host')} ({a.get('ip') or 'no IP'}) [OS: {a.get('os_info') or 'Unknown'}]")
+            for s in a.get("services", [])[:10]:
+                lines.append(f"    Port {s.get('port')}/{s.get('protocol')} ({s.get('service_name')}) - {s.get('state')}")
+            for ep in a.get("endpoints", [])[:10]:
+                lines.append(f"    [{ep.get('tested_status')}] {ep.get('method')} {ep.get('path')} (Params: {ep.get('parameters')})")
+        return "\n".join(lines)
+    return json.dumps(graph_data, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 10: record_target_asset (Register Host/IP to Knowledge Graph)
+# ==============================================================================
+
+@mcp.tool()
+async def record_target_asset(
+    host: str,
+    ip: str = "",
+    os_info: str = "",
+    tags: Any = None,
+    notes: str = "",
+    project: str = "default"
+) -> str:
+    """
+    Explicitly registers or updates a target host/machine in the Spectra Attack Surface Graph.
+    Parameters:
+      - host: Domain or hostname (e.g. 'api.target.com')
+      - ip: Target IP address (e.g. '192.168.1.50')
+      - os_info: Detected OS banner (e.g. 'Linux Ubuntu 22.04')
+      - tags: Comma-separated tags or list of strings (e.g. 'production,dmz,aws' or ['production', 'aws'])
+      - notes: Operational notes or architecture context
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    if isinstance(tags, list):
+        tag_list = [str(t).strip() for t in tags if str(t).strip()]
+    elif isinstance(tags, str) and tags.strip():
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    else:
+        tag_list = None
+
+    asset = upsert_target_asset(
+        project=target_project,
+        host=host,
+        ip=ip,
+        os_info=os_info,
+        tags=tag_list,
+        notes=notes
+    )
+    return json.dumps({
+        "status": "success",
+        "action": "registered_asset",
+        "asset": asset
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 11: record_target_service (Register Port/Service to Knowledge Graph)
+# ==============================================================================
+
+@mcp.tool()
+async def record_target_service(
+    host: str,
+    port: int,
+    protocol: str = "tcp",
+    service_name: str = "unknown",
+    banner: str = "",
+    state: str = "open",
+    project: str = "default"
+) -> str:
+    """
+    Catalogs an open or filtered network port/service discovered during reconnaissance (e.g. from nmap)
+    into the Target Knowledge Graph.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    srv = add_or_update_service(
+        project=target_project,
+        host=host,
+        port=port,
+        protocol=protocol,
+        service_name=service_name,
+        banner=banner,
+        state=state
+    )
+    return json.dumps({
+        "status": "success",
+        "action": "registered_service",
+        "service": srv
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 12: record_target_endpoint (Register Web Endpoint & Test Status)
+# ==============================================================================
+
+@mcp.tool()
+async def record_target_endpoint(
+    host: str,
+    url: str,
+    method: str = "GET",
+    parameters: Any = None,
+    auth_required: bool = False,
+    tested_status: str = "UNTESTED",
+    notes: str = "",
+    project: str = "default"
+) -> str:
+    """
+    Catalogs a discovered web route/endpoint into the Target Knowledge Graph and updates its testing status.
+    tested_status options: 'UNTESTED', 'IN_PROGRESS', 'TESTED', 'VULNERABLE'.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    if isinstance(parameters, list):
+        param_list = [str(p).strip() for p in parameters if str(p).strip()]
+    elif isinstance(parameters, str) and parameters.strip():
+        param_list = [p.strip() for p in parameters.split(",") if p.strip()]
+    else:
+        param_list = None
+
+    ep = add_or_update_endpoint(
+        project=target_project,
+        host=host,
+        url=url,
+        method=method,
+        parameters=param_list,
+        auth_required=auth_required,
+        tested_status=tested_status,
+        notes=notes
+    )
+    return json.dumps({
+        "status": "success",
+        "action": "registered_endpoint",
+        "endpoint": ep
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 13: generate_oast_token (Blind Exploit Callback Generation)
+# ==============================================================================
+
+@mcp.tool()
+async def generate_oast_token(
+    vuln_type: str = "BLIND_CALLBACK",
+    description: str = "",
+    project: str = "default"
+) -> str:
+    """
+    Generates a unique Out-of-Band Application Security Testing (OAST) interaction token
+    for detecting blind vulnerabilities (Blind SSRF, Out-of-band SQLi, Blind RCE, XXE, JNDI).
+    Returns the token and pre-built callback URL to embed inside your exploit payload.
+    After injecting the payload into the target, call 'poll_oast_events(token)' to verify if target contacted Spectra!
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    oast_meta = engine_generate_oast_token(
+        project=target_project,
+        description=description,
+        vuln_type=vuln_type
+    )
+    return json.dumps(oast_meta, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 14: poll_oast_events (Verify Blind Callback Reception)
+# ==============================================================================
+
+@mcp.tool()
+async def poll_oast_events(
+    token: str,
+    timeout_seconds: float = 5.0,
+    project: str = "default"
+) -> str:
+    """
+    Awaits and retrieves any incoming callbacks received for a specific OAST token.
+    If the target server triggered the callback, returns confirmation with target IP, HTTP method,
+    headers, and exfiltrated body data.
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    events = await engine_poll_oast_events(
+        token=token,
+        project=target_project,
+        timeout_seconds=timeout_seconds
+    )
+    if not events:
+        return json.dumps({
+            "status": "pending",
+            "token": token,
+            "callback_received": False,
+            "callbacks_count": 0,
+            "events": [],
+            "message": f"No callbacks received yet for token '{token}' after waiting {timeout_seconds}s."
+        }, indent=2)
+
+    return json.dumps({
+        "status": "confirmed_interaction",
+        "token": token,
+        "callback_received": True,
+        "callbacks_count": len(events),
+        "events": events
+    }, indent=2)
 
 
 if __name__ == "__main__":
