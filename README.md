@@ -7,6 +7,9 @@
 [![Playwright](https://img.shields.io/badge/Playwright-Chromium%20Automation-45ba4b.svg)](https://playwright.dev)
 [![Database](https://img.shields.io/badge/SQLite-WAL%20Engine-003B57.svg)](https://sqlite.org)
 [![Forward Proxy](https://img.shields.io/badge/Forward%20Proxy-Port%208088-0ea5e9.svg)](#built-in-forward-interception-proxy)
+[![TLS MITM](https://img.shields.io/badge/TLS%20MITM-Decryption%20Engine-ef4444.svg)](#tls-mitm-decryption-engine)
+[![Auto-Enforcement](https://img.shields.io/badge/Auto--Enforcement-sitecustomize.py-8b5cf6.svg)](#transparent-runtime-auto-enforcement-sitecustomizepy)
+[![Zero Guardrails](https://img.shields.io/badge/Guardrails-Opt--in%20Defaults-22c55e.svg)](#phase-1-target-scope--guardrail-setup-zero-default-guardrails)
 [![OAST](https://img.shields.io/badge/OAST%20Engine-Out--of--Band%20Callbacks-f97316.svg)](#oast-engine-out-of-band-security-testing)
 [![Target Graph](https://img.shields.io/badge/Attack%20Surface-Knowledge%20Graph-06b6d4.svg)](#target-knowledge-graph)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](#license)
@@ -20,14 +23,14 @@
 When deploying autonomous AI agents against web applications, cloud APIs, and internal networks, security operators encounter critical operational hurdles:
 
 1. **Credential Amnesia & Hallucinated Logins:** Agents lose session cookies across loops, hallucinate expired credentials, or repeatedly interrupt human operators with authentication requests.
-2. **The "Subprocess Scripting Gap":** When agents generate standalone exploit scripts (e.g., Python `requests`/`httpx`, `curl`, `sqlmap`, `ffuf`, `nuclei`) via terminal execution tools, the resulting outbound HTTP/HTTPS traffic bypasses the proxy entirely, leaving zero audit trail and evading scope control.
+2. **The "Subprocess Scripting Gap & Proxy Evading":** When agents generate standalone exploit scripts (e.g., Python `requests`/`httpx`, `curl`, `sqlmap`, `ffuf`, `nuclei`) or execute scripts directly in host terminal/bash, outbound HTTP/HTTPS traffic bypasses proxy listeners, TLS CONNECT tunnels produce blind uninspected noise, and scope boundaries are evaded.
 3. **Ephemeral Attack Surface & Recon Blindness:** Agents lack a persistent, structured understanding of discovered assets, exposed ports, and tested vs. untested endpoints, leading to redundant scans and forgotten attack vectors.
 4. **Blind Vulnerability Invisibility:** Exploiting Blind SSRF, Blind SQL Injection, Out-of-Band XXE, or Log4j/JNDI callbacks is impossible without an integrated listener that correlates callback hits directly to the originating test request.
 5. **Token Exhaustion during Fuzzing:** Inspecting large raw HTTP responses inside the LLM context window exhausts token limits and increases inference costs exponentially.
 6. **Lack of Human-in-the-Loop (HITL) Interception:** Operators cannot pause, inspect, modify, or drop high-risk agent requests before they hit production servers.
 7. **Siloed Tooling & Reporting:** Agent interactions remain locked in chat transcripts instead of generating industry-standard security deliverables (**HAR 1.2**, **Burp Suite** archives, **Executive Pentest Reports**, **OpenAPI 3.0 Specs**).
 
-**SPECTRA solves every single one of these challenges.** Operating as an intelligent, bidirectional gateway between your AI Agent and the target application, SPECTRA provides **transparent forward proxy auto-injection**, **stateful attack surface mapping**, **out-of-band callback listening**, **zero-prompt credential injection**, **token-saving differential analysis**, and a **high-density cyberpunk SOC dashboard**.
+**SPECTRA solves every single one of these challenges.** Operating as an intelligent, bidirectional gateway between your AI Agent and the target application, SPECTRA provides **transparent forward proxy auto-injection**, **runtime Python auto-enforcement (`sitecustomize.py`)**, **TLS MITM decryption engine with dynamic CA generation**, **stateful attack surface mapping**, **out-of-band callback listening**, **zero-prompt credential injection**, **token-saving differential analysis**, and a **high-density cyberpunk SOC dashboard**.
 
 ---
 
@@ -43,35 +46,46 @@ SPECTRA isolates agent reasoning and LLM API traffic from target security testin
                                   │       (OpenCode / Hermes Agent / Claude / Cursor)      │
                                   └───────────────┬────────────────────────┬───────────────┘
                                                   │                        │
-                   Direct MCP Tools (JSON-RPC)    │                        │ Subprocess Execution
-            (send_http_request, render_webpage)   │                        │ (run_pentest_command)
-                                                  ▼                        ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                                   SPECTRA MCP GATEWAY                                                    │
-│                                                     (mcp_server.py)                                                      │
-│                                                                                                                          │
-│   ┌──────────────────────────────────────────────┐              ┌──────────────────────────────────────────────┐         │
-│   │            MCP Tool Boundary (Stdio)         │              │    Subprocess Proxy Auto-Injection Layer     │         │
-│   │  - send_http_request (JSON/Diff mode)        │              │    - Injects HTTP_PROXY / HTTPS_PROXY        │         │
-│   │  - browser_navigate_and_render (Playwright)  │              │    - Injects ALL_PROXY, disables TLS checks  │         │
-│   │  - record_test_payload / report_finding      │              │    - Binds ProxyContext(project, agent)      │         │
-│   └──────────────────────┬───────────────────────┘              └──────────────────────┬───────────────────────┘         │
-│                          │                                                             │                                 │
-│                          ▼                                                             ▼                                 │
+                   Direct MCP Tools (JSON-RPC)    │                        │ Subprocess / Host Script Execution
+            (send_http_request, render_webpage)   │                        │ (run_pentest_command OR host terminal)
+                                                  │                        │
+                                                  │                        ▼
+                                                  │         ┌──────────────────────────────────────────────┐
+                                                  │         │    Transparent Runtime Hook & Environment    │
+                                                  │         │  - sitecustomize.py (Auto-loaded by Python)  │
+                                                  │         │  - Workspace .env & Shell Envs Injected      │
+                                                  │         │  - Auto-routes requests / httpx to :8088     │
+                                                  │         │  - Auto-trusts .spectra_ca/spectra_ca.crt    │
+                                                  │         └──────────────────────┬───────────────────────┘
+                                                  ▼                                │
+┌──────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────┐
+│                                                   SPECTRA MCP GATEWAY            │                                       │
+│                                                     (mcp_server.py)              │                                       │
+│                                                                                  │                                       │
+│   ┌──────────────────────────────────────────────┐                               │                                       │
+│   │            MCP Tool Boundary (Stdio)         │                               │                                       │
+│   │  - send_http_request (JSON/Diff mode)        │                               │                                       │
+│   │  - browser_navigate_and_render (Playwright)  │                               │                                       │
+│   │  - record_test_payload / report_finding      │                               │                                       │
+│   └──────────────────────┬───────────────────────┘                               │                                       │
+│                          │                                                       │                                       │
+│                          ▼                                                       ▼                                       │
 │   ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐   │
 │   │                                       SPECTRA SECURITY & INTERCEPTION CORE                                       │   │
 │   │                                                                                                                  │   │
-│   │   [Scope Guardrails] ──> [Anti-Loopback / SSRF Guard] ──> [HITL Intercept Trap] ──> [Zero-Prompt Cookie Inject]  │   │
+│   │   [Built-in Forward Proxy :8088] ──> [TLS MITM Decryption Engine (Dynamic CA Certificate Generation)]            │   │
 │   │                                                                                                                  │   │
-│   │   [Dual-Track Vulnerability Triage] <── [Target Knowledge Graph Ingest] <── [OAST Correlation Engine]            │   │
+│   │   [Zero Default Guardrails / Opt-in Scope] ──> [Anti-Loopback Guard] ──> [HITL Intercept Trap]                   │   │
+│   │                                                                                                                  │   │
+│   │   [Zero-Prompt Cookie Injection] ──> [Dual-Track Vulnerability Triage] ──> [Target Knowledge Graph Ingest]       │   │
 │   └──────────────────────────────────────────────┬───────────────────────────────────────────────────────────────────┘   │
 │                                                  │                                                                       │
 │                 ┌────────────────────────────────┴─────────────────────────────────┐                                     │
 │                 │                                                                  │                                     │
 │                 ▼                                                                  ▼                                     │
 │   ┌───────────────────────────┐                                      ┌───────────────────────────┐                       │
-│   │ Async HTTPX Outbound Pool │                                      │ Built-in Forward Proxy    │                       │
-│   │ (Direct MCP Requests)     │                                      │ (Default Port :8088)      │                       │
+│   │ Async HTTPX Outbound Pool │                                      │ Decrypted Forward Proxy   │                       │
+│   │ (Direct MCP Requests)     │                                      │ (Outbound TLS to Target)  │                       │
 │   └─────────────┬─────────────┘                                      └─────────────┬─────────────┘                       │
 └─────────────────┼──────────────────────────────────────────────────────────────────┼─────────────────────────────────────┘
                   │                                                                  │
@@ -114,15 +128,19 @@ SPECTRA isolates agent reasoning and LLM API traffic from target security testin
 flowchart TD
     subgraph AgentWorkspace["AI Agent Testing Layer"]
         A[Autonomous Agent: OpenCode / Hermes] -->|Direct MCP Tool| B[MCP FastMCP Handler]
-        A -->|run_pentest_command| C[Subprocess Shell: Python / curl / sqlmap]
+        A -->|run_pentest_command OR Host Terminal| C[Python Scripts / curl / sqlmap]
+        C -->|sitecustomize.py & .env| C1[Auto-Proxy & CA Auto-Trust Injection]
     end
 
     subgraph ProxyInterception["Spectra Gateway & Proxy Layer"]
-        C -->|Transparent HTTP_PROXY| D[Built-in Forward Proxy :8088]
-        B --> E{Scope Guardrail Check}
-        D --> E
-        E -- "Out of Scope" --> E1[Reject: HTTP 403 Forbidden]
-        E -- "In Scope" --> F{Anti-Loopback / SSRF Check}
+        C1 -->|HTTP & HTTPS CONNECT| D[Built-in Forward Proxy :8088]
+        D -->|HTTPS Traffic| D1[TLS MITM Decryption Engine]
+        D1 -->|Dynamic Host Cert Generated| D2[Decrypted HTTP Request Parsed]
+        B --> E{Scope Guardrails Active?}
+        D2 --> E
+        D -->|Plain HTTP| E
+        E -- "Guardrail Enabled & Out of Scope" --> E1[Reject: HTTP 403 Forbidden]
+        E -- "Disabled (Default) OR In Scope" --> F{Anti-Loopback Check}
         F -- "Points to Spectra Ports" --> F1[Block Recursive Self-Loop]
         F -- "Target Host Allowed" --> G{HITL Intercept Active?}
         G -- "Yes" --> G1[Pause & Trap Request in Memory]
@@ -130,8 +148,8 @@ flowchart TD
         G2 -- "Drop" --> G3[Abort & Return Dropped Notice]
         G2 -- "Modify / Forward" --> H[Inject Target Session Cookies]
         G -- "No" --> H
-        H --> I[Dispatch to Target Application]
-        I --> J[Capture Response]
+        H --> I[Dispatch Outbound Request to Target]
+        I --> J[Capture Target Response]
         J --> K[Dual-Track Vulnerability Triage]
         J --> L[Target Knowledge Graph Auto-Ingest]
         J --> M[SQLite WAL Storage & WS Broadcast]
@@ -158,7 +176,9 @@ flowchart TD
 
 | Subsystem | Technical Implementation | Operational Benefit |
 | :--- | :--- | :--- |
-| **Built-in Forward Proxy** | High-performance `asyncio` proxy engine listening on port `8088` (customizable). Auto-injected into all subprocesses via `run_pentest_command`. | Solves the scripting gap: Python scripts (`requests`, `httpx`), `curl`, and `sqlmap` are captured, audited, and triaged automatically without manual proxy flags. |
+| **Built-in Forward Proxy & TLS MITM Engine** | High-performance `asyncio` proxy engine listening on port `8088` with dynamic self-signed root CA certificate generator (`.spectra_ca/spectra_ca.crt`). Unwraps HTTPS CONNECT tunnels, decrypts full HTTP requests/responses, and suppresses blind tunnel noise. | Solves the scripting gap: Python scripts (`requests`, `httpx`), `curl`, and `sqlmap` are captured, decrypted, audited, and triaged automatically with full URL paths, headers, and request bodies visible in the dashboard. |
+| **Transparent Runtime Auto-Enforcement** | Python runtime hook (`sitecustomize.py`) installed in workspace root and virtualenv `site-packages`, backed by workspace `.env`. Automatically configures `HTTP_PROXY`, `HTTPS_PROXY`, `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, and runtime session monkeypatching. | Even if an AI Agent writes custom Python scripts and runs them directly in host bash/terminal without using `run_pentest_command` or specifying `--proxy`, all outbound traffic is routed through Spectra seamlessly with zero code modifications. |
+| **Zero Default Guardrails (Opt-in Policy)** | All projects initialize with `scope_enabled=False`, `allow_internal_networks=True`, `allowed_hosts=["*"]`, and `blocked_patterns=[]`. Scope protection is purely opt-in via dashboard toggle. | Eliminates initial configuration hurdles. Local penetration testing labs (`127.0.0.1`, `localhost`), Docker containers, private RFC1918 subnets, and external domains work instantly out of the box. |
 | **Target Knowledge Graph** | Relational graph schema (`Asset -> Service -> Endpoint`) with testing state tracking (`UNTESTED`, `IN_PROGRESS`, `TESTED_CLEAN`, `TESTED_VULNERABLE`). | Provides persistent memory of target architecture so agents never lose recon context or re-scan already vetted routes. |
 | **OAST Engine** | Unique token correlation engine catching HTTP callbacks on `/oast/{token}/*` with real-time WebSocket broadcasting. | Enables autonomous detection and human verification of Blind SSRF, Blind SQLi, Out-of-Band XXE, and Log4j/JNDI exploits. |
 | **Differential Baseline Analysis** | Context-efficient unified diff engine (`diff_baseline_id`) comparing mutant responses against baseline requests. | Reduces token consumption by up to 90% during fuzzing and payload mutation loops, drastically cutting LLM inference costs. |
@@ -183,7 +203,13 @@ flowchart TD
 
 ### 2. Automated One-Click Installation (Recommended)
 
-SPECTRA includes automated installers that create the virtual environment, install all core dependencies, download the Playwright Chromium binary, and initialize the cryptographic database vault.
+SPECTRA includes automated installers that handle full environment provisioning end-to-end:
+1. **Virtual Environment Setup:** Creates and activates a isolated Python virtual environment (`venv`).
+2. **Dependency Resolution:** Installs all core packages (`fastapi`, `fastmcp`, `httpx`, `cryptography`, `playwright`, etc.).
+3. **Headless Browser Provisioning:** Automatically downloads the Playwright Chromium automation binary.
+4. **TLS MITM Root CA Generation:** Generates the self-signed root certificate authority (`.spectra_ca/spectra_ca.crt` and `spectra_ca.key`) required for transparent HTTPS traffic decryption.
+5. **Runtime Proxy Auto-Enforcement Hook:** Copies `sitecustomize.py` directly into the virtual environment's `site-packages` directory so every standalone Python script executed by AI agents or operators automatically routes through port `8088` and trusts the Spectra CA.
+6. **Workspace Environment (`.env`):** Initializes local `.env` with default ports (`8000`, `8088`), project names, and certificate bundle paths (`REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`).
 
 #### 🪟 Windows (CMD or PowerShell):
 ```cmd
@@ -376,31 +402,41 @@ For any editor supporting standard MCP stdio JSON-RPC:
 
 ## 🐍 Transparent Script Execution & Micro-SDK
 
-When agents write custom Python scripts or exploit PoCs, they have two seamless options:
+When agents write custom Python scripts or exploit PoCs, they have three seamless options:
 
-### Option A: Fully Transparent Execution (Zero Code Changes)
-Any command or script executed via `run_pentest_command` automatically inherits proxy configuration:
+### Option A: Fully Transparent Auto-Enforcement (`sitecustomize.py` & Runtime Hook)
+Whether executed via `run_pentest_command` **OR** run directly in the host terminal/bash (`python exploit.py`, `pytest`, etc.):
+- **Automatic Runtime Injection:** Python automatically executes [`sitecustomize.py`](file:///d:/PROJECT/01/sitecustomize.py) at startup before user code runs.
+- **Environment & Library Patching:** Automatically configures proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`), points SSL bundles to `.spectra_ca/spectra_ca.crt`, and transparently routes `requests.Session` and `httpx.Client` / `AsyncClient` calls to the Spectra Forward Proxy (`http://127.0.0.1:8088`).
+- **Loopback Protection:** Automatically bypasses proxying for internal Spectra backend calls (`127.0.0.1:8000`) to avoid recursive loops or deadlocks.
+- **Zero Agent Friction:** The agent or operator does **not** need to pass `--proxy` arguments or configure custom proxies inside their script:
+
 ```python
-# OpenCode writes a standard script: poc.py
+# OpenCode writes a standard script: exploit_poc.py
 import requests
 
-# Standard call - AUTOMATICALLY routed through Spectra Forward Proxy (:8088)!
-response = requests.get("http://target.local/api/vuln?id=1' OR 1=1--")
-print(response.status_code, response.text)
+# Zero custom proxy configuration needed!
+# AUTOMATICALLY routed to :8088 and decrypted by Spectra TLS MITM
+response = requests.get("https://target.local/api/vuln?id=1' OR 1=1--")
+print(response.status_code, response.text[:200])
 ```
-- Traffic is captured with `source="FORWARD_PROXY"`.
-- Scope boundaries are enforced (out-of-scope targets receive HTTP 403).
-- Active session cookies are injected automatically.
-- Target endpoints are mapped in the Knowledge Graph.
+
+- Traffic is captured and logged with `source="FORWARD_PROXY"`.
+- Real HTTPS request methods, URL paths, headers, and request/response bodies are fully parsed and displayed.
+- Dual-track vulnerability triage inspects the traffic in real time.
+- Target endpoints and services are automatically registered into the Target Knowledge Graph.
+
+---
 
 ### Option B: Advanced Micro-SDK (`spectra_client.py`)
-For complex scripts that require explicit finding reporting or custom session controls:
+For complex offensive security scripts requiring programmatic finding submission or explicit session control:
+
 ```python
 from spectra_client import SpectraSession, report_finding
 
 # Pre-configured session that inherits proxy and backend settings
 with SpectraSession() as session:
-    res = session.get("http://target.local/api/users")
+    res = session.get("https://target.local/api/users")
     if "admin_hash" in res.text:
         # Programmatically report confirmed finding directly to Spectra Dashboard
         report_finding(
@@ -408,9 +444,22 @@ with SpectraSession() as session:
             severity="HIGH",
             category="Information Disclosure",
             evidence=res.text[:100],
-            target_url="http://target.local/api/users"
+            target_url="https://target.local/api/users"
         )
 ```
+
+---
+
+### 🔐 Built-in Forward Proxy & TLS MITM Decryption Engine
+
+The Built-in Forward Proxy (`backend/forward_proxy.py`) running on port `8088` (customizable) operates as a full-featured Man-in-the-Middle (MITM) engine:
+
+1. **Dynamic Root CA Authority:** On startup, Spectra generates or loads a persistent self-signed root CA certificate at `.spectra_ca/spectra_ca.crt` and `.spectra_ca/spectra_ca.key`.
+2. **Dynamic Host Certificates:** When a script issues an HTTPS request via `CONNECT target.com:443`, Spectra dynamically creates and signs a TLS certificate for `target.com` on the fly.
+3. **Decryption & Payload Parsing:** The proxy completes the TLS handshake with the client, un-wraps the encrypted payload, and parses the raw HTTP method, headers, query parameters, and POST/PUT request body.
+4. **Outbound Forwarding & Chaining:** The proxy securely establishes an outbound TLS connection to the actual target server (or chains to an upstream proxy like Burp Suite or OWASP ZAP if configured).
+5. **Full Response Telemetry:** Target response status codes, headers, and bodies are decrypted, checked against automated vulnerability signatures, and transmitted via WebSocket to the live dashboard.
+6. **Elimination of Tunnel Noise:** Raw `CONNECT` tunnel establishment requests are suppressed from the primary traffic ledger, ensuring the operator and AI agent only see clean, actionable HTTP/HTTPS transactions and findings.
 
 ---
 
@@ -762,6 +811,11 @@ SPECTRA is fully configurable via environment variables or a `.env` file:
 | `SPECTRA_BACKEND_URL` | `http://127.0.0.1:8000` | Base URL used by MCP tools, agents, and WebSockets |
 | `SPECTRA_PROXY_PORT` | `8088` | Port for the Built-in Forward Interception Proxy |
 | `SPECTRA_PROXY_HOST` | `127.0.0.1` | Host interface bound by the Forward Proxy |
+| `SPECTRA_PROXY_MITM_ENABLED` | `true` | Enables dynamic TLS MITM decryption for HTTPS traffic |
+| `SPECTRA_CA_DIR` | `./.spectra_ca` | Storage directory for self-signed root CA certificate & private key |
+| `REQUESTS_CA_BUNDLE` | `./.spectra_ca/spectra_ca.crt` | CA trust bundle automatically configured for Python `requests` |
+| `SSL_CERT_FILE` | `./.spectra_ca/spectra_ca.crt` | OpenSSL trust file automatically configured for `httpx` and `urllib` |
+| `CURL_CA_BUNDLE` | `./.spectra_ca/spectra_ca.crt` | CA trust file automatically configured for `curl` |
 | `SPECTRA_PROJECT` | `default` | Default workspace project identifier |
 | `SPECTRA_UPSTREAM_PROXY` | `""` *(empty)* | Optional upstream proxy for chaining (e.g., `http://127.0.0.1:8080` for Burp Suite) |
 | `SPECTRA_DB_PATH` | `./spectra.db` | Path to the SQLite WAL database file |
@@ -784,11 +838,12 @@ SPECTRA is fully configurable via environment variables or a `.env` file:
   ```
   Update your agent's MCP configuration `SPECTRA_BACKEND_URL` to match (`http://127.0.0.1:8081`).
 
-### Q2: Why are scripts executed by the agent not hitting target systems?
-- **Check 1:** Ensure your target domain or IP is included in **Target Scope & Guardrails** on the dashboard. Out-of-scope requests are automatically blocked with HTTP 403.
-- **Check 2:** Ensure the Forward Proxy is active on port `8088`. You can verify status via `GET /api/proxy/status`.
+### Q2: Why are scripts executed by the agent blocked or failing?
+- **Check 1: Guardrail Scoping.** By default, **Zero Guardrails** are active (`scope_enabled=False`), allowing testing against local labs (`127.0.0.1`), Docker, and private RFC1918 subnets. If you manually enabled Scope Guardrails in the dashboard, verify that your target domain/IP is listed in **Allowed In-Scope Targets**.
+- **Check 2: Forward Proxy Status.** Ensure the Forward Proxy is running on port `8088`. Verify via `GET /api/proxy/status`.
+- **Check 3: Anti-Loopback Protection.** Spectra blocks outbound requests targeting its own API (`8000`) or proxy (`8088`) ports to prevent recursive deadlocks.
 
-### Q3: How do I route all SPECTRA traffic through Burp Suite?
+### Q3: How do I route all SPECTRA traffic through Burp Suite or OWASP ZAP?
 - **Global:** Set `SPECTRA_UPSTREAM_PROXY=http://127.0.0.1:8080`.
 - **Per Project:** Open the SPECTRA dashboard, click **Target Scope & Guardrails**, and enter `http://127.0.0.1:8080` in the **Upstream Proxy** field.
 
@@ -797,6 +852,15 @@ SPECTRA is fully configurable via environment variables or a `.env` file:
   ```bash
   playwright install chromium
   ```
+
+### Q5: How does HTTPS decryption work, and why don't agent scripts fail with SSL errors?
+- Spectra creates a dedicated root CA certificate (`.spectra_ca/spectra_ca.crt`) upon first launch.
+- During installation, `install.bat` / `install.ps1` / `install.sh` configures `.env` and installs the `sitecustomize.py` runtime hook into Python's `site-packages`.
+- When an agent script runs, `sitecustomize.py` sets `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` and patches HTTP clients to trust Spectra's root CA. All HTTPS traffic is decrypted, audited, and logged cleanly without SSL handshake failures or certificate warning prompts.
+
+### Q6: What if an AI Agent runs scripts directly in the host shell instead of using `run_pentest_command`?
+- Spectra solves this via its **Python Runtime Hook (`sitecustomize.py`)**. Python automatically executes `sitecustomize.py` upon interpreter startup before running any script.
+- Even if the AI agent runs `python exploit.py` directly in host bash or CMD without specifying `--proxy`, `sitecustomize.py` auto-configures proxy routing to `http://127.0.0.1:8088`, captures full telemetry, and logs all requests into the Spectra dashboard.
 
 ---
 
