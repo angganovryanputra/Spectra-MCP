@@ -214,6 +214,16 @@ async def _persist_and_stream_log(
                 deduped.append(f)
         effective_findings = deduped
 
+        # Prevent dummy loopback traffic/tools from polluting findings in named target projects (e.g. lottechem)
+        clean_host = (entry.host or "").lower().split(":")[0]
+        is_loopback_host = clean_host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
+        if is_loopback_host and proj not in ["default", "local", "lab", "test", "dev"]:
+            proj_obj = db.query(Project).filter(Project.name == proj).first()
+            proj_scope = proj_obj.to_dict().get("allowed_hosts", ["*"]) if proj_obj else ["*"]
+            if proj_scope != ["*"] and not any(h in ["localhost", "127.0.0.1", "0.0.0.0"] for h in proj_scope):
+                effective_findings = []
+                effective_flag = "CLEAN"
+
         entry.flag_status = effective_flag
 
         db.add(entry)
@@ -664,23 +674,52 @@ async def send_http_request(
     body_snippet = res_body[:max_preview] if res_body else "[Empty response body]"
     log_id_str = f"#{logged_id}" if logged_id else "#untracked"
 
-    # Compute differential against baseline response if diff_baseline_id requested
+    # Compute semantic differential against baseline response if diff_baseline_id requested
+    diff_result = None
     diff_text = None
+    diff_summary = ""
     if diff_baseline_id:
-        baseline_body = ""
         try:
+            from backend.diff_engine import compute_semantic_diff
             db_base = SessionLocal()
             base_entry = db_base.query(HttpLog).filter(HttpLog.id == int(diff_baseline_id)).first()
             if base_entry:
-                baseline_body = base_entry.response_body or ""
+                base_hdrs = {}
+                try:
+                    base_hdrs = json.loads(base_entry.response_headers) if base_entry.response_headers else {}
+                except Exception:
+                    pass
+                diff_result = compute_semantic_diff(
+                    response_a={
+                        "status_code": base_entry.status_code,
+                        "body": base_entry.response_body or "",
+                        "headers": base_hdrs
+                    },
+                    response_b={
+                        "status_code": status_code or 0,
+                        "body": res_body or "",
+                        "headers": res_headers or {}
+                    },
+                    max_diff_lines=50
+                )
+                diff_text = diff_result.get("structural_diff", "")
+                changes = []
+                sc_change = diff_result.get("status_change", {})
+                if sc_change.get("changed"):
+                    changes.append(f"Status changed {sc_change.get('from')} -> {sc_change.get('to')}")
+                delta = diff_result.get("normalized_length_delta", 0)
+                changes.append(f"Norm Delta: {delta:+d}b")
+                soft = diff_result.get("soft_errors_b", {})
+                if soft.get("is_soft_403"):
+                    changes.append("Soft-403 Detected")
+                if soft.get("is_soft_404"):
+                    changes.append("Soft-404 Detected")
+                diff_summary = " | ".join(changes)
             db_base.close()
         except Exception:
-            pass
-        if baseline_body:
-            base_lines = baseline_body.splitlines(keepends=True)
-            curr_lines = res_body.splitlines(keepends=True)
-            diff_lines = list(difflib.unified_diff(base_lines, curr_lines, fromfile=f"log_{diff_baseline_id}", tofile=f"current_{logged_id}", n=2))
-            diff_text = "".join(diff_lines[:80])
+            diff_result = None
+            diff_text = None
+            diff_summary = ""
 
     fmt_choice = (output_format or "json").strip().lower()
 
@@ -712,7 +751,7 @@ async def send_http_request(
             "response_headers": res_headers,
             "response_body_preview": body_snippet,
             "body_total_chars": len(res_body),
-            "diff_with_baseline": diff_text
+            "diff_with_baseline": diff_result or diff_text
         }
         if distilled_data:
             res_dict["distilled_response"] = distilled_data
@@ -726,7 +765,8 @@ async def send_http_request(
             "flag": flag_status,
             "findings": [f.get("title") for f in findings_list],
             "body_len": len(res_body),
-            "diff": diff_text[:500] if diff_text else None
+            "diff": diff_text[:500] if diff_text else None,
+            "diff_summary": diff_summary or None
         })
 
     triage_info = ""
@@ -736,7 +776,8 @@ async def send_http_request(
         triage_info = f"\n[*] NOTICE: POTENTIAL ANOMALY DETECTED: {[f['title'] for f in findings_list]}"
 
     session_tag = f" | [Proxynth: Auto-injected {len(active_cookies)} cookies]" if active_cookies else ""
-    diff_section = f"\n\n--- Diff against Baseline #{diff_baseline_id} ---\n{diff_text}" if diff_text else ""
+    diff_header = f"Semantic Diff against Baseline #{diff_baseline_id}" + (f" ({diff_summary})" if diff_summary else "")
+    diff_section = f"\n\n--- {diff_header} ---\n{diff_text}" if diff_text else ""
     return (
         f"Project: [{target_project}] | Log ID: {log_id_str} | Agent: [{target_agent}] | HTTP/{status_code or 'ERR'} | Latency: {duration_ms}ms{session_tag} | Flag: {flag_status}{triage_info}\n"
         f"Headers: {json.dumps(res_headers)}\n\n"
@@ -1494,6 +1535,7 @@ async def get_attack_surface(
 async def record_target_asset(
     host: str,
     ip: str = "",
+    port: Optional[int] = None,
     os_info: str = "",
     tags: Any = None,
     notes: str = "",
@@ -1502,8 +1544,9 @@ async def record_target_asset(
     """
     Explicitly registers or updates a target host/machine in the Proxynth Attack Surface Graph.
     Parameters:
-      - host: Domain or hostname (e.g. 'api.target.com')
+      - host: Domain or hostname (e.g. 'api.target.com' or 'target.com:8443')
       - ip: Target IP address (e.g. '192.168.1.50')
+      - port: Optional target port (e.g. 8443 or 443, also auto-parsed if included in host)
       - os_info: Detected OS banner (e.g. 'Linux Ubuntu 22.04')
       - tags: Comma-separated tags or list of strings (e.g. 'production,dmz,aws' or ['production', 'aws'])
       - notes: Operational notes or architecture context
@@ -1520,6 +1563,7 @@ async def record_target_asset(
         project=target_project,
         host=host,
         ip=ip,
+        port=port,
         os_info=os_info,
         tags=tag_list,
         notes=notes
@@ -1618,11 +1662,13 @@ async def record_target_endpoint(
 async def generate_oast_token(
     vuln_type: str = "BLIND_CALLBACK",
     description: str = "",
+    provider: str = "auto",
     project: str = "default"
 ) -> str:
     """
     Generates a unique Out-of-Band Application Security Testing (OAST) interaction token
     for detecting blind vulnerabilities (Blind SSRF, Out-of-band SQLi, Blind RCE, XXE, JNDI).
+    Supports public Interactsh ('interactsh'), custom callback ('custom'), local ('local'), or 'auto'.
     Returns the token and pre-built callback URL to embed inside your exploit payload.
     After injecting the payload into the target, call 'poll_oast_events(token)' to verify if target contacted Proxynth!
     """
@@ -1630,7 +1676,8 @@ async def generate_oast_token(
     oast_meta = engine_generate_oast_token(
         project=target_project,
         description=description,
-        vuln_type=vuln_type
+        vuln_type=vuln_type,
+        provider=provider
     )
     return json.dumps(oast_meta, indent=2)
 
@@ -1901,6 +1948,8 @@ async def fuzz_endpoint(
     payload_type: str = "sqli",
     custom_payloads: Optional[list] = None,
     concurrency: int = 5,
+    delay_ms: Optional[float] = 50.0,
+    jitter_ms: Optional[float] = 25.0,
     project: str = "default",
     agent_id: str = "primary_agent"
 ) -> str:
@@ -1908,6 +1957,7 @@ async def fuzz_endpoint(
     Executes high-speed parameter fuzzing against a target endpoint using position markers (§...§).
     Automates baseline request calculation, differential analysis, status code changes, response length deltas,
     and offensive anomaly detection (SQL errors, reflected payloads, WAF blocks) using rotating legitimate browser headers.
+    Features adaptive pacing (delay_ms) and randomized jitter (jitter_ms) to avoid Imperva / Cloudflare bot-bans.
 
     Parameters:
       - url: Target URL with optional §marker§ (e.g. 'http://target/api/users?id=§1§')
@@ -1917,6 +1967,8 @@ async def fuzz_endpoint(
       - payload_type: Built-in payload preset ('sqli', 'xss', 'traversal', 'cmd_injection', 'ssti', 'auth_bypass')
       - custom_payloads: Optional list of custom string payloads to inject
       - concurrency: Concurrent worker threads (default: 5)
+      - delay_ms: Milliseconds delay between requests to avoid WAF / bot protection bans (default: 50.0)
+      - jitter_ms: Randomized millisecond jitter added to delay (default: 25.0)
       - project: Project workspace name
       - agent_id: Identifier of calling AI agent
     """
@@ -1948,6 +2000,8 @@ async def fuzz_endpoint(
         body=body or "",
         payloads=active_payloads,
         concurrency=concurrency,
+        delay_ms=delay_ms,
+        jitter_ms=jitter_ms,
         upstream_proxy=upstream_proxy or None,
         project=target_project,
         agent_id=agent_id

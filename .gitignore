@@ -34,6 +34,7 @@ Thumbs.db
 
 # Certificates & Local Secrets
 .proxynth_ca/
+.proxynth_key*
 *.key
 *.crt
 *.pem

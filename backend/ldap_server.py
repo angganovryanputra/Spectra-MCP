@@ -10,9 +10,9 @@ import asyncio
 from typing import Optional, Tuple
 from datetime import datetime
 
-from backend.oast_engine import record_oast_hit
+from backend.oast_engine import record_oast_hit, _token_registry
 
-_HEX_TOKEN_REGEX = re.compile(r'([a-f0-9]{12})', re.IGNORECASE)
+_HEX_TOKEN_REGEX = re.compile(r'([a-zA-Z0-9]{12,33})', re.IGNORECASE)
 
 _ldap_server: Optional[asyncio.Server] = None
 _is_running: bool = False
@@ -57,8 +57,15 @@ async def _handle_ldap_client(reader: asyncio.StreamReader, writer: asyncio.Stre
             except Exception:
                 pass
 
-        match = _HEX_TOKEN_REGEX.search(all_text)
-        detected_token = match.group(1).lower() if match else None
+        detected_token = None
+        for reg_tok in _token_registry.keys():
+            if reg_tok.lower() in all_text.lower():
+                detected_token = reg_tok
+                break
+
+        if not detected_token:
+            match = _HEX_TOKEN_REGEX.search(all_text)
+            detected_token = match.group(1).lower() if match else None
 
         if detected_token:
             record_oast_hit(

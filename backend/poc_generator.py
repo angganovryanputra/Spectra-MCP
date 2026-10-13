@@ -12,23 +12,89 @@ from backend.database import SessionLocal, Finding, HttpLog
 
 
 CWE_MAPPINGS = {
-    "SQL Injection": {"cwe_id": "CWE-89", "name": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')", "cvss": "9.8"},
-    "Cross-Site Scripting": {"cwe_id": "CWE-79", "name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')", "cvss": "7.2"},
-    "Server-Side Request Forgery": {"cwe_id": "CWE-918", "name": "Server-Side Request Forgery (SSRF)", "cvss": "8.6"},
-    "Broken Object Level Authorization": {"cwe_id": "CWE-639", "name": "Authorization Bypass Through User-Controlled Key (IDOR/BOLA)", "cvss": "8.5"},
-    "IDOR": {"cwe_id": "CWE-639", "name": "Authorization Bypass Through User-Controlled Key (IDOR/BOLA)", "cvss": "8.5"},
-    "Command Injection": {"cwe_id": "CWE-78", "name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')", "cvss": "9.8"},
-    "Authentication Bypass": {"cwe_id": "CWE-287", "name": "Improper Authentication", "cvss": "9.1"},
-    "Information Disclosure": {"cwe_id": "CWE-200", "name": "Exposure of Sensitive Information to an Unauthorized Actor", "cvss": "5.3"}
+    "SQL Injection": {
+        "cwe_id": "CWE-89",
+        "name": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+        "cvss": "9.8",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    },
+    "Stored XSS": {
+        "cwe_id": "CWE-79",
+        "name": "Improper Neutralization of Input During Web Page Generation ('Stored Cross-site Scripting')",
+        "cvss": "7.2",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:H/A:N"
+    },
+    "Reflected XSS": {
+        "cwe_id": "CWE-79",
+        "name": "Improper Neutralization of Input During Web Page Generation ('Reflected Cross-site Scripting')",
+        "cvss": "6.1",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    },
+    "Cross-Site Scripting": {
+        "cwe_id": "CWE-79",
+        "name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+        "cvss": "6.1",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+    },
+    "Server-Side Request Forgery": {
+        "cwe_id": "CWE-918",
+        "name": "Server-Side Request Forgery (SSRF)",
+        "cvss": "8.6",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+    },
+    "Broken Object Level Authorization": {
+        "cwe_id": "CWE-639",
+        "name": "Authorization Bypass Through User-Controlled Key (IDOR/BOLA)",
+        "cvss": "8.5",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:N"
+    },
+    "IDOR": {
+        "cwe_id": "CWE-639",
+        "name": "Authorization Bypass Through User-Controlled Key (IDOR/BOLA)",
+        "cvss": "8.5",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:N"
+    },
+    "Command Injection": {
+        "cwe_id": "CWE-78",
+        "name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+        "cvss": "9.8",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    },
+    "Authentication Bypass": {
+        "cwe_id": "CWE-287",
+        "name": "Improper Authentication",
+        "cvss": "9.1",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"
+    },
+    "Information Disclosure": {
+        "cwe_id": "CWE-200",
+        "name": "Exposure of Sensitive Information to an Unauthorized Actor",
+        "cvss": "5.3",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    }
 }
 
 
 def _match_cwe(category: str, title: str) -> Dict[str, str]:
     combined = f"{category} {title}".lower()
+    # Check stored XSS specifically
+    if "stored" in combined and ("xss" in combined or "cross-site scripting" in combined):
+        return CWE_MAPPINGS["Stored XSS"]
+    # Check reflected XSS or generic XSS (standard CVSS 3.1 Reflected is 6.1)
+    if "reflected" in combined and ("xss" in combined or "cross-site scripting" in combined):
+        return CWE_MAPPINGS["Reflected XSS"]
+    if "xss" in combined or "cross-site scripting" in combined:
+        return CWE_MAPPINGS["Reflected XSS"]
+
     for key, data in CWE_MAPPINGS.items():
         if key.lower() in combined:
             return data
-    return {"cwe_id": "CWE-20", "name": "Improper Input Validation", "cvss": "6.5"}
+    return {
+        "cwe_id": "CWE-20",
+        "name": "Improper Input Validation",
+        "cvss": "6.5",
+        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+    }
 
 
 def generate_curl_command(method: str, url: str, headers: Dict[str, str], body: str = "") -> str:
@@ -186,7 +252,7 @@ def generate_finding_dossier(finding_id: int) -> Optional[Dict[str, Any]]:
             "cwe_id": cwe_info["cwe_id"],
             "cwe_name": cwe_info["name"],
             "cvss_score": cwe_info["cvss"],
-            "cvss_vector": f"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "cvss_vector": cwe_info.get("vector", "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
             "target_url": log.url,
             "target_method": log.method,
             "evidence": finding.evidence,

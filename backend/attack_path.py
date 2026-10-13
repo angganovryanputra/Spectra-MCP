@@ -4,7 +4,8 @@ Synthesizes verified findings, assets, credentials, and open attack surfaces
 into causal, multi-stage attack paths (Kill Chains) leading to Crown Jewel compromise.
 """
 
-from typing import Dict, Any, List, Optional
+import ipaddress
+from typing import Dict, Any, List, Optional, Tuple
 from backend.database import (
     SessionLocal,
     TargetAsset,
@@ -23,6 +24,54 @@ SEVERITY_WEIGHTS = {
     "LOW": 25,
     "INFO": 10
 }
+
+
+def _evaluate_asset_exposure(asset: TargetAsset) -> Tuple[str, str, str]:
+    """
+    Evaluates whether an asset is Public, Internal, or Firewalled based on IP, tags, and service states.
+    Returns: (exposure_category, display_str, relationship_type)
+    """
+    tags_lower = (asset.tags or "").lower()
+    host_lower = (asset.host or "").lower()
+    ip_str = (asset.ip or "").strip()
+
+    is_internal_ip = False
+    if ip_str:
+        try:
+            ip_obj = ipaddress.ip_address(ip_str)
+            is_internal_ip = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved
+        except Exception:
+            pass
+
+    is_internal_host = (
+        is_internal_ip or
+        host_lower in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] or
+        host_lower.endswith(".local") or
+        host_lower.endswith(".internal") or
+        "internal" in tags_lower
+    )
+
+    services = asset.services or []
+    has_services = len(services) > 0
+    open_services = [s for s in services if (s.state or "open").lower() == "open"]
+    all_services_filtered = has_services and len(open_services) == 0
+
+    is_firewalled = (
+        all_services_filtered or
+        "firewalled" in tags_lower or
+        "filtered" in tags_lower or
+        "waf" in tags_lower
+    )
+
+    if is_firewalled:
+        display = ip_str if ip_str else "Firewalled"
+        return "Firewalled", display, "FILTERED_BY_FIREWALL"
+    elif is_internal_host:
+        display = ip_str if ip_str else "Internal"
+        return "Internal", display, "INTERNAL_PIVOT_REQUIRED"
+    else:
+        display = ip_str if ip_str else "Public"
+        return "Public", display, "INTERNET_FACING"
 
 
 def build_attack_path_graph(project: str = "default") -> Dict[str, Any]:
@@ -55,18 +104,22 @@ def build_attack_path_graph(project: str = "default") -> Dict[str, Any]:
         for a in assets:
             a_node_id = f"asset_{a.id}"
             asset_map[a.host] = a_node_id
+            exposure_cat, display_ip, relationship = _evaluate_asset_exposure(a)
+
+            badge = f" [{exposure_cat}]" if exposure_cat in ["Firewalled", "Internal"] else ""
             nodes.append({
                 "id": a_node_id,
-                "label": f"Host: {a.host} ({a.ip or 'Public'})",
+                "label": f"Host: {a.host} ({display_ip}){badge}",
                 "type": "ASSET",
-                "details": f"OS: {a.os_info or 'Unknown'}",
-                "severity": "INFO"
+                "exposure": exposure_cat,
+                "details": f"OS: {a.os_info or 'Unknown'} | Exposure: {exposure_cat}",
+                "severity": "LOW" if exposure_cat == "Firewalled" else "INFO"
             })
-            # Connect Entry -> Asset
+            # Connect Entry -> Asset with proper network exposure relationship
             edges.append({
                 "from": entry_node_id,
                 "to": a_node_id,
-                "relationship": "INTERNET_FACING"
+                "relationship": relationship
             })
 
             # Connect Services & Endpoints

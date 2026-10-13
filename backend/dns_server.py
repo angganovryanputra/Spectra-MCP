@@ -93,9 +93,16 @@ class ProxynthDNSProtocol(asyncio.DatagramProtocol):
 
             qtype_name = "A" if qtype == 1 else ("TXT" if qtype == 16 else f"TYPE_{qtype}")
 
-            # Search for token inside the queried domain name
-            match = _HEX_TOKEN_REGEX.search(qname)
-            detected_token = match.group(1).lower() if match else None
+            # Search for registered or alphanumeric token inside the queried domain name
+            detected_token = None
+            for reg_tok in _token_registry.keys():
+                if reg_tok.lower() in qname.lower():
+                    detected_token = reg_tok
+                    break
+
+            if not detected_token:
+                match = _HEX_TOKEN_REGEX.search(qname)
+                detected_token = match.group(1).lower() if match else None
 
             if detected_token:
                 # Correlate with OAST engine

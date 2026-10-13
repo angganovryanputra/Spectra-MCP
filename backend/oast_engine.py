@@ -2,6 +2,10 @@
 Proxynth / AetherGate - OAST (Out-of-Band Application Security Testing) Engine
 Handles generation of unique correlation tokens, listener endpoints,
 and real-time callback capture for Blind SSRF, Blind SQLi, Out-of-Band RCE, and DNS queries.
+Supports:
+  1. Interactsh Cloud / Public OAST (ProjectDiscovery protocol via oast.fun / oast.live)
+  2. Custom Public Callback URL / Domain (e.g. ngrok, VPS, collaborator)
+  3. Local Loopback / Lab listener (127.0.0.1:8000 / *.proxynth.local)
 """
 
 import os
@@ -9,21 +13,235 @@ import json
 import uuid
 import time
 import asyncio
+import base64
+import random
+import string
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+
+import httpx
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+try:
+    from cryptography.hazmat.decrepit.ciphers.modes import CFB
+except ImportError:
+    from cryptography.hazmat.primitives.ciphers.modes import CFB
 
 from backend.database import SessionLocal, OastEvent, Project
 
 # In-memory listeners for active polling: token -> asyncio.Event
 _active_waiters: Dict[str, asyncio.Event] = {}
-# Registry mapping token -> metadata (project, vuln_type, description)
+# Registry mapping token -> metadata (project, vuln_type, description, provider, etc.)
 _token_registry: Dict[str, Dict[str, Any]] = {}
 _runtime_callback_url: Optional[str] = None
+
+
+class InteractshSession:
+    """
+    Manages client-side zero-knowledge encryption and interaction polling
+    with public or self-hosted Interactsh OAST servers (ProjectDiscovery protocol).
+    """
+
+    def __init__(self, server: Optional[str] = None):
+        self.server = (server or os.getenv("PROXSYNTH_INTERACTSH_SERVER", "https://oast.fun")).strip().rstrip("/")
+        # Extract base domain from server URL (e.g. https://oast.fun -> oast.fun)
+        self.domain = self.server.split("://")[-1].split(":")[0].split("/")[0]
+        self.correlation_id: str = "".join(random.choices(string.ascii_lowercase + string.digits, k=20))
+        self.secret: str = str(uuid.uuid4())
+        self._private_key: Optional[rsa.RSAPrivateKey] = None
+        self._registered: bool = False
+        self._lock = asyncio.Lock()
+
+    def _ensure_keys(self) -> Tuple[rsa.RSAPrivateKey, str]:
+        if self._private_key is None:
+            self._private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pub_pem = self._private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        pub_b64 = base64.b64encode(pub_pem).decode("utf-8")
+        return self._private_key, pub_b64
+
+    def register_sync(self) -> bool:
+        """Synchronously registers public key and correlation ID with the Interactsh server."""
+        if self._registered:
+            return True
+        priv_key, pub_b64 = self._ensure_keys()
+        try:
+            with httpx.Client(timeout=10.0, verify=False) as client:
+                resp = client.post(
+                    f"{self.server}/register",
+                    json={
+                        "public-key": pub_b64,
+                        "secret-key": self.secret,
+                        "correlation-id": self.correlation_id
+                    }
+                )
+                if resp.status_code == 200:
+                    self._registered = True
+                    return True
+        except Exception:
+            pass
+        return False
+
+    async def register(self) -> bool:
+        """Registers public key and correlation ID with the Interactsh server."""
+        async with self._lock:
+            if self._registered:
+                return True
+            priv_key, pub_b64 = self._ensure_keys()
+            try:
+                async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+                    resp = await client.post(
+                        f"{self.server}/register",
+                        json={
+                            "public-key": pub_b64,
+                            "secret-key": self.secret,
+                            "correlation-id": self.correlation_id
+                        }
+                    )
+                    if resp.status_code == 200:
+                        self._registered = True
+                        return True
+            except Exception:
+                pass
+            return False
+
+    def generate_token_payload(self) -> Tuple[str, str, str]:
+        """
+        Generates a 13-character nonce which combines with 20-char correlation_id
+        to create standard 33-char Interactsh payload subdomain.
+        Returns: (token_id, full_domain, full_http_url)
+        """
+        nonce = "".join(random.choices(string.ascii_lowercase + string.digits, k=13))
+        token_id = nonce  # Use nonce as our internal token reference
+        full_domain = f"{self.correlation_id}{nonce}.{self.domain}"
+        full_http_url = f"http://{full_domain}"
+        return token_id, full_domain, full_http_url
+
+    async def poll_and_record(self) -> List[Dict[str, Any]]:
+        """
+        Polls Interactsh server, decrypts received payloads,
+        and records them into the Proxynth SQLite database.
+        """
+        if not self._registered:
+            ok = await self.register()
+            if not ok:
+                return []
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+                resp = await client.get(f"{self.server}/poll?id={self.correlation_id}&secret={self.secret}")
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+        except Exception:
+            return []
+
+        items = (data.get("data") or []) + (data.get("extra") or [])
+        if not items or not data.get("aes_key"):
+            return []
+
+        # Decrypt AES key with RSA-OAEP SHA256
+        try:
+            enc_aes_key = base64.b64decode(data["aes_key"])
+            aes_key = self._private_key.decrypt(
+                enc_aes_key,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+        except Exception:
+            return []
+
+        new_events = []
+        for item_b64 in items:
+            try:
+                cb = base64.b64decode(item_b64)
+                if len(cb) <= 16:
+                    continue
+                iv = cb[:16]
+                ct = cb[16:]
+
+                # Primary: AES-CTR mode (Interactsh v1.3.0+)
+                decrypted_text = ""
+                try:
+                    cipher = Cipher(algorithms.AES(aes_key), modes.CTR(iv))
+                    dec = cipher.decryptor()
+                    plain = dec.update(ct) + dec.finalize()
+                    decrypted_text = plain.decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+
+                # Fallback: AES-CFB mode (legacy Interactsh)
+                if not decrypted_text or not decrypted_text.strip().startswith("{"):
+                    try:
+                        cipher = Cipher(algorithms.AES(aes_key), CFB(iv))
+                        dec = cipher.decryptor()
+                        plain = dec.update(ct) + dec.finalize()
+                        decrypted_text = plain.decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+
+                if not decrypted_text:
+                    continue
+
+                event_json = json.loads(decrypted_text, strict=False)
+                unique_id = event_json.get("unique-id", "")
+                # Extract the 13-char nonce token from unique-id if 33 chars
+                token_match = unique_id[20:] if len(unique_id) >= 33 else unique_id
+
+                recorded = record_oast_hit(
+                    token=token_match or unique_id or self.correlation_id,
+                    client_ip=event_json.get("remote-address", "0.0.0.0"),
+                    method=event_json.get("protocol", "HTTP").upper(),
+                    path=f"/{event_json.get('q-type', '')}".rstrip("/"),
+                    headers={"full-id": event_json.get("full-id"), "q-type": event_json.get("q-type")},
+                    query_params={},
+                    body=event_json.get("raw-request", ""),
+                    protocol=event_json.get("protocol", "HTTP").upper(),
+                    description=f"Interactsh captured {event_json.get('protocol')} from {event_json.get('remote-address')}"
+                )
+                if recorded:
+                    new_events.append(recorded)
+            except Exception:
+                continue
+
+        return new_events
+
+
+# Global shared interactsh session
+_global_interactsh: Optional[InteractshSession] = None
+
+
+def get_interactsh_session_sync() -> Optional[InteractshSession]:
+    """Returns singleton Interactsh session, initializing synchronously."""
+    global _global_interactsh
+    if _global_interactsh is None:
+        _global_interactsh = InteractshSession()
+        _global_interactsh.register_sync()
+    elif not _global_interactsh._registered:
+        _global_interactsh.register_sync()
+    return _global_interactsh
+
+
+async def get_interactsh_session() -> InteractshSession:
+    """Returns singleton Interactsh session, initializing registration on first request."""
+    global _global_interactsh
+    if _global_interactsh is None:
+        _global_interactsh = InteractshSession()
+        await _global_interactsh.register()
+    return _global_interactsh
+
 
 def set_base_callback_url(url: str):
     """Dynamically sets the public/custom URL for OAST callback delivery (e.g. ngrok or VPS)."""
     global _runtime_callback_url
     _runtime_callback_url = url.strip().rstrip("/") if url else None
+
 
 def get_base_callback_url() -> str:
     """Returns the external or local URL for receiving out-of-band callbacks."""
@@ -39,28 +257,78 @@ def get_base_callback_url() -> str:
 def generate_oast_token(
     project: str = "default",
     description: str = "",
-    vuln_type: str = "BLIND_CALLBACK"
+    vuln_type: str = "BLIND_CALLBACK",
+    provider: str = "auto"
 ) -> Dict[str, Any]:
     """
     Generates a unique OAST interaction token and correlation metadata.
-    AI agents use this token to craft out-of-band payloads (SSRF, Blind SQLi, JNDI, XXE, RCE).
+    Providers:
+      - 'auto' (default): Uses public Interactsh (oast.fun) for internet-facing targets,
+                          custom URL if set, or local listener if offline.
+      - 'interactsh': Forces ProjectDiscovery Interactsh out-of-band listener.
+      - 'custom': Uses PROXSYNTH_OAST_CALLBACK_URL / PROXSYNTH_OAST_DOMAIN.
+      - 'local': Uses local Proxynth listener (127.0.0.1:8000 / *.proxynth.local).
     """
-    token = uuid.uuid4().hex[:12]
-    base_url = get_base_callback_url()
-    callback_url = f"{base_url}/oast/{token}"
-    dns_hostname = f"{token}.oast.proxynth.local"
     target_project = (project or "default").strip().lower()
+    clean_provider = (provider or "auto").strip().lower()
+    custom_domain = os.getenv("PROXSYNTH_OAST_DOMAIN", "").strip()
+    custom_url = os.getenv("PROXSYNTH_OAST_CALLBACK_URL", "").strip().rstrip("/")
+
+    # Resolve effective provider
+    effective_provider = clean_provider
+    if effective_provider == "auto":
+        env_pref = os.getenv("PROXSYNTH_OAST_PROVIDER", "").strip().lower()
+        if env_pref:
+            effective_provider = env_pref
+        elif custom_url or custom_domain:
+            effective_provider = "custom"
+        else:
+            effective_provider = "interactsh"
+
+    token = uuid.uuid4().hex[:12]
+    callback_url = ""
+    dns_hostname = ""
+
+    if effective_provider == "interactsh":
+        try:
+            interactsh_obj = get_interactsh_session_sync()
+            if interactsh_obj and interactsh_obj._registered:
+                token, dns_hostname, callback_url = interactsh_obj.generate_token_payload()
+                effective_provider = "interactsh"
+            else:
+                effective_provider = "local"
+        except Exception:
+            effective_provider = "local"
+
+    if effective_provider == "custom":
+        if custom_domain:
+            dns_hostname = f"{token}.{custom_domain}"
+            callback_url = f"http://{dns_hostname}/oast/{token}"
+        elif custom_url:
+            callback_url = f"{custom_url}/oast/{token}"
+            dns_hostname = custom_url.split("://")[-1].split(":")[0].split("/")[0]
+        else:
+            effective_provider = "local"
+
+    if effective_provider == "local":
+        base_url = get_base_callback_url()
+        callback_url = f"{base_url}/oast/{token}"
+        dns_hostname = f"{token}.oast.proxynth.local"
 
     # Pre-register waiter event in memory
     _active_waiters[token] = asyncio.Event()
     _token_registry[token] = {
         "project": target_project,
         "description": description or f"OAST correlation token for {vuln_type}",
-        "vuln_type": vuln_type.upper()
+        "vuln_type": vuln_type.upper(),
+        "provider": effective_provider,
+        "dns_hostname": dns_hostname,
+        "callback_url": callback_url
     }
 
     return {
         "token": token,
+        "provider": effective_provider,
         "callback_url": callback_url,
         "http_url": callback_url,
         "dns_hostname": dns_hostname,
@@ -121,7 +389,7 @@ def record_oast_hit(
             _active_waiters[clean_token].set()
 
         return event_dict
-    except Exception as ex:
+    except Exception:
         db.rollback()
         return None
     finally:
@@ -134,13 +402,23 @@ async def poll_oast_events(
     timeout_seconds: float = 5.0
 ) -> List[Dict[str, Any]]:
     """
-    Polls for callbacks matching token. If none exist immediately, waits asynchronously
-    up to timeout_seconds for an incoming callback before returning.
+    Polls for callbacks matching token. If token belongs to Interactsh,
+    queries the Interactsh server first to fetch live out-of-band hits.
+    Waits asynchronously up to timeout_seconds for an incoming callback.
     """
     clean_token = token.strip()
     target_project = (project or "default").strip().lower()
+    reg = _token_registry.get(clean_token, {})
+    is_interactsh = reg.get("provider") == "interactsh" or _global_interactsh is not None
 
-    # 1. Quick check database
+    # 1. If Interactsh might have received external hits, poll the Interactsh server
+    if is_interactsh and _global_interactsh:
+        try:
+            await _global_interactsh.poll_and_record()
+        except Exception:
+            pass
+
+    # 2. Quick check database
     db = SessionLocal()
     try:
         events = db.query(OastEvent).filter(
@@ -151,17 +429,36 @@ async def poll_oast_events(
     finally:
         db.close()
 
-    # 2. If no event yet, register or retrieve asyncio.Event waiter
+    # 3. If no event yet, register or retrieve asyncio.Event waiter
     if clean_token not in _active_waiters:
         _active_waiters[clean_token] = asyncio.Event()
 
     waiter = _active_waiters[clean_token]
-    try:
-        await asyncio.wait_for(waiter.wait(), timeout=max(0.5, float(timeout_seconds)))
-    except asyncio.TimeoutError:
-        pass
+    t_end = time.time() + max(0.5, float(timeout_seconds))
 
-    # 3. Re-query database after waiting
+    while time.time() < t_end:
+        rem = max(0.2, t_end - time.time())
+        try:
+            await asyncio.wait_for(waiter.wait(), timeout=min(2.0, rem))
+            break
+        except asyncio.TimeoutError:
+            if is_interactsh and _global_interactsh:
+                try:
+                    await _global_interactsh.poll_and_record()
+                except Exception:
+                    pass
+            # Check DB again
+            db = SessionLocal()
+            try:
+                events = db.query(OastEvent).filter(
+                    OastEvent.token == clean_token
+                ).order_by(OastEvent.id.desc()).all()
+                if events:
+                    return [e.to_dict() for e in events]
+            finally:
+                db.close()
+
+    # 4. Final re-query database after waiting
     db = SessionLocal()
     try:
         events = db.query(OastEvent).filter(

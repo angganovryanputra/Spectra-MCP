@@ -417,6 +417,16 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
             deduped_findings.append(f)
     findings_data = deduped_findings
 
+    # Prevent dummy loopback traffic/tools from polluting findings in named target projects (e.g. lottechem)
+    clean_host = (log_entry.host or "").lower().split(":")[0]
+    is_loopback_host = clean_host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
+    if is_loopback_host and project_name not in ["default", "local", "lab", "test", "dev"]:
+        proj_obj = db.query(Project).filter(Project.name == project_name).first()
+        proj_scope = proj_obj.to_dict().get("allowed_hosts", ["*"]) if proj_obj else ["*"]
+        if proj_scope != ["*"] and not any(h in ["localhost", "127.0.0.1", "0.0.0.0"] for h in proj_scope):
+            findings_data = []
+            flag_status = "CLEAN"
+
     log_entry.flag_status = flag_status
 
     db.add(log_entry)
@@ -1694,6 +1704,7 @@ class GenerateOastRequest(BaseModel):
     project: str = "default"
     description: Optional[str] = ""
     vuln_type: Optional[str] = "BLIND_CALLBACK"
+    provider: Optional[str] = "auto"
 
 
 @app.api_route("/oast/{token}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"], operation_id="handle_oast_callback_root", include_in_schema=False)
@@ -1754,7 +1765,8 @@ def generate_oast_token_endpoint(req: GenerateOastRequest):
     return generate_oast_token(
         project=req.project,
         description=req.description or "",
-        vuln_type=req.vuln_type or "BLIND_CALLBACK"
+        vuln_type=req.vuln_type or "BLIND_CALLBACK",
+        provider=req.provider or "auto"
     )
 
 

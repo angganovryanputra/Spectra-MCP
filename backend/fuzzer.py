@@ -6,6 +6,7 @@ automated baseline differential analysis, and offensive anomaly detection.
 
 import re
 import time
+import random
 import asyncio
 import urllib.parse
 from typing import Dict, Any, List, Optional, Tuple
@@ -118,17 +119,37 @@ async def run_fuzz_attack(
     body: Optional[str] = "",
     payloads: Optional[List[str]] = None,
     concurrency: int = 5,
+    delay_ms: Optional[float] = None,
+    jitter_ms: Optional[float] = None,
     upstream_proxy: Optional[str] = None,
     project: str = "default",
     agent_id: str = "primary_agent"
 ) -> Dict[str, Any]:
     """
-    Executes a multi-threaded parameter fuzzing attack with automatic baseline comparison.
+    Executes a multi-threaded parameter fuzzing attack with automatic baseline comparison,
+    adaptive rate-limiting, and randomized jitter to prevent WAF / Imperva / Cloudflare bot-bans.
     """
     headers = headers or {}
     body = body or ""
     payloads = payloads or BUILTIN_PAYLOADS["sqli"]
     method = method.upper().strip()
+
+    # Determine effective rate limiting delay & jitter
+    eff_delay = delay_ms
+    if eff_delay is None:
+        try:
+            from backend.database import SessionLocal, Project
+            db_p = SessionLocal()
+            p_obj = db_p.query(Project).filter(Project.name == project.lower()).first()
+            if p_obj and p_obj.delay_ms and p_obj.delay_ms > 0:
+                eff_delay = float(p_obj.delay_ms)
+            db_p.close()
+        except Exception:
+            pass
+    if eff_delay is None:
+        eff_delay = 50.0  # Default 50ms pacing between requests to avoid Imperva bans
+
+    eff_jitter = jitter_ms if jitter_ms is not None else (eff_delay * 0.5)
 
     proxy_kwargs = {}
     if upstream_proxy and upstream_proxy.strip():
@@ -184,6 +205,12 @@ async def run_fuzz_attack(
             apply_rotating_user_agent(req_headers)
 
             async with sem:
+                # Rate Limiting & Anti-Ban Pacing
+                if eff_delay > 0 or eff_jitter > 0:
+                    jit = random.uniform(0, max(0.0, eff_jitter)) if eff_jitter > 0 else 0.0
+                    sleep_time = max(0.0, (eff_delay + jit) / 1000.0)
+                    if sleep_time > 0:
+                        await asyncio.sleep(sleep_time)
                 item = {
                     "id": index + 1,
                     "payload": payload,

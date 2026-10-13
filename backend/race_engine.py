@@ -116,21 +116,21 @@ async def run_race_attack(
 
     anomalies: List[Dict[str, Any]] = []
 
-    # Check for Double-Spend / Concurrency Flaw:
-    # If 2 or more requests succeeded simultaneously on sensitive state-changing endpoints
+    # Calculate response variance (status code, length delta, and body preview diversity)
+    observed_lengths = [r["length"] for r in results if r.get("length") is not None]
+    length_variance = (max(observed_lengths) - min(observed_lengths)) if observed_lengths else 0
+    unique_previews = set(r.get("preview", "") for r in success_responses if r.get("preview"))
+    is_identical_responses = (
+        len(status_distribution) <= 1 and
+        length_variance <= 5 and
+        len(unique_previews) <= 1
+    )
+
     path_lower = url.lower()
     is_sensitive_action = any(k in path_lower for k in [
         "pay", "transfer", "redeem", "coupon", "voucher", "checkout", "withdraw",
         "claim", "invite", "vote", "like", "order", "reset", "otp", "verify"
     ])
-
-    if len(success_responses) > 1 and is_sensitive_action:
-        anomalies.append({
-            "type": "POTENTIAL_RACE_CONDITION_MULTIPLE_SUCCESS",
-            "severity": "HIGH",
-            "description": f"Target endpoint permitted {len(success_responses)} simultaneous successful state actions out of {concurrency} synchronized burst requests.",
-            "success_count": len(success_responses)
-        })
 
     # Check for status diversity / rate limit inconsistency
     if len(status_distribution) > 1:
@@ -140,14 +140,31 @@ async def run_race_attack(
             "description": f"Burst requests split across multiple status codes: {status_distribution}"
         })
 
-    verdict = "POTENTIAL_RACE_CONDITION" if len(success_responses) > 1 else "CONSISTENT_BEHAVIOR"
+    # Check for Double-Spend / Concurrency Flaw:
+    # A true race condition anomaly requires either:
+    #   1. Status code split (some succeeded, some failed, but more than 1 succeeded on single-use action)
+    #   2. Response variance among successes (different balances, order IDs, or state changes reflected)
+    # If 100% of responses are identical with 0 variance, the endpoint is consistent/idempotent, NOT vulnerable!
+    is_race_anomaly = False
+    if len(success_responses) > 1 and not is_identical_responses:
+        if is_sensitive_action or len(status_distribution) > 1 or len(unique_previews) > 1 or length_variance > 20:
+            is_race_anomaly = True
+            anomalies.append({
+                "type": "POTENTIAL_RACE_CONDITION_MULTIPLE_SUCCESS",
+                "severity": "HIGH",
+                "description": f"Target endpoint permitted {len(success_responses)} simultaneous successful state actions with observable response divergence (variance: {length_variance} bytes, {len(unique_previews)} distinct bodies).",
+                "success_count": len(success_responses),
+                "length_variance": length_variance
+            })
+
+    verdict = "POTENTIAL_RACE_CONDITION" if is_race_anomaly else "CONSISTENT_BEHAVIOR"
 
     try:
         from backend.forward_proxy import _dispatch_log
         import urllib.parse
         parsed_race = urllib.parse.urlparse(url)
         sample_sc = results[0].get("status_code", 200) if results else 200
-        is_vuln = verdict == "POTENTIAL_RACE_CONDITION"
+        is_vuln = (verdict == "POTENTIAL_RACE_CONDITION")
         await _dispatch_log({
             "project": project,
             "agent_id": agent_id,
@@ -161,8 +178,13 @@ async def run_race_attack(
             "request_headers": headers or {},
             "request_body": body or "",
             "response_headers": {},
-            "response_body": json.dumps({"status_distribution": status_distribution, "success_count": len(success_responses)}),
-            "reasoning": f"[Turbo Race Burst: {concurrency} workers, {total_time_ms}ms] Verdict: {verdict}",
+            "response_body": json.dumps({
+                "status_distribution": status_distribution,
+                "success_count": len(success_responses),
+                "length_variance": length_variance,
+                "is_identical": is_identical_responses
+            }),
+            "reasoning": f"[Turbo Race Burst: {concurrency} workers, {total_time_ms}ms, variance: {length_variance}b] Verdict: {verdict}",
             "flag_status": "POTENTIAL" if is_vuln else "CLEAN",
             "finding_title": "Race Condition / Concurrency State Flaw" if is_vuln else "",
             "finding_severity": "HIGH" if is_vuln else "INFO"

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from sqlalchemy.orm import Session
-from backend.database import SessionLocal, TargetAsset, TargetService, TargetEndpoint, Finding, HttpLog
+from backend.database import SessionLocal, TargetAsset, TargetService, TargetEndpoint, Finding, HttpLog, Project
 
 
 def upsert_target_asset(
@@ -20,17 +20,28 @@ def upsert_target_asset(
     ip: str = "",
     os_info: str = "",
     tags: Optional[List[str]] = None,
-    notes: str = ""
+    notes: str = "",
+    port: Optional[int] = None
 ) -> Dict[str, Any]:
-    """Creates or updates a target host in the attack surface graph."""
+    """Creates or updates a target host in the attack surface graph. Preserves port and auto-registers service."""
     clean_host = host.strip().lower()
     if not clean_host:
         raise ValueError("Host cannot be empty")
     
-    # Strip scheme or port if accidentally supplied in host
+    detected_port = port
+    # Parse scheme, netloc, or host:port if supplied
     if "://" in clean_host:
-        clean_host = urllib.parse.urlparse(clean_host).netloc
-    clean_host = clean_host.split(":")[0].strip("/")
+        parsed_u = urllib.parse.urlparse(clean_host)
+        if parsed_u.port:
+            detected_port = parsed_u.port
+        clean_host = parsed_u.hostname or clean_host
+    elif ":" in clean_host:
+        parts = clean_host.split(":")
+        clean_host = parts[0].strip("/")
+        if len(parts) > 1 and parts[1].isdigit():
+            detected_port = int(parts[1])
+    else:
+        clean_host = clean_host.strip("/")
 
     target_project = (project or "default").strip().lower()
     tags_str = ",".join([t.strip() for t in tags]) if tags else ""
@@ -67,7 +78,23 @@ def upsert_target_asset(
 
         db.commit()
         db.refresh(asset)
-        return asset.to_dict()
+        res_dict = asset.to_dict()
+
+        # Auto-register detected port into TargetService
+        if detected_port:
+            try:
+                svc_proto = "https" if detected_port in [443, 8443] else "http"
+                add_or_update_service(
+                    project=target_project,
+                    host=clean_host,
+                    port=detected_port,
+                    protocol="tcp",
+                    service_name=svc_proto
+                )
+            except Exception:
+                pass
+
+        return res_dict
     finally:
         db.close()
 
@@ -266,13 +293,27 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
             return
 
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        # Do not ingest Proxynth's own server infrastructure
-        if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [backend_port, proxy_port]:
+        # 1. Do not ingest Proxynth's own server infrastructure or common test mock ports
+        if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and (port in [backend_port, proxy_port, 9999] or port >= 9990):
             return
 
+        clean_project = (project or "default").strip().lower()
+        is_loopback = host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] or host.endswith(".local")
+        # 2. Prevent dummy loopback targets from contaminating named target projects (e.g. lottechem)
+        if is_loopback and clean_project not in ["default", "local", "lab", "test", "dev"]:
+            db = SessionLocal()
+            try:
+                proj_obj = db.query(Project).filter(Project.name == clean_project).first()
+                if proj_obj:
+                    allowed = proj_obj.to_dict().get("allowed_hosts", ["*"])
+                    if allowed != ["*"] and not any(h in ["localhost", "127.0.0.1", "0.0.0.0"] for h in allowed):
+                        return
+            finally:
+                db.close()
+
         service_name = "https" if parsed.scheme == "https" else "http"
-        add_or_update_service(project=project, host=host, port=port, service_name=service_name)
-        add_or_update_endpoint(project=project, host=host, url=url, method=method)
+        add_or_update_service(project=clean_project, host=host, port=port, service_name=service_name)
+        add_or_update_endpoint(project=clean_project, host=host, url=url, method=method)
     except Exception:
         pass
 
