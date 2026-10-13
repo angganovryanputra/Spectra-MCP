@@ -59,11 +59,13 @@ def get_ca_dir() -> str:
 
 def get_ca_cert_path() -> str:
     ca_dir = get_ca_dir()
-    for fname in ["proxynth_ca.crt", "proxynth_ca.crt"]:
-        cand = os.path.join(ca_dir, fname)
-        if os.path.exists(cand):
-            return cand
-    return os.path.join(ca_dir, "proxynth_ca.crt" if ca_dir.endswith(".proxynth_ca") else "proxynth_ca.crt")
+    cand = os.path.join(ca_dir, "proxynth_ca.crt")
+    if not os.path.exists(cand):
+        try:
+            _ensure_ca()
+        except Exception:
+            pass
+    return cand
 
 def _get_upstream_proxy(project_name: str) -> Optional[str]:
     """Retrieves project-specific upstream proxy or falls back to global PROXSYNTH_UPSTREAM_PROXY/PROXSYNTH_UPSTREAM_PROXY."""
