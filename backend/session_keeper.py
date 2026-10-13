@@ -1,5 +1,5 @@
 """
-Spectra MCP - Session Keep-Alive / Heartbeat Worker
+Proxynth MCP - Session Keep-Alive / Heartbeat Worker
 Maintains authenticated sessions and prevents cookie/token expiration during long pentest operations.
 """
 

@@ -8,10 +8,10 @@ import os
 import requests
 from typing import Optional, Dict, Any
 
-PROXSYNTH_PROXY_PORT = os.getenv("PROXSYNTH_PROXY_PORT", os.getenv("SPECTRA_PROXY_PORT", "8088"))
+PROXSYNTH_PROXY_PORT = os.getenv("PROXSYNTH_PROXY_PORT", "8088")
 PROXSYNTH_PROXY_URL = os.getenv("HTTP_PROXY", f"http://127.0.0.1:{PROXSYNTH_PROXY_PORT}")
-PROXSYNTH_PROJECT = os.getenv("PROXSYNTH_PROJECT", os.getenv("SPECTRA_PROJECT", "default"))
-PROXSYNTH_BACKEND_URL = os.getenv("PROXSYNTH_BACKEND_URL", os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000")).rstrip("/")
+PROXSYNTH_PROJECT = os.getenv("PROXSYNTH_PROJECT", "default")
+PROXSYNTH_BACKEND_URL = os.getenv("PROXSYNTH_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 class ProxynthSession(requests.Session):
@@ -30,9 +30,7 @@ class ProxynthSession(requests.Session):
         self.verify = False
         self.headers.update({
             "X-Proxynth-Project": self.project,
-            "X-Proxynth-Agent": self.agent_id,
-            "X-Spectra-Project": self.project,
-            "X-Spectra-Agent": self.agent_id
+            "X-Proxynth-Agent": self.agent_id
         })
 
     def report_finding(
@@ -62,7 +60,3 @@ class ProxynthSession(requests.Session):
             return resp.status_code == 200
         except Exception:
             return False
-
-
-# Backwards compatibility alias
-SpectraSession = ProxynthSession

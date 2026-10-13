@@ -35,23 +35,23 @@ Tambahkan arahan berikut pada system prompt agen agar agen:
 
 ```text
 [SECURITY TESTING DIRECTIVE]
-Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
+Anda terhubung dengan Proxynth Security Testing Gateway melalui MCP Tools:
 1. Setiap kali berinteraksi dengan target pentest (HTTP/HTTPS), Anda WAJIB menggunakan tool `send_http_request`. JANGAN menggunakan bash `curl` langsung di terminal host.
 2. Selalu sertakan parameter `reasoning` saat memanggil tool untuk menjelaskan hipotesis keamanan Anda (contoh: "Testing SQL injection pada query param id karena aplikasi merespon error SQL").
 3. Jika target berada di luar scope atau memicu proteksi guardrail, hormati pesan blokir dan batasi pengujian pada endpoint yang diizinkan.
 4. Jika target membutuhkan rendering halaman JavaScript dinamis, gunakan tool `browser_navigate_and_render`.
 5. Jika menemui login wall, CAPTCHA, atau Two-Factor Authentication (2FA), gunakan tool `request_manual_login` agar operator manusia dapat melakukan login via browser interaktif.
-6. Jika perlu menjalankan perintah terminal / CLI (seperti nmap, curl, sqlmap, custom scripts), gunakan tool `run_pentest_command` agar perintah, stdout, dan stderr terekam di Spectra Command Audit Trail. Anda dapat menentukan parameter `cwd` untuk direktori kerja eksekusi.
-7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Spectra Payload Vault (mengembalikan Payload ID).
+6. Jika perlu menjalankan perintah terminal / CLI (seperti nmap, curl, sqlmap, custom scripts), gunakan tool `run_pentest_command` agar perintah, stdout, dan stderr terekam di Proxynth Command Audit Trail. Anda dapat menentukan parameter `cwd` untuk direktori kerja eksekusi.
+7. Jika membuat atau menguji payload eksploitasi khusus (SQLi, XSS, SSRF, SSTI, RCE, IDOR), gunakan tool `record_test_payload` untuk mencatat payload ke dalam Proxynth Payload Vault (mengembalikan Payload ID).
 8. Jika response body terpotong pada `send_http_request` atau Anda membutuhkan response body/headers utuh untuk analisis mendalam (misal: reflected XSS, token extraction, dump JSON besar), gunakan tool `get_log_detail(log_id=<ID>)` dengan `Log ID` yang didapat dari `send_http_request`.
 9. Jika perlu meninjau riwayat request yang pernah dikirim sebelumnya untuk chaining atau replay, gunakan tool `get_traffic_history(project="default", limit=20)`.
 10. **Pelaporan & Flagging Kerentanan (Sangat Penting):**
     - Saat mengirim request exploit yang Anda ketahui atau duga sebagai kerentanan, Anda dapat langsung menambahkan parameter di `send_http_request`: `finding_title="SQL Injection — Authentication Bypass"`, `finding_severity="CRITICAL"`, `flag_status="CONFIRMED"`, `finding_category="SQL Injection"`, `finding_evidence="Admin JWT token returned"`.
-    - ATAU setelah menganalisis respons dengan `get_log_detail(log_id)`, panggil tool `report_vulnerability(log_id=<ID>, title="...", severity="CRITICAL"|"HIGH"|"MEDIUM", category="...", evidence="...")` untuk mencatat temuan terkonfirmasi ke dalam Spectra Dashboard Findings Ledger.
+    - ATAU setelah menganalisis respons dengan `get_log_detail(log_id)`, panggil tool `report_vulnerability(log_id=<ID>, title="...", severity="CRITICAL"|"HIGH"|"MEDIUM", category="...", evidence="...")` untuk mencatat temuan terkonfirmasi ke dalam Proxynth Dashboard Findings Ledger.
 
 11. **Standardisasi Output JSON & Token-Saving (Hemat Konteks LLM):**
     - Gunakan `output_format="json"` pada `send_http_request` atau `run_pentest_command` untuk mendapatkan output terstruktur yang mudah diparsing.
-    - Gunakan parameter `diff_baseline_id=<ID>` pada `send_http_request` saat mengirim payload variasi/mutasi untuk membandingkan respons dengan baseline awal. Spectra akan menghitung diff unified secara otomatis sehingga menghemat token LLM hingga 90%.
+    - Gunakan parameter `diff_baseline_id=<ID>` pada `send_http_request` saat mengirim payload variasi/mutasi untuk membandingkan respons dengan baseline awal. Proxynth akan menghitung diff unified secara otomatis sehingga menghemat token LLM hingga 90%.
 12. **Target Knowledge Graph (Stateful Recon & Surface Mapping):**
     - Gunakan `get_attack_surface(project="...")` untuk melihat topologi aset target, port/layanan terbuka, dan status endpoint yang sudah maupun belum diuji.
     - Catat host/IP baru dengan `record_target_asset(...)`.
@@ -62,13 +62,13 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
     - Masukkan `callback_url` yang diberikan ke dalam payload eksploitasi Anda.
 14. **Custom Pentest Scripts & Transparent Proxy Interception (OpenCode / Hermes):**
     - Saat Anda membuat dan mengeksekusi script pentest mandiri (misal: Python `requests`/`httpx`/`urllib`, `curl`, `sqlmap`, `ffuf`, `nuclei`):
-      - **Enforcement Otomatis**: Melalui runtime hook `sitecustomize.py` dan environment proxy (`HTTP_PROXY`, `HTTPS_PROXY`), bahkan jika Anda menjalankan script Python via terminal biasa (`python script.py`), lalu lintasnya **pasti otomatis melewati Spectra Forward Proxy (:8088)** dengan TLS MITM decryption tanpa perlu konfigurasi proxy manual di script Anda.
+      - **Enforcement Otomatis**: Melalui runtime hook `sitecustomize.py` dan environment proxy (`HTTP_PROXY`, `HTTPS_PROXY`), bahkan jika Anda menjalankan script Python via terminal biasa (`python script.py`), lalu lintasnya **pasti otomatis melewati Proxynth Forward Proxy (:8088)** dengan TLS MITM decryption tanpa perlu konfigurasi proxy manual di script Anda.
       - **Zero Guardrails by Default**: Secara default tidak ada guardrail yang memblokir target internal/lab (`127.0.0.1`, RFC1918) maupun external domain, sehingga seluruh pengujian berjalan lancar tanpa terhalang SSRF filter bawaan kecuali operator sengaja mengaktifkan Scope Guardrail di Dashboard.
-      - Seluruh target hit dari script Anda akan **otomatis tertangkap di Spectra Forward Interception Proxy (:8088)**, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph!
-    - Untuk script Python tingkat lanjut, Anda juga dapat mengimpor micro-SDK bawaan: `from spectra_client import SpectraSession, report_finding`.
+      - Seluruh target hit dari script Anda akan **otomatis tertangkap di Proxynth Forward Interception Proxy (:8088)**, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph!
+    - Untuk script Python tingkat lanjut, Anda juga dapat mengimpor micro-SDK bawaan: `from proxynth_client import ProxynthSession, report_finding`.
 15. **Multi-Identity BOLA / IDOR Testing:**
     - Daftarkan sesi akun sekunder (misal penyerang/korban) dengan `set_identity_session(domain="...", identity_role="attacker", raw_cookies="...")`.
-    - Setiap endpoint ber-identifier objek yang Anda tes akan otomatis di-shadow replay oleh Spectra. Anda juga dapat memicu uji manual via `test_bola_idor(log_id=<ID>)`.
+    - Setiap endpoint ber-identifier objek yang Anda tes akan otomatis di-shadow replay oleh Proxynth. Anda juga dapat memicu uji manual via `test_bola_idor(log_id=<ID>)`.
 16. **Adaptive WAF Evasion & Payload Mutator:**
     - Jika target dilindungi WAF (Cloudflare, AWS WAF, Akamai, ModSecurity), gunakan `analyze_waf_response(status_code, headers, body)` untuk mengetahui vendor dan teknik bypass.
     - Gunakan `mutate_payload(raw_payload="...", vuln_type="SQLI"|"XSS"|"TRAVERSAL")` untuk menghasilkan payload variasi yang lolos filter WAF.
@@ -117,7 +117,7 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 - **Semantic API Spec Reconstructor:** Prediksi rute tersembunyi berdasarkan pola arsitektur REST.
 - **Exploit Path Chaining Graph:** Visualisasi kill chain Mermaid dari akses publik menuju Crown Jewels.
 - **One-Click Standalone PoC Generator:** Pembuatan script Python mandiri, cURL command, dan laporan CVSS/CWE otomatis.
-- **Transparent Auto-Enforcement (`sitecustomize.py` & `.env`):** Menjamin bahwa setiap script Python yang dieksekusi agen otomatis diarahkan ke Forward Interception Proxy Spectra (:8088), bahkan saat agen memanggil terminal host langsung.
+- **Transparent Auto-Enforcement (`sitecustomize.py` & `.env`):** Menjamin bahwa setiap script Python yang dieksekusi agen otomatis diarahkan ke Forward Interception Proxy Proxynth (:8088), bahkan saat agen memanggil terminal host langsung.
 - **Zero Default Guardrails:** Secara default guardrail berada dalam status nonaktif (`scope_enabled = False`, `allow_internal_networks = True`, `blocked_patterns = []`). Pengguna memiliki kontrol penuh dan hanya perlu mengatur guardrail manual jika pengujian membutuhkan pembatasan scope ketat.
 - **TLS MITM Decryption Engine (Dynamic Cert Generator):** Mendekripsi lalu lintas HTTPS dari script agen secara transparan sehingga payload riil, status code, response body, dan findings langsung tercatat (bukan sekadar tunneling CONNECT blind).
 - **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian & auto-ingestion dari script traffic.

@@ -1,5 +1,5 @@
 """
-Spectra - Legitimate Browser User-Agent Rotation Engine
+Proxynth - Legitimate Browser User-Agent Rotation Engine
 Maintains modern, realistic browser fingerprint profiles (Chrome, Edge, Safari, Firefox
 on Windows, macOS, and Linux) to prevent anti-bot and WAF fingerprint blocking.
 """
@@ -77,7 +77,7 @@ BROWSER_PROFILES = [
 
 BOT_USER_AGENT_KEYWORDS = [
     "python", "requests", "httpx", "urllib", "aiohttp", "curl", "wget", "go-http-client",
-    "java", "postman", "insomnia", "axios", "node-fetch", "spectramcp", "fuzzer", "bot",
+    "java", "postman", "insomnia", "axios", "node-fetch", "proxynthmcp", "fuzzer", "bot",
     "spider", "crawler", "scanner", "sqlmap", "nmap", "nikto", "nuclei", "gobuster",
     "dirbuster", "ffuf", "hydra", "burp", "zap"
 ]

@@ -1592,7 +1592,7 @@
           </div>
         </div>
         <textarea x-model="repeaterForm.headersRaw" rows="4"
-          placeholder='{\n  "User-Agent": "SpectraRepeater/1.3",\n  "Accept": "*/*"\n}'
+          placeholder='{\n  "User-Agent": "ProxynthRepeater/1.3",\n  "Accept": "*/*"\n}'
           class="w-full bg-[#0B0F17] border border-[#1E293B] rounded p-2.5 text-sky-200 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-y"></textarea>
       </div>
 
@@ -3960,7 +3960,7 @@
         toggleSidebar() {
           this.sidebarExpanded = !this.sidebarExpanded;
           try {
-            localStorage.setItem('spectra_sidebar_expanded', this.sidebarExpanded);
+            localStorage.setItem('proxynth_sidebar_expanded', this.sidebarExpanded);
           } catch(e) {}
           this.$nextTick(() => {
             if (window.lucide) lucide.createIcons();
@@ -4039,7 +4039,7 @@
             name: '1',
             method: 'GET',
             url: '',
-            headersRaw: '{\n  "User-Agent": "SpectraRepeater/1.3"\n}',
+            headersRaw: '{\n  "User-Agent": "ProxynthRepeater/1.3"\n}',
             body: '',
             response: null,
             baselineResponse: null,
@@ -4120,7 +4120,7 @@
         fuzzerForm: {
           method: 'GET',
           url: '',
-          headersRaw: '{\n  "User-Agent": "SpectraFuzzer/1.0"\n}',
+          headersRaw: '{\n  "User-Agent": "ProxynthFuzzer/1.0"\n}',
           body: '',
           category: 'sqli',
           payloadsRaw: '',
@@ -4250,7 +4250,7 @@
           this.currentPage = 1;
           this.newLogsBufferCount = 0;
           try {
-            localStorage.setItem('spectra_page_size', String(size));
+            localStorage.setItem('proxynth_page_size', String(size));
           } catch (e) { }
           const el = document.getElementById('logsTableContainer');
           if (el) el.scrollTop = 0;
@@ -4279,19 +4279,19 @@
 
         initApp() {
           try {
-            const savedWidths = localStorage.getItem('spectra_col_widths');
+            const savedWidths = localStorage.getItem('proxynth_col_widths');
             if (savedWidths) this.colWidths = Object.assign(this.colWidths, JSON.parse(savedWidths));
-            const savedPct = localStorage.getItem('spectra_split_pct');
+            const savedPct = localStorage.getItem('proxynth_split_pct');
             if (savedPct) this.tableSplitPct = parseFloat(savedPct);
-            const savedOrientation = localStorage.getItem('spectra_layout_orientation');
+            const savedOrientation = localStorage.getItem('proxynth_layout_orientation');
             if (savedOrientation) this.layoutOrientation = savedOrientation;
-            const savedShowFilters = localStorage.getItem('spectra_show_col_filters');
+            const savedShowFilters = localStorage.getItem('proxynth_show_col_filters');
             if (savedShowFilters !== null) this.showColFilters = savedShowFilters === 'true';
-            const savedPageSize = localStorage.getItem('spectra_page_size');
+            const savedPageSize = localStorage.getItem('proxynth_page_size');
             if (savedPageSize) {
               this.pageSize = savedPageSize === 'ALL' ? 999999 : (parseInt(savedPageSize) || 50);
             }
-            const savedSidebar = localStorage.getItem('spectra_sidebar_expanded');
+            const savedSidebar = localStorage.getItem('proxynth_sidebar_expanded');
             if (savedSidebar !== null) this.sidebarExpanded = savedSidebar === 'true';
           } catch (e) { }
 
@@ -4688,7 +4688,7 @@
         toggleColFilters() {
           this.showColFilters = !this.showColFilters;
           try {
-            localStorage.setItem('spectra_show_col_filters', String(this.showColFilters));
+            localStorage.setItem('proxynth_show_col_filters', String(this.showColFilters));
           } catch (e) { }
           this.$nextTick(() => lucide.createIcons());
         },
@@ -4730,7 +4730,7 @@
         toggleLayoutOrientation() {
           this.layoutOrientation = this.layoutOrientation === 'horizontal' ? 'vertical' : 'horizontal';
           try {
-            localStorage.setItem('spectra_layout_orientation', this.layoutOrientation);
+            localStorage.setItem('proxynth_layout_orientation', this.layoutOrientation);
           } catch (e) { }
           this.$nextTick(() => lucide.createIcons());
         },
@@ -4772,7 +4772,7 @@
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
             try {
-              localStorage.setItem('spectra_split_pct', String(this.tableSplitPct));
+              localStorage.setItem('proxynth_split_pct', String(this.tableSplitPct));
             } catch (e) { }
           };
 
@@ -4802,7 +4802,7 @@
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
             try {
-              localStorage.setItem('spectra_col_widths', JSON.stringify(this.colWidths));
+              localStorage.setItem('proxynth_col_widths', JSON.stringify(this.colWidths));
             } catch (e) { }
           };
 
@@ -4824,7 +4824,7 @@
             time: 75
           };
           try {
-            localStorage.removeItem('spectra_col_widths');
+            localStorage.removeItem('proxynth_col_widths');
           } catch (e) { }
           this.showToast({ title: 'Columns Reset', message: 'Table column widths restored to default.' });
         },
@@ -4919,7 +4919,7 @@
             name: tabName,
             method: initialData?.method || 'GET',
             url: initialData?.url || '',
-            headersRaw: initialData?.headersRaw || '{\n  "User-Agent": "SpectraRepeater/1.3"\n}',
+            headersRaw: initialData?.headersRaw || '{\n  "User-Agent": "ProxynthRepeater/1.3"\n}',
             body: initialData?.body || '',
             response: null,
             baselineResponse: null,
@@ -5042,7 +5042,7 @@
               }
             }
             if (Object.keys(headers).length === 0) {
-              headers = { "User-Agent": "SpectraRepeater/1.3" };
+              headers = { "User-Agent": "ProxynthRepeater/1.3" };
             }
           }
 
@@ -5840,7 +5840,7 @@
           this.addRepeaterTab({
             method: method,
             url: url,
-            headersRaw: '{\n  "User-Agent": "SpectraRepeater/1.3"\n}',
+            headersRaw: '{\n  "User-Agent": "ProxynthRepeater/1.3"\n}',
             body: body
           }, label);
           this.currentAppTab = 'repeater';
@@ -6124,12 +6124,12 @@
     }
 
     // Register with window and Alpine
-    const spectraApp = proxynthApp;
+    const proxynthApp = proxynthApp;
     window.proxynthApp = proxynthApp;
-    window.spectraApp = proxynthApp;
+    window.proxynthApp = proxynthApp;
     document.addEventListener('alpine:init', () => {
       Alpine.data('proxynthApp', proxynthApp);
-      Alpine.data('spectraApp', proxynthApp);
+      Alpine.data('proxynthApp', proxynthApp);
     });
   </script>
 </body>

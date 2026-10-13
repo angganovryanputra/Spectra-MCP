@@ -1,5 +1,5 @@
-# ⚡ PROXSYNTH // Autonomous Security Testing Gateway & Interception Platform
-### Next-Generation Model Context Protocol (MCP) Intercept Proxy, Out-Of-Band Canary Engine, Token Distiller & Attack Hypothesis Ledger for Autonomous AI Red Teaming Agents
+# ⚡ PROXSYNTH: Autonomous AI Interception Proxy & Security Testing Gateway
+### The Open-Source Burp Suite & Caido Alternative Built for LLM Pentesting Agents (Claude Code, Cursor, OpenCode, Hermes, Windsurf) via Model Context Protocol (MCP)
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-FastMCP%201.0%2B-purple.svg)](https://modelcontextprotocol.io)
@@ -7,11 +7,10 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-High%20Performance-009688.svg)](https://fastapi.tiangolo.com)
 [![Playwright](https://img.shields.io/badge/Playwright-Chromium%20DOM%20Oracle-45ba4b.svg)](https://playwright.dev)
 [![Database](https://img.shields.io/badge/SQLite-WAL%20Engine-003B57.svg)](https://sqlite.org)
-[![Forward Proxy](https://img.shields.io/badge/Forward%20Proxy-Port%208088-0ea5e9.svg)](#-built-in-forward-interception-proxy--tls-mitm-decryption-engine)
-[![TLS MITM](https://img.shields.io/badge/TLS%20MITM-Decryption%20Engine-ef4444.svg)](#-built-in-forward-interception-proxy--tls-mitm-decryption-engine)
+[![Forward Proxy](https://img.shields.io/badge/Forward%20Proxy-Port%208088-0ea5e9.svg)](#-transparent-runtime-auto-enforcement-sitecustomizepy)
+[![TLS MITM](https://img.shields.io/badge/TLS%20MITM-Decryption%20Engine-ef4444.svg)](#-transparent-runtime-auto-enforcement-sitecustomizepy)
 [![Auto-Enforcement](https://img.shields.io/badge/Auto--Enforcement-sitecustomize.py-8b5cf6.svg)](#-transparent-runtime-auto-enforcement-sitecustomizepy)
-[![Zero Guardrails](https://img.shields.io/badge/Guardrails-Opt--in%20Defaults-22c55e.svg)](#phase-1-target-scope--guardrail-setup-zero-default-guardrails)
-[![OAST](https://img.shields.io/badge/OAST%20Engine-HTTP%20%7C%20DNS%20%7C%20LDAP-f97316.svg)](#pillar-2-p2-autonomous-multi-protocol-oast-canary-sprayer)
+[![OAST Engine](https://img.shields.io/badge/OAST%20Engine-HTTP%20%7C%20DNS%20%7C%20LDAP-f97316.svg)](#pillar-2-p2-autonomous-multi-protocol-oast-canary-sprayer)
 [![Hypothesis Ledger](https://img.shields.io/badge/Working%20Memory-Hypothesis%20Ledger-ec4899.svg)](#pillar-3-p3-agent-working-memory--attack-hypothesis-ledger)
 [![DOM Oracle](https://img.shields.io/badge/DOM%20Oracle-Headless%20Sandbox-10b981.svg)](#pillar-4-p4-browser-dom-execution-oracle-sandbox)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
@@ -27,6 +26,32 @@
   ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝
      ── THE AUTONOMOUS INTERCEPTION PROXY & AGENTIC SECURITY GATEWAY ──
 ```
+
+---
+
+## 📑 Table of Contents
+
+- [📌 Executive Overview](#-executive-overview)
+- [🥊 Head-to-Head Comparison: Proxynth vs Burp Suite vs Caido vs mitmproxy](#-head-to-head-comparison-why-ai-agents-need-proxynth)
+- [🏗️ System Architecture Design](#️-system-architecture-design)
+- [⚡ The 4 Advanced Agentic Pillars (P1 – P4)](#-the-4-advanced-agentic-pillars-p1--p4)
+  - [P1: LLM Semantic Response Body Distiller](#pillar-1-p1-llm-semantic-response-body-distiller)
+  - [P2: Autonomous Multi-Protocol OAST Canary Sprayer](#pillar-2-p2-autonomous-multi-protocol-oast-canary-sprayer)
+  - [P3: Agent Working Memory & Attack Hypothesis Ledger](#pillar-3-p3-agent-working-memory--attack-hypothesis-ledger)
+  - [P4: Browser DOM Execution Oracle Sandbox](#pillar-4-p4-browser-dom-execution-oracle-sandbox)
+- [🧰 Complete FastMCP Tools Reference Specification (37 Tools)](#-complete-mcp-tools-reference-specification-37-tools)
+- [🐍 Transparent Runtime Auto-Enforcement (`sitecustomize.py`)](#-transparent-runtime-auto-enforcement-sitecustomizepy)
+- [🚀 Installation & Quick Start](#-installation--quick-start)
+- [🤖 AI Agent Integration Guide](#-ai-agent-integration-guide)
+  - [Claude Code & Claude Desktop](#1-claude-desktop--claude-code)
+  - [Cursor IDE](#2-cursor-ide)
+  - [OpenCode & Hermes Agent](#3-opencode--hermes-agent)
+  - [Windsurf IDE](#4-windsurf-ide)
+- [🖥️ Cyberpunk SOC Operator Console Tour (9 Views)](#️-cyberpunk-soc-operator-console-tour)
+- [⚙️ Configuration & Environment Variables](#️-configuration--environment-variables)
+- [🏷️ GitHub SEO & Discovery Strategy](#️-github-seo--repository-optimization-recommendations)
+- [⚖️ Legal & Ethical Disclaimer](#️-legal--ethical-disclaimer)
+- [📄 License](#-license)
 
 ---
 
@@ -46,6 +71,27 @@ When deploying autonomous AI agents against web applications, cloud APIs, and in
 8. **Siloed Tooling & Reporting:** Agent interactions remain locked in chat transcripts instead of generating industry-standard security deliverables (**HAR 1.2**, **Burp Suite** archives, **Executive Pentest Reports**, **OpenAPI 3.0 Specs**).
 
 **PROXSYNTH solves every single one of these challenges.** Operating as an intelligent, bidirectional gateway between your AI Agent and the target application, PROXSYNTH provides **transparent forward proxy auto-injection**, **runtime Python auto-enforcement (`sitecustomize.py`)**, **TLS MITM decryption engine with dynamic CA generation**, **stateful attack surface mapping**, **autonomous multi-protocol out-of-band callback listening**, **agent working memory hypothesis ledger**, **LLM semantic body distillation**, **deterministic headless DOM execution verification**, and a **high-density cyberpunk SOC dashboard**.
+
+---
+
+## 🥊 Head-to-Head Comparison: Why AI Agents Need Proxynth
+
+Traditional interception proxies were built for human eyes and manual clicks. When autonomous AI agents use them, critical architectural failures emerge:
+
+| Feature / Capability | PROXSYNTH | Burp Suite Professional | Caido | mitmproxy | OWASP ZAP |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Native Model Context Protocol (FastMCP)** | ✅ **Yes (37 Tools)** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Python Script Auto-Interception (`sitecustomize.py`)** | ✅ **Automatic** | ❌ Manual config | ❌ Manual config | ❌ Manual config | ❌ Manual config |
+| **Agent Working Memory (Hypothesis Ledger P3)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **LLM Semantic Response Distiller (P1: 90% Savings)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Autonomous Multi-Protocol OAST Sprayer (P2)** | ✅ **HTTP/DNS/LDAP** | ⚠️ Burp Collaborator | ❌ No | ❌ No | ⚠️ OAST Addon |
+| **Headless DOM Execution Oracle Sandbox (P4)** | ✅ **Playwright Hook** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Zero Guardrails by Default (Local & Labs Work)** | ✅ **Yes** | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Complex rules |
+| **Dual-Track Vulnerability Triage (Confirmed vs Pot)** | ✅ **Automated** | ⚠️ Scanner Tab | ❌ No | ❌ No | ⚠️ Alert Tree |
+| **Human-in-the-Loop Intercept Trap via WebSockets** | ✅ **Yes** | ✅ Yes (GUI) | ✅ Yes (GUI) | ✅ Yes (CLI/Web) | ✅ Yes (GUI) |
+| **CLI Pentest Tool Correlation (`sqlmap`, `nuclei`)** | ✅ **Auto-Tagged** | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied |
+| **One-Click Standalone Python PoC Generator** | ✅ **Built-in** | ❌ Extension | ❌ No | ❌ No | ❌ No |
+| **Lightweight Headless Deployment (<50MB RAM idle)** | ✅ **FastAPI+Async** | ❌ Heavy Java JVM | ✅ Rust core | ✅ Python | ❌ Java JVM |
 
 ---
 
@@ -264,7 +310,7 @@ PROXSYNTH introduces four cutting-edge subsystems specifically designed to eleva
 
 ---
 
-## 🧰 Complete MCP Tools Reference Specification (37 Tools)
+## 🧰 Complete FastMCP Tools Reference Specification (37 Tools)
 
 PROXSYNTH's FastMCP server (`mcp_server.py`) registers **37 enterprise-grade offensive security tools**:
 
@@ -307,27 +353,6 @@ PROXSYNTH's FastMCP server (`mcp_server.py`) registers **37 enterprise-grade off
 | **35** | `get_testing_agenda` | **P3: Memory** | Synthesizes an actionable testing agenda of unverified hypotheses to eliminate agent loops. |
 | **36** | `update_hypothesis_status` | **P3: Memory** | Transitions hypothesis lifecycle state (`PLANNED` ➔ `TESTING` ➔ `CONFIRMED` / `DISPROVEN` / `BLOCKED`). |
 | **37** | `verify_dom_execution` | **P4: DOM Oracle** | Executes payload in sandboxed Playwright Chromium to deterministically verify XSS/DOM sinks. |
-
----
-
-## 🥊 Head-to-Head Comparison: Why AI Agents Need Proxynth
-
-Traditional interception proxies were built for human eyes and manual clicks. When autonomous AI agents use them, critical architectural failures emerge:
-
-| Feature / Capability | PROXSYNTH | Burp Suite Professional | Caido | mitmproxy | OWASP ZAP |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Native Model Context Protocol (FastMCP)** | ✅ **Yes (37 Tools)** | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Python Script Auto-Interception (`sitecustomize.py`)** | ✅ **Automatic** | ❌ Manual config | ❌ Manual config | ❌ Manual config | ❌ Manual config |
-| **Agent Working Memory (Hypothesis Ledger P3)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
-| **LLM Semantic Response Distiller (P1: 90% Savings)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Autonomous Multi-Protocol OAST Sprayer (P2)** | ✅ **HTTP/DNS/LDAP** | ⚠️ Burp Collaborator | ❌ No | ❌ No | ⚠️ OAST Addon |
-| **Headless DOM Execution Oracle Sandbox (P4)** | ✅ **Playwright Hook** | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Zero Guardrails by Default (Local & Labs Work)** | ✅ **Yes** | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Complex rules |
-| **Dual-Track Vulnerability Triage (Confirmed vs Pot)** | ✅ **Automated** | ⚠️ Scanner Tab | ❌ No | ❌ No | ⚠️ Alert Tree |
-| **Human-in-the-Loop Intercept Trap via WebSockets** | ✅ **Yes** | ✅ Yes (GUI) | ✅ Yes (GUI) | ✅ Yes (CLI/Web) | ✅ Yes (GUI) |
-| **CLI Pentest Tool Correlation (`sqlmap`, `nuclei`)** | ✅ **Auto-Tagged** | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied |
-| **One-Click Standalone Python PoC Generator** | ✅ **Built-in** | ❌ Extension | ❌ No | ❌ No | ❌ No |
-| **Lightweight Headless Deployment (<50MB RAM idle)** | ✅ **FastAPI+Async** | ❌ Heavy Java JVM | ✅ Rust core | ✅ Python | ❌ Java JVM |
 
 ---
 
@@ -471,6 +496,23 @@ Add to `mcp_config.json` or `opencode.json`:
 }
 ```
 
+### 4. Windsurf IDE
+Add to `~/.codeium/windsurf/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "proxynth": {
+      "command": "d:/PROJECT/01/venv/Scripts/python.exe",
+      "args": ["d:/PROJECT/01/mcp_server.py"],
+      "env": {
+        "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+        "PROXSYNTH_PROJECT": "default"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## 🖥️ Cyberpunk SOC Operator Console Tour
@@ -503,25 +545,23 @@ PROXSYNTH is fully customizable via `.env` or system environment variables:
 | `PROXSYNTH_LDAP_PORT` | `1390` | Port for the built-in TCP LDAP/JNDI OAST callback listener |
 | `PROXSYNTH_PROJECT` | `default` | Default workspace project identifier |
 | `PROXSYNTH_UPSTREAM_PROXY` | `""` *(empty)* | Optional upstream proxy for chaining (e.g., `http://127.0.0.1:8080`) |
-| `PROXSYNTH_DB_PATH` | `./spectra.db` | Path to the SQLite WAL database file |
+| `PROXSYNTH_DB_PATH` | `./proxynth.db` | Path to the SQLite WAL database file |
 | `PROXSYNTH_API_KEY` | `""` *(empty)* | Optional security token requiring `X-Proxynth-Key` header |
 | `PROXSYNTH_ALLOW_REMOTE` | `false` | When false, restricts dashboard access strictly to loopback (`127.0.0.1`) |
 | `PROXSYNTH_MAX_BODY_SIZE` | `524288` (512 KB) | Maximum byte threshold stored per request/response body in SQLite |
-
-*(Note: All legacy `SPECTRA_*` environment variables remain supported as backwards-compatible fallbacks).*
 
 ---
 
 ## 🏷️ GitHub SEO & Repository Optimization Recommendations
 
-To maximize visibility and ensure PROXSYNTH trends on GitHub and ranks #1 on Google, apply the following metadata to your GitHub repository:
+To maximize visibility and ensure PROXSYNTH trends on GitHub and ranks #1 on Google Search, apply the following metadata to your GitHub repository settings:
 
-* **Repository Name:** `proxynth` (or `Proxynth-MCP`)
-* **Description:** `⚡ Autonomous AI Interception Proxy, Multi-Protocol OAST Engine & Attack Hypothesis Ledger for LLM Pentesting Agents (Claude Code, Cursor, OpenCode, Hermes)`
-* **Website:** `http://127.0.0.1:8000` or documentation portal
+* **Repository Name:** `proxynth`
+* **Description:** `⚡ Autonomous AI Interception Proxy, Multi-Protocol OAST Canary Engine & Attack Hypothesis Ledger for LLM Pentesting Agents (Claude Code, Cursor, OpenCode, Hermes)`
+* **Website:** `http://127.0.0.1:8000`
 * **Topics / Tags:**
-  ```
-  mcp  model-context-protocol  ai-agent  pentesting  burp-suite-alternative  caido  red-teaming  autonomous-agent  oast  bugbounty  cybersecurity  security-tools  fastmcp
+  ```text
+  mcp  model-context-protocol  ai-agent  pentesting  burp-suite-alternative  caido  red-teaming  autonomous-agent  oast  bugbounty  cybersecurity  security-tools  fastmcp  playwright  vulnerability-scanner
   ```
 
 ---

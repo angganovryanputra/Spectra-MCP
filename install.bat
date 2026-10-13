@@ -27,7 +27,7 @@ echo [*] Detected Python command: %PYTHON_CMD%
 :: 2. Verify Python Version (>= 3.10)
 %PYTHON_CMD% -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)"
 if errorlevel 1 (
-    echo [!] WARNING: Spectra recommends Python 3.10 or higher.
+    echo [!] WARNING: Proxynth recommends Python 3.10 or higher.
     echo     Current version may encounter dependency compatibility issues.
 )
 
@@ -48,7 +48,7 @@ if not exist "venv\Scripts\activate.bat" (
 echo [*] Upgrading pip...
 venv\Scripts\python.exe -m pip install --upgrade pip --quiet
 
-echo [*] Installing Spectra dependencies from requirements.txt...
+echo [*] Installing Proxynth dependencies from requirements.txt...
 venv\Scripts\python.exe -m pip install -r requirements.txt
 if errorlevel 1 (
     echo [!] ERROR: Failed to install Python dependencies.
@@ -77,15 +77,15 @@ copy /Y sitecustomize.py venv\Lib\site-packages\sitecustomize.py >nul
 echo [+] AI Agent transparent proxy hook installed in venv.
 
 :: 8. Initialize CA Certificate and Trust Store
-echo [*] Initializing Spectra Root CA certificate...
-venv\Scripts\python.exe -c "from backend.ca_manager import get_ca_cert_path; print('[+] Spectra Root CA ready at:', get_ca_cert_path())"
-if exist ".spectra_ca\spectra_ca.crt" (
-    echo [*] Registering Spectra Root CA in Windows Certificate Store...
-    certutil -addstore -f "Root" .spectra_ca\spectra_ca.crt >nul 2>nul
+echo [*] Initializing Proxynth Root CA certificate...
+venv\Scripts\python.exe -c "from backend.ca_manager import get_ca_cert_path; print('[+] Proxynth Root CA ready at:', get_ca_cert_path())"
+if exist ".proxynth_ca\proxynth_ca.crt" (
+    echo [*] Registering Proxynth Root CA in Windows Certificate Store...
+    certutil -addstore -f "Root" .proxynth_ca\proxynth_ca.crt >nul 2>nul
     if errorlevel 0 (
-        echo [+] Spectra Root CA successfully trusted in Windows System Store.
+        echo [+] Proxynth Root CA successfully trusted in Windows System Store.
     ) else (
-        echo [!] Note: To trust CA system-wide, import .spectra_ca\spectra_ca.crt into Trusted Root Certification Authorities.
+        echo [!] Note: To trust CA system-wide, import .proxynth_ca\proxynth_ca.crt into Trusted Root Certification Authorities.
     )
 )
 

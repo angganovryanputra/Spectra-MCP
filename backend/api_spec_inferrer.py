@@ -1,5 +1,5 @@
 """
-Spectra - Semantic API Spec Reconstructor & Endpoint Inference Engine
+Proxynth - Semantic API Spec Reconstructor & Endpoint Inference Engine
 Analyzes observed HTTP endpoints, reconstructs REST resource hierarchies,
 and predicts hidden, unmapped attack surface routes (API docs, admin consoles, debug probes, mutations).
 """

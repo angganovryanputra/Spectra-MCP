@@ -49,13 +49,13 @@ Lakukan seluruh tahapan berikut secara berurutan dan mandiri:
    *(Catatan untuk WSL2 Mirrored Network: Anda dapat mengarahkan command ke `/mnt/d/PROJECT/01/venv/Scripts/python.exe` atau `python3` di WSL2 dengan backend URL `http://127.0.0.1:8000`).*
 
 ### TAHAP 3: MENJALANKAN DASHBOARD
-1. Jalankan server dashboard Spectra di background pada port 8000:
+1. Jalankan server dashboard Proxynth di background pada port 8000:
    - Windows: `run.bat dashboard` atau `uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload`
    - Linux/WSL2: `./run.sh dashboard`
 2. Lakukan pengecekan HTTP GET ke `http://127.0.0.1:8000/api/stats` untuk memastikan dashboard merespons HTTP 200.
 
 ### TAHAP 4: ATURAN OPERASIONAL PENTEST (STRICT PROTOCOL)
-Mulai saat ini, seluruh aktivitas pengujian WAJIB melalui Spectra MCP Gateway:
+Mulai saat ini, seluruh aktivitas pengujian WAJIB melalui Proxynth MCP Gateway:
 - DILARANG menggunakan raw `curl` langsung di shell host.
 - Gunakan `send_http_request` untuk seluruh HTTP traffic (menghasilkan Log ID, status, headers, preview body).
 - Gunakan `get_log_detail` jika ingin menginspeksi body lengkap atau dump response tanpa batas (full payload / reflected findings).
@@ -65,7 +65,7 @@ Mulai saat ini, seluruh aktivitas pengujian WAJIB melalui Spectra MCP Gateway:
 - Gunakan `browser_navigate_and_render` untuk aplikasi web SPA dinamis (mengembalikan daftar endpoint API/URL yang terintercept).
 
 ### TAHAP 5: VALIDASI TOOLS TERHADAP OWASP JUICE SHOP (https://juice-shop.herokuapp.com/#/)
-Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Spectra MCP:
+Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Proxynth MCP:
 
 1. [TOOL 1: browser_navigate_and_render]
    - Panggil tool `browser_navigate_and_render` dengan url: `https://juice-shop.herokuapp.com/#/`.
@@ -84,7 +84,7 @@ Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Spectra 
      - Method: `GET`
      - URL: `https://juice-shop.herokuapp.com/rest/products/search?q=apple%27%29%29--`
      - Reasoning: "Testing SQL injection string termination in Juice Shop search query".
-   - Catat payload tersebut ke Spectra Payload Vault dengan memanggil `record_test_payload`:
+   - Catat payload tersebut ke Proxynth Payload Vault dengan memanggil `record_test_payload`:
      - target_url: `https://juice-shop.herokuapp.com/rest/products/search?q=apple`
      - vuln_type: `SQLI`
      - raw_payload: `apple'))--`
@@ -108,8 +108,8 @@ Eksekusi 4 pengujian validasi berikut secara berurutan menggunakan tool Spectra 
 
 ### TAHAP 6: LAPORAN STATUS AKHIR
 Tampilkan ringkasan verifikasi yang mencakup:
-- Status instalasi Spectra environment.
+- Status instalasi Proxynth environment.
 - Status koneksi MCP Server & Dashboard (HTTP 200).
 - Ringkasan hasil eksekusi 5 tools di atas (Latency, Status Code, DOM title, Payload ID, dan Finding ID).
-- Konfirmasi bahwa traffic, payload, dan finding telah muncul di Spectra Dashboard (http://127.0.0.1:8000).
+- Konfirmasi bahwa traffic, payload, dan finding telah muncul di Proxynth Dashboard (http://127.0.0.1:8000).
 ```

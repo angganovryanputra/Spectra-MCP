@@ -1,5 +1,5 @@
 """
-Spectra - One-Click Standalone PoC & Exploit Dossier Generator
+Proxynth - One-Click Standalone PoC & Exploit Dossier Generator
 Synthesizes verified vulnerability findings into standalone, zero-dependency Python exploit scripts,
 cURL commands, HTML proof-of-concepts, and industry-standard CVSS/CWE remediation dossiers.
 """
@@ -58,7 +58,7 @@ def generate_standalone_python_poc(
 
     script = f'''#!/usr/bin/env python3
 """
-SPECTRA EXPLOIT PROOF-OF-CONCEPT (PoC)
+PROXSYNTH EXPLOIT PROOF-OF-CONCEPT (PoC)
 Title: {title}
 Target URL: {url}
 Generated: Automated Reproducible Security Dossier
@@ -131,10 +131,10 @@ def generate_html_poc(title: str, method: str, url: str, body: str = "") -> str:
     return f'''<!DOCTYPE html>
 <html>
 <head>
-    <title>Spectra PoC: {safe_title}</title>
+    <title>Proxynth PoC: {safe_title}</title>
 </head>
 <body>
-    <h3>Spectra Autonomous Exploit PoC</h3>
+    <h3>Proxynth Autonomous Exploit PoC</h3>
     <p>Target: <code>{safe_url}</code></p>
     <form id="poc_form" action="{safe_url}" method="{safe_method}">
         {fields_html}

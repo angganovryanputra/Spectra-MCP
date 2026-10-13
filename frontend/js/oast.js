@@ -1,5 +1,5 @@
 /**
- * Spectra / AetherGate - OAST (Out-of-Band Application Security Testing) Component
+ * Proxynth / AetherGate - OAST (Out-of-Band Application Security Testing) Component
  * Features: Multi-protocol listeners (HTTP, DNS, LDAP/JNDI), Token Generator,
  * and Autonomous Multi-Protocol Canary Sprayer (P2).
  */

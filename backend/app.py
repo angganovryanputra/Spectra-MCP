@@ -1,5 +1,5 @@
 """
-Spectra MCP - FastAPI Application, REST API, & WebSocket Broadcaster
+Proxynth MCP - FastAPI Application, REST API, & WebSocket Broadcaster
 Full-featured Offensive Security Gateway with Intercept Proxy Trap, Scope Guardrails,
 Repeater, HAR/Markdown Exporter, and Multi-Project Observability.
 """
@@ -100,16 +100,16 @@ async def shutdown_event():
 # Security Configuration from Environment
 ALLOWED_ORIGINS_ENV = os.getenv(
     "PROXSYNTH_ALLOWED_ORIGINS",
-    os.getenv("SPECTRA_ALLOWED_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:3000,http://localhost:3000")
+    os.getenv("PROXSYNTH_ALLOWED_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:3000,http://localhost:3000")
 )
 PROXSYNTH_ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
-PROXSYNTH_API_KEY = os.getenv("PROXSYNTH_API_KEY", os.getenv("SPECTRA_API_KEY", "")).strip()
-PROXSYNTH_ALLOW_REMOTE = os.getenv("PROXSYNTH_ALLOW_REMOTE", os.getenv("SPECTRA_ALLOW_REMOTE", "false")).lower() == "true"
-PROXSYNTH_MAX_BODY = int(os.getenv("PROXSYNTH_MAX_BODY_SIZE", os.getenv("SPECTRA_MAX_BODY_SIZE", "524288")))  # 512 KB default limit per body
+PROXSYNTH_API_KEY = os.getenv("PROXSYNTH_API_KEY", os.getenv("PROXSYNTH_API_KEY", "")).strip()
+PROXSYNTH_ALLOW_REMOTE = os.getenv("PROXSYNTH_ALLOW_REMOTE", os.getenv("PROXSYNTH_ALLOW_REMOTE", "false")).lower() == "true"
+PROXSYNTH_MAX_BODY = int(os.getenv("PROXSYNTH_MAX_BODY_SIZE", os.getenv("PROXSYNTH_MAX_BODY_SIZE", "524288")))  # 512 KB default limit per body
 
-SPECTRA_API_KEY = PROXSYNTH_API_KEY
-SPECTRA_ALLOW_REMOTE = PROXSYNTH_ALLOW_REMOTE
-SPECTRA_MAX_BODY = PROXSYNTH_MAX_BODY
+PROXSYNTH_API_KEY = PROXSYNTH_API_KEY
+PROXSYNTH_ALLOW_REMOTE = PROXSYNTH_ALLOW_REMOTE
+PROXSYNTH_MAX_BODY = PROXSYNTH_MAX_BODY
 
 app.add_middleware(
     CORSMiddleware,
@@ -127,7 +127,7 @@ async def host_and_auth_security_middleware(request: Request, call_next):
 
     client_host = request.client.host if request.client else "unknown"
     # 1. Localhost enforcement: if remote access is not explicitly enabled, block remote IPs
-    if not SPECTRA_ALLOW_REMOTE:
+    if not PROXSYNTH_ALLOW_REMOTE:
         is_local_client = client_host in ["127.0.0.1", "localhost", "::1", "testclient"]
         if not is_local_client:
             try:
@@ -139,16 +139,16 @@ async def host_and_auth_security_middleware(request: Request, call_next):
                 pass
         if not is_local_client:
             return JSONResponse(
-                {"detail": f"Remote access forbidden for {client_host}: Spectra dashboard is restricted to localhost (127.0.0.1) or WSL2. Set SPECTRA_ALLOW_REMOTE=true in environment to permit external remote IPs."},
+                {"detail": f"Remote access forbidden for {client_host}: Proxynth dashboard is restricted to localhost (127.0.0.1) or WSL2. Set PROXSYNTH_ALLOW_REMOTE=true in environment to permit external remote IPs."},
                 status_code=403
             )
 
     # 2. API Key enforcement (if PROXSYNTH_API_KEY is configured in env)
-    effective_api_key = PROXSYNTH_API_KEY or SPECTRA_API_KEY
+    effective_api_key = PROXSYNTH_API_KEY or PROXSYNTH_API_KEY
     if effective_api_key and request.url.path.startswith("/api/") and request.url.path != "/api/health":
         provided_key = (
             request.headers.get("X-Proxynth-Key") or
-            request.headers.get("X-Spectra-Key") or
+            request.headers.get("X-Proxynth-Key") or
             request.query_params.get("api_key") or
             ""
         )
@@ -158,7 +158,7 @@ async def host_and_auth_security_middleware(request: Request, call_next):
         
         if not secrets.compare_digest(provided_key, effective_api_key):
             return JSONResponse(
-                {"detail": "Unauthorized: Invalid or missing API Key (X-Proxynth-Key / X-Spectra-Key header)."},
+                {"detail": "Unauthorized: Invalid or missing API Key (X-Proxynth-Key / X-Proxynth-Key header)."},
                 status_code=401
             )
 
@@ -354,8 +354,8 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
             db.commit()
         _KNOWN_PROJECTS.add(project_name)
 
-    req_body = (log_data.get("request_body") or "")[:SPECTRA_MAX_BODY]
-    res_body = (log_data.get("response_body") or "")[:SPECTRA_MAX_BODY]
+    req_body = (log_data.get("request_body") or "")[:PROXSYNTH_MAX_BODY]
+    res_body = (log_data.get("response_body") or "")[:PROXSYNTH_MAX_BODY]
     agent_id = (log_data.get("agent_id") or "primary_agent").strip()
 
     log_entry = HttpLog(
@@ -490,7 +490,7 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     client_host = websocket.client.host if websocket.client else "unknown"
-    if not SPECTRA_ALLOW_REMOTE:
+    if not PROXSYNTH_ALLOW_REMOTE:
         is_local_client = client_host in ["127.0.0.1", "localhost", "::1", "testclient"]
         if not is_local_client:
             try:
@@ -503,12 +503,12 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close(code=1008)  # Policy violation
             return
 
-    effective_api_key = PROXSYNTH_API_KEY or SPECTRA_API_KEY
+    effective_api_key = PROXSYNTH_API_KEY or PROXSYNTH_API_KEY
     if effective_api_key:
         api_key = (
             websocket.query_params.get("api_key") or
             websocket.headers.get("x-proxynth-key") or
-            websocket.headers.get("x-spectra-key") or
+            websocket.headers.get("x-proxynth-key") or
             ""
         )
         if not secrets.compare_digest(api_key, effective_api_key):
@@ -517,7 +517,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     await ws_manager.connect(websocket)
     try:
-        await websocket.send_json({"type": "CONNECTED", "server": "PROXSYNTH_MCP_V2", "alias": "SPECTRA_MCP_V1"})
+        await websocket.send_json({"type": "CONNECTED", "server": "PROXSYNTH_MCP_V2", "alias": "PROXSYNTH_MCP_V1"})
         while True:
             data = await websocket.receive_text()
             if data == "ping":
@@ -652,7 +652,7 @@ async def update_project_scope(name: str, req: UpdateScopeRequest, db: Session =
 
 @app.get("/api/proxy/status")
 def get_forward_proxy_status():
-    """Returns the running status and port of the Spectra Forward Proxy."""
+    """Returns the running status and port of the Proxynth Forward Proxy."""
     from backend.forward_proxy import is_proxy_running, get_proxy_port, get_proxy_url
     return {
         "running": is_proxy_running(),
@@ -704,7 +704,7 @@ _repeater_clients: Dict[str, Any] = {}
 
 async def _get_repeater_client(proxy_cfg: str = "", verify_ssl: bool = False):
     import httpx
-    verify_env = os.getenv("SPECTRA_VERIFY_SSL", "false").lower() == "true"
+    verify_env = os.getenv("PROXSYNTH_VERIFY_SSL", "false").lower() == "true"
     final_verify = verify_ssl or verify_env
     key = f"{proxy_cfg.strip() if proxy_cfg else 'direct'}_{final_verify}"
     if key not in _repeater_clients or _repeater_clients[key].is_closed:
@@ -735,7 +735,7 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
 
     # 2. Upstream proxy & TLS verification lookup
     proj = db.query(Project).filter(Project.name == req.project.lower()).first()
-    proxy_cfg = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("SPECTRA_UPSTREAM_PROXY")
+    proxy_cfg = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("PROXSYNTH_UPSTREAM_PROXY")
     verify_ssl = bool(proj.verify_ssl) if proj else False
 
     parsed = urllib.parse.urlparse(req.url)
@@ -804,7 +804,7 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
 def export_har(name: str, db: Session = Depends(get_db)):
     """Exports project traffic into standard HTTP Archive (HAR 1.2) for Burp/ZAP."""
     har_data = generate_har_export(name, db)
-    safe_filename = sanitize_attachment_filename(f"spectra_{name}_traffic", "har")
+    safe_filename = sanitize_attachment_filename(f"proxynth_{name}_traffic", "har")
     return JSONResponse(
         content=har_data,
         headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
@@ -815,7 +815,7 @@ def export_har(name: str, db: Session = Depends(get_db)):
 def export_markdown_report(name: str, db: Session = Depends(get_db)):
     """Exports vulnerability findings into an executive Markdown report."""
     md_content = generate_markdown_report(name, db)
-    safe_filename = sanitize_attachment_filename(f"spectra_{name}_report", "md")
+    safe_filename = sanitize_attachment_filename(f"proxynth_{name}_report", "md")
     return PlainTextResponse(
         content=md_content,
         headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
@@ -826,7 +826,7 @@ def export_markdown_report(name: str, db: Session = Depends(get_db)):
 def export_openapi(name: str, db: Session = Depends(get_db)):
     """Generates and exports an OpenAPI 3.0.3 specification from observed project traffic."""
     spec_data = generate_openapi_spec(name, db)
-    safe_filename = sanitize_attachment_filename(f"spectra_{name}_openapi", "json")
+    safe_filename = sanitize_attachment_filename(f"proxynth_{name}_openapi", "json")
     return JSONResponse(
         content=spec_data,
         headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
@@ -858,7 +858,7 @@ async def run_fuzzer_attack_endpoint(req: RunFuzzRequest, db: Session = Depends(
         payloads = BUILTIN_PAYLOADS.get(cat, BUILTIN_PAYLOADS["sqli"])
 
     proj = db.query(Project).filter(Project.name == req.project.lower()).first()
-    proxy = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("SPECTRA_UPSTREAM_PROXY")
+    proxy = proj.upstream_proxy if proj and proj.upstream_proxy else os.getenv("PROXSYNTH_UPSTREAM_PROXY")
 
     req_concurrency = min(max(req.concurrency, 1), 10)
     if req.custom_payloads and len(req.custom_payloads) > 1000:

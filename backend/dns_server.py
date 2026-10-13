@@ -1,5 +1,5 @@
 """
-Spectra - Multi-Protocol OAST DNS Tunneling Listener
+Proxynth - Multi-Protocol OAST DNS Tunneling Listener
 Lightweight Asyncio UDP DNS Server that catches DNS queries, extracts correlation tokens,
 and records DNS-based Out-of-Band (OAST) interactions for Blind SSRF, Blind SQLi, and RCE.
 """
@@ -76,7 +76,7 @@ def _build_dns_response(query_data: bytes, qname: str, qtype: int, resolve_ip: s
     return tx_id + flags + counts + question_section + answer_section
 
 
-class SpectraDNSProtocol(asyncio.DatagramProtocol):
+class ProxynthDNSProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport):
         self.transport = transport
 
@@ -109,7 +109,7 @@ class SpectraDNSProtocol(asyncio.DatagramProtocol):
                 )
 
             # Send back standard DNS reply so targets don't hang
-            resolve_ip = os.getenv("SPECTRA_DNS_RESOLVE_IP", "127.0.0.1")
+            resolve_ip = os.getenv("PROXSYNTH_DNS_RESOLVE_IP", "127.0.0.1")
             response_pkt = _build_dns_response(data, qname, qtype, resolve_ip)
             if response_pkt:
                 self.transport.sendto(response_pkt, addr)
@@ -127,7 +127,7 @@ async def start_dns_server(port: Optional[int] = None) -> bool:
     ports_to_try = []
     if port:
         ports_to_try.append(port)
-    env_port = os.getenv("SPECTRA_DNS_PORT")
+    env_port = os.getenv("PROXSYNTH_DNS_PORT")
     if env_port:
         try:
             ports_to_try.append(int(env_port))
@@ -143,7 +143,7 @@ async def start_dns_server(port: Optional[int] = None) -> bool:
     for p in ports_to_try:
         try:
             transport, protocol = await loop.create_datagram_endpoint(
-                lambda: SpectraDNSProtocol(),
+                lambda: ProxynthDNSProtocol(),
                 local_addr=("0.0.0.0", p)
             )
             _dns_transport = transport

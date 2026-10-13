@@ -1,5 +1,5 @@
 """
-Spectra - Autonomous Multi-Identity BOLA/IDOR Shadow Matrix
+Proxynth - Autonomous Multi-Identity BOLA/IDOR Shadow Matrix
 Automatically tests observed object/resource requests against secondary identities
 (Attacker, Guest, Unauthenticated) in the background to detect BOLA/IDOR vulnerabilities without manual intervention.
 """

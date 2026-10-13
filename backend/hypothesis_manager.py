@@ -1,5 +1,5 @@
 """
-Spectra - Agent Working Memory & Hypothesis Ledger
+Proxynth - Agent Working Memory & Hypothesis Ledger
 Provides persistent structured memory and hypothesis tracking for autonomous security agents.
 Prevents context window amnesia, eliminates duplicate probing, and maintains an active
 attack agenda across multi-agent handoffs and long-running pentest campaigns.

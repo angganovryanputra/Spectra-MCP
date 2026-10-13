@@ -1,5 +1,5 @@
 /**
- * Spectra / AetherGate - Attack Hypothesis Ledger & Agent Working Memory (P3)
+ * Proxynth / AetherGate - Attack Hypothesis Ledger & Agent Working Memory (P3)
  * Provides real-time visibility into the AI Agent's hypothesis testing lifecycle:
  * PLANNED -> TESTING -> CONFIRMED -> DISPROVEN -> BLOCKED
  */

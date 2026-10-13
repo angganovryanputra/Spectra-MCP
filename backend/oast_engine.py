@@ -1,5 +1,5 @@
 """
-Spectra / AetherGate - OAST (Out-of-Band Application Security Testing) Engine
+Proxynth / AetherGate - OAST (Out-of-Band Application Security Testing) Engine
 Handles generation of unique correlation tokens, listener endpoints,
 and real-time callback capture for Blind SSRF, Blind SQLi, Out-of-Band RCE, and DNS queries.
 """
@@ -29,10 +29,10 @@ def get_base_callback_url() -> str:
     """Returns the external or local URL for receiving out-of-band callbacks."""
     if _runtime_callback_url:
         return _runtime_callback_url
-    custom_url = os.getenv("SPECTRA_OAST_CALLBACK_URL", "").strip().rstrip("/")
+    custom_url = os.getenv("PROXSYNTH_OAST_CALLBACK_URL", "").strip().rstrip("/")
     if custom_url:
         return custom_url
-    backend_url = os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000").strip().rstrip("/")
+    backend_url = os.getenv("PROXSYNTH_BACKEND_URL", "http://127.0.0.1:8000").strip().rstrip("/")
     return backend_url
 
 
@@ -48,7 +48,7 @@ def generate_oast_token(
     token = uuid.uuid4().hex[:12]
     base_url = get_base_callback_url()
     callback_url = f"{base_url}/oast/{token}"
-    dns_hostname = f"{token}.oast.spectra.local"
+    dns_hostname = f"{token}.oast.proxynth.local"
     target_project = (project or "default").strip().lower()
 
     # Pre-register waiter event in memory

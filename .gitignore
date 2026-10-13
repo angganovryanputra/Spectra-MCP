@@ -2,12 +2,19 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.log
 
-# Database files
+# Database files & SQLite WAL
 *.db
 *.db-shm
 *.db-wal
-spectra.db
+proxynth.db*
+
+# Test scripts (Local Only - Not Pushed to Public Repo)
+test_*.py
+tests/
+.pytest_cache/
+test_output/
 
 # Virtual Environments
 venv/
@@ -26,7 +33,8 @@ env/
 Thumbs.db
 
 # Certificates & Local Secrets
-.spectra_ca/
+.proxynth_ca/
 *.key
 *.crt
 *.pem
+.env

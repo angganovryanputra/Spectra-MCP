@@ -1,5 +1,5 @@
 """
-Spectra / AetherGate - Target Knowledge Graph & Attack Surface Manager
+Proxynth / AetherGate - Target Knowledge Graph & Attack Surface Manager
 Maintains stateful inventory of targets, hosts, ports, services, endpoints,
 and testing progression (Untested -> In Progress -> Tested -> Vulnerable).
 """
@@ -246,7 +246,7 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
         return
     try:
         parsed = urllib.parse.urlparse(url)
-        backend_url_env = os.getenv("SPECTRA_BACKEND_URL", "")
+        backend_url_env = os.getenv("PROXSYNTH_BACKEND_URL", "")
         backend_port = None
         if backend_url_env:
             try:
@@ -257,16 +257,16 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
                 pass
         if not backend_port:
             try:
-                backend_port = int(os.getenv("SPECTRA_PORT", "8000"))
+                backend_port = int(os.getenv("PROXSYNTH_PORT", "8000"))
             except Exception:
                 backend_port = 8000
-        proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+        proxy_port = int(os.getenv("PROXSYNTH_PROXY_PORT", "8088"))
         host = (parsed.hostname or "").lower()
         if not host:
             return
 
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        # Do not ingest Spectra's own server infrastructure
+        # Do not ingest Proxynth's own server infrastructure
         if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [backend_port, proxy_port]:
             return
 

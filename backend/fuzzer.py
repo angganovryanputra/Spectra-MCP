@@ -1,5 +1,5 @@
 """
-Spectra MCP - Parameter Fuzzer / Mini-Intruder Engine
+Proxynth MCP - Parameter Fuzzer / Mini-Intruder Engine
 High-performance asynchronous parameter fuzzing with position markers (§...§),
 automated baseline differential analysis, and offensive anomaly detection.
 """

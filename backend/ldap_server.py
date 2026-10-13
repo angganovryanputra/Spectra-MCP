@@ -1,5 +1,5 @@
 """
-Spectra - Multi-Protocol OAST LDAP & JNDI Callback Listener
+Proxynth - Multi-Protocol OAST LDAP & JNDI Callback Listener
 Catches incoming LDAP bind/search queries (e.g. jndi:ldap://host:port/{token})
 for detecting Blind Log4j, Spring4Shell, and JNDI Injection vulnerabilities.
 """
@@ -90,7 +90,7 @@ async def start_ldap_server(port: Optional[int] = None) -> bool:
     ports_to_try = []
     if port:
         ports_to_try.append(port)
-    env_port = os.getenv("SPECTRA_LDAP_PORT")
+    env_port = os.getenv("PROXSYNTH_LDAP_PORT")
     if env_port:
         try:
             ports_to_try.append(int(env_port))

@@ -1,5 +1,5 @@
 """
-Spectra - Exploit Path Chaining Graph Engine
+Proxynth - Exploit Path Chaining Graph Engine
 Synthesizes verified findings, assets, credentials, and open attack surfaces
 into causal, multi-stage attack paths (Kill Chains) leading to Crown Jewel compromise.
 """

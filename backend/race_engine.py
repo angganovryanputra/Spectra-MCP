@@ -1,5 +1,5 @@
 """
-Spectra - Turbo Race Condition & Single-Packet Synchronization Barrier Engine
+Proxynth - Turbo Race Condition & Single-Packet Synchronization Barrier Engine
 Executes microsecond-synchronized concurrent bursts against web endpoints
 to identify race conditions, double-spending, limit bypasses, and state-breakage flaws.
 """

@@ -1,5 +1,5 @@
 """
-Spectra MCP - Dual-Track Triage Engine
+Proxynth MCP - Dual-Track Triage Engine
 Analyzes HTTP/HTTPS traffic to classify deterministic vs probabilistic security findings.
 """
 

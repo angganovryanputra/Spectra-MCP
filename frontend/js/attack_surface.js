@@ -1,5 +1,5 @@
 /**
- * Spectra / AetherGate - Attack Surface Knowledge Graph Component
+ * Proxynth / AetherGate - Attack Surface Knowledge Graph Component
  */
 
 window.AttackSurfaceModule = {

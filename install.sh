@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Spectra MCP - Automated Linux / WSL2 Environment Installer
+# Proxynth MCP - Automated Linux / WSL2 Environment Installer
 # ==============================================================================
 
 set -eo pipefail
@@ -13,7 +13,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}========================================================================${NC}"
-echo -e "${CYAN}  SPECTRA MCP - Security Testing Gateway & Observability Platform        ${NC}"
+echo -e "${CYAN}  PROXSYNTH MCP - Security Testing Gateway & Observability Platform      ${NC}"
 echo -e "${CYAN}  Automated Environment Installer for Linux / WSL2                      ${NC}"
 echo -e "${CYAN}========================================================================${NC}"
 echo ""
@@ -33,7 +33,7 @@ echo -e "${GREEN}[+] Detected Python version: ${PYTHON_VER}${NC}"
 
 # Check Python version >= 3.10
 python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" || {
-    echo -e "${YELLOW}[!] WARNING: Spectra recommends Python 3.10 or higher. Current: ${PYTHON_VER}${NC}"
+    echo -e "${YELLOW}[!] WARNING: Proxynth recommends Python 3.10 or higher. Current: ${PYTHON_VER}${NC}"
 }
 
 # 2. Check python3-venv support (common issue on Debian/Ubuntu/WSL)
@@ -91,20 +91,20 @@ cp sitecustomize.py $(python3 -c "import site; print(site.getsitepackages()[-1])
 echo -e "${GREEN}[+] AI Agent transparent proxy hook installed in venv.${NC}"
 
 # 9. Initialize CA Certificate & Trust Store
-echo -e "${CYAN}[*] Initializing Spectra Root CA certificate...${NC}"
-python3 -c "from backend.ca_manager import get_ca_cert_path; print('[+] Spectra Root CA Certificate ready at:', get_ca_cert_path())"
-if [ -f ".spectra_ca/spectra_ca.crt" ]; then
+echo -e "${CYAN}[*] Initializing Proxynth Root CA certificate...${NC}"
+python3 -c "from backend.ca_manager import get_ca_cert_path; print('[+] Proxynth Root CA Certificate ready at:', get_ca_cert_path())"
+if [ -f ".proxynth_ca/proxynth_ca.crt" ]; then
     if [ -d "/usr/local/share/ca-certificates" ] && command -v update-ca-certificates &>/dev/null; then
         if [ "$EUID" -eq 0 ]; then
-            cp .spectra_ca/spectra_ca.crt /usr/local/share/ca-certificates/spectra_ca.crt
+            cp .proxynth_ca/proxynth_ca.crt /usr/local/share/ca-certificates/proxynth_ca.crt
             update-ca-certificates &>/dev/null || true
-            echo -e "${GREEN}[+] Spectra Root CA installed into Linux system CA trust store.${NC}"
+            echo -e "${GREEN}[+] Proxynth Root CA installed into Linux system CA trust store.${NC}"
         elif command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
-            sudo cp .spectra_ca/spectra_ca.crt /usr/local/share/ca-certificates/spectra_ca.crt
+            sudo cp .proxynth_ca/proxynth_ca.crt /usr/local/share/ca-certificates/proxynth_ca.crt
             sudo update-ca-certificates &>/dev/null || true
-            echo -e "${GREEN}[+] Spectra Root CA installed into Linux system CA trust store.${NC}"
+            echo -e "${GREEN}[+] Proxynth Root CA installed into Linux system CA trust store.${NC}"
         else
-            echo -e "${YELLOW}[*] To trust CA system-wide: sudo cp .spectra_ca/spectra_ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates${NC}"
+            echo -e "${YELLOW}[*] To trust CA system-wide: sudo cp .proxynth_ca/proxynth_ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates${NC}"
         fi
     fi
 fi
@@ -114,13 +114,13 @@ chmod +x run.sh install.sh 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}========================================================================${NC}"
-echo -e "${GREEN}  [SUCCESS] Spectra Installation Complete!                              ${NC}"
+echo -e "${GREEN}  [SUCCESS] Proxynth Installation Complete!                             ${NC}"
 echo -e "${GREEN}========================================================================${NC}"
 echo ""
 echo -e "  To launch the Web Dashboard:"
 echo -e "    ${CYAN}./run.sh${NC} (or ${CYAN}./run.sh dashboard${NC})"
 echo ""
-echo -e "  To run as an MCP Server for AI Agents (OpenCode, Hermes, Claude):"
+echo -e "  To run as an MCP Server for AI Agents (Claude Code, Cursor, OpenCode):"
 echo -e "    ${CYAN}./run.sh mcp${NC}"
 echo ""
 echo -e "  To start both Dashboard (background) and MCP Server (foreground):"
