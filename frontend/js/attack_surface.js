@@ -25,7 +25,15 @@ window.AttackSurfaceModule = {
         service_name: 'http',
         banner: '',
         state: 'open'
-      }
+      },
+      attackPathsData: null,
+      showAttackPathsModal: false,
+      isGeneratingAttackPaths: false,
+      showPocModal: false,
+      pocModalData: null,
+      pocActiveTab: 'python', // 'python' | 'curl' | 'dossier'
+      isGeneratingPoc: false,
+      isInferringRoutes: false
     };
   },
 
@@ -158,6 +166,70 @@ window.AttackSurfaceModule = {
       this.$nextTick(() => {
         if (window.lucide) lucide.createIcons();
       });
+    },
+
+    async inferHiddenEndpoints() {
+      this.isInferringRoutes = true;
+      const proj = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
+      try {
+        const resp = await fetch(`/api/attack-surface/infer?project=${encodeURIComponent(proj)}`, { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (this.showToast) {
+            this.showToast({
+              title: 'Endpoints Inferred',
+              message: `Successfully synthesized and mapped ${data.inferred_count || 0} speculative API routes!`
+            });
+          }
+          await this.fetchAttackSurface();
+        } else {
+          alert('Failed to infer endpoints');
+        }
+      } catch (err) {
+        alert('Failed to infer endpoints: ' + err);
+      } finally {
+        this.isInferringRoutes = false;
+      }
+    },
+
+    async viewAttackPaths() {
+      this.isGeneratingAttackPaths = true;
+      const proj = this.selectedProject === 'ALL' ? 'default' : this.selectedProject;
+      try {
+        const resp = await fetch(`/api/attack-path?project=${encodeURIComponent(proj)}`);
+        if (resp.ok) {
+          this.attackPathsData = await resp.json();
+          this.showAttackPathsModal = true;
+          this.$nextTick(() => {
+            if (window.lucide) lucide.createIcons();
+          });
+        }
+      } catch (err) {
+        alert('Failed to generate attack paths: ' + err);
+      } finally {
+        this.isGeneratingAttackPaths = false;
+      }
+    },
+
+    async generateFindingDossier(findingId) {
+      this.isGeneratingPoc = true;
+      try {
+        const resp = await fetch(`/api/findings/${findingId}/dossier`);
+        if (resp.ok) {
+          this.pocModalData = await resp.json();
+          this.pocActiveTab = 'python';
+          this.showPocModal = true;
+          this.$nextTick(() => {
+            if (window.lucide) lucide.createIcons();
+          });
+        } else {
+          alert('Finding not found or failed to generate dossier.');
+        }
+      } catch (err) {
+        alert('Failed to generate finding dossier: ' + err);
+      } finally {
+        this.isGeneratingPoc = false;
+      }
     }
   }
 };

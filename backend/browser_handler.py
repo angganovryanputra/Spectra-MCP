@@ -54,6 +54,17 @@ async def render_page(
     Supports routing traffic through upstream proxy (e.g. Burp Suite).
     """
     from playwright.async_api import async_playwright
+    from backend.user_agents import get_random_user_agent
+
+    # Validate target URL against SSRF policy (cloud metadata is strictly blocked)
+    is_safe, ssrf_reason = check_ssrf_safety(url, allow_internal=True)
+    if not is_safe:
+        return {
+            "error": f"Blocked by SSRF Guard: {ssrf_reason}",
+            "domain": urllib.parse.urlparse(url).netloc,
+            "dom_text": "",
+            "intercepted_requests": []
+        }
 
     parsed = urllib.parse.urlparse(url)
     domain = parsed.netloc
@@ -67,7 +78,7 @@ async def render_page(
 
         browser = await p.chromium.launch(**launch_kwargs)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 SpectraMCP/1.0",
+            user_agent=get_random_user_agent(),
             ignore_https_errors=True
         )
 
@@ -302,6 +313,18 @@ async def spawn_interactive_login(
     parsed = urllib.parse.urlparse(clean_url)
     domain = (target_domain or parsed.netloc.split(":")[0]).strip()
 
+    # Validate target login URL against SSRF policy
+    is_safe, ssrf_reason = check_ssrf_safety(clean_url, allow_internal=True)
+    if not is_safe:
+        return {
+            "status": "error",
+            "message": f"Blocked by SSRF Guard: {ssrf_reason}",
+            "domain": domain,
+            "project": project,
+            "cookies": [],
+            "cookie_count": 0
+        }
+
     # If operator selected host's default system browser, open directly via OS
     if browser_choice == "system":
         logger.info("Opening URL directly in host default system browser: %s", clean_url)
@@ -372,7 +395,7 @@ async def spawn_interactive_login(
 
             context = await browser.new_context(
                 viewport={"width": 1280, "height": 850},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                user_agent=get_random_user_agent(),
                 ignore_https_errors=True
             )
             page = await context.new_page()

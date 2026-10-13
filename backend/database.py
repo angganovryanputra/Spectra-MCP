@@ -69,6 +69,7 @@ class Project(Base):
     # Rate Limiting & Proxy Chaining settings
     delay_ms = Column(Integer, default=0)  # Throttling delay between requests in milliseconds
     upstream_proxy = Column(String(255), default="")  # e.g. http://127.0.0.1:8080 (Burp Suite / Caido / ZAP)
+    bola_matrix_enabled = Column(Boolean, default=True)  # Automatic background shadow replay for BOLA/IDOR detection
 
     def to_dict(self):
         try:
@@ -91,7 +92,8 @@ class Project(Base):
             "allow_internal_networks": bool(self.allow_internal_networks),
             "verify_ssl": bool(self.verify_ssl),
             "delay_ms": self.delay_ms or 0,
-            "upstream_proxy": self.upstream_proxy or ""
+            "upstream_proxy": self.upstream_proxy or "",
+            "bola_matrix_enabled": bool(self.bola_matrix_enabled if self.bola_matrix_enabled is not None else True)
         }
 
 
@@ -183,10 +185,14 @@ class Finding(Base):
 
 class ActiveSession(Base):
     __tablename__ = "active_sessions"
+    __table_args__ = (
+        Index("ix_active_sessions_proj_dom_role", "project", "domain", "identity_role"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project = Column(String(100), default="default", index=True)
     domain = Column(String(255), index=True, nullable=False)
+    identity_role = Column(String(64), default="primary", index=True)  # primary, victim, attacker, admin, guest
     storage_state = Column(Text, nullable=False, default="{}")  # Encrypted Cookies, LocalStorage, SessionStorage
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -220,11 +226,36 @@ class ActiveSession(Base):
             "id": self.id,
             "project": self.project or "default",
             "domain": self.domain,
+            "identity_role": self.identity_role or "primary",
             "cookie_count": len(cookies),
             "cookie_names": cookie_names,
             "cookies": display_cookies,
             "is_encrypted": bool(self.storage_state and self.storage_state.startswith("ENC:")),
             "updated_at": self.updated_at.isoformat() if self.updated_at else ""
+        }
+
+
+class WebSocketFrameLog(Base):
+    __tablename__ = "ws_frame_logs"
+    __table_args__ = (Index("ix_ws_frames_proj_id", "project", "id"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    url = Column(Text, nullable=False)
+    direction = Column(String(16), default="CLIENT_TO_SERVER")  # CLIENT_TO_SERVER, SERVER_TO_CLIENT
+    opcode = Column(String(16), default="TEXT")  # TEXT, BINARY, PING, PONG, CLOSE
+    payload = Column(Text, default="")
+    timestamp = Column(DateTime, default=datetime.now, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "url": self.url,
+            "direction": self.direction or "CLIENT_TO_SERVER",
+            "opcode": self.opcode or "TEXT",
+            "payload": self.payload or "",
+            "timestamp": self.timestamp.isoformat() if self.timestamp else ""
         }
 
 
@@ -466,11 +497,18 @@ def _run_migrations():
             cur.execute("ALTER TABLE projects ADD COLUMN allow_internal_networks BOOLEAN DEFAULT 1")
         if "verify_ssl" not in proj_cols:
             cur.execute("ALTER TABLE projects ADD COLUMN verify_ssl BOOLEAN DEFAULT 0")
+        if "bola_matrix_enabled" not in proj_cols:
+            cur.execute("ALTER TABLE projects ADD COLUMN bola_matrix_enabled BOOLEAN DEFAULT 1")
 
         cur.execute("PRAGMA table_info(http_logs)")
         log_cols = [row[1] for row in cur.fetchall()]
         if "agent_id" not in log_cols:
             cur.execute("ALTER TABLE http_logs ADD COLUMN agent_id VARCHAR(100) DEFAULT 'primary_agent'")
+
+        cur.execute("PRAGMA table_info(active_sessions)")
+        sess_cols = [row[1] for row in cur.fetchall()]
+        if "identity_role" not in sess_cols:
+            cur.execute("ALTER TABLE active_sessions ADD COLUMN identity_role VARCHAR(64) DEFAULT 'primary'")
 
         # Performance Indexes for zero-lag filtering & sorting
         cur.execute("CREATE INDEX IF NOT EXISTS ix_http_logs_proj_id ON http_logs(project, id DESC)")
@@ -491,6 +529,8 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS ix_target_endpoints_asset_method ON target_endpoints(asset_id, method)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_oast_events_token ON oast_events(token)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_oast_events_proj_id ON oast_events(project, id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_active_sessions_proj_dom_role ON active_sessions(project, domain, identity_role)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_ws_frames_proj_id ON ws_frame_logs(project, id DESC)")
         con.commit()
         con.close()
     except Exception as ex:

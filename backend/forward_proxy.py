@@ -24,9 +24,10 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from backend.database import SessionLocal, HttpLog, Project, ActiveSession
-from backend.intercept_manager import async_check_scope
+from backend.intercept_manager import async_check_scope, is_intercept_enabled, create_intercept_trap, pop_intercept_result
 from backend.analyzer import analyze_traffic
 from backend.target_manager import auto_ingest_url_to_target_graph
+from backend.user_agents import apply_rotating_user_agent
 
 _proxy_server: Optional[asyncio.Server] = None
 _is_proxy_running: bool = False
@@ -54,6 +55,20 @@ def get_ca_dir() -> str:
 
 def get_ca_cert_path() -> str:
     return os.path.join(get_ca_dir(), "spectra_ca.crt")
+
+def _get_upstream_proxy(project_name: str) -> Optional[str]:
+    """Retrieves project-specific upstream proxy or falls back to global SPECTRA_UPSTREAM_PROXY."""
+    db = SessionLocal()
+    try:
+        p = db.query(Project).filter(Project.name == (project_name or "default").strip().lower()).first()
+        if p and p.upstream_proxy and p.upstream_proxy.strip():
+            return p.upstream_proxy.strip()
+    except Exception:
+        pass
+    finally:
+        db.close()
+    env_p = (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+    return env_p if env_p else None
 
 def _ensure_ca() -> Tuple[Any, Any]:
     global _ca_cert, _ca_key
@@ -200,6 +215,38 @@ def _get_active_cookies_for_host(host: str, project: str) -> Dict[str, str]:
     return cookies
 
 
+def _get_active_auth_headers_for_host(host: str, project: str) -> Dict[str, str]:
+    """Retrieves session auth headers/bearer token registered for the given target host."""
+    headers = {}
+    try:
+        db = SessionLocal()
+        try:
+            sessions = db.query(ActiveSession).filter(ActiveSession.is_active == True).all()
+            target_host = host.split(":")[0].lower()
+            for s in sessions:
+                stored_dom = (s.domain or "").lower().split(":")[0].strip("/")
+                is_match = (
+                    target_host == stored_dom or
+                    target_host.endswith("." + stored_dom) or
+                    stored_dom.endswith("." + target_host) or
+                    (stored_dom in target_host and len(stored_dom) > 3)
+                )
+                if is_match:
+                    try:
+                        state_data = s.get_decrypted_state()
+                        for hk, hv in state_data.get("auth_headers", {}).items():
+                            headers[hk] = hv
+                        if state_data.get("bearer_token"):
+                            headers["Authorization"] = f"Bearer {state_data['bearer_token']}"
+                    except Exception:
+                        pass
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return headers
+
+
 async def _dispatch_log(log_payload: Dict[str, Any]):
     """Dispatches log to running backend API or commits directly to SQLite database."""
     backend_url = os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -244,6 +291,12 @@ async def _dispatch_log(log_payload: Dict[str, Any]):
 
         try:
             auto_ingest_url_to_target_graph(proj, entry.url, entry.method)
+        except Exception:
+            pass
+
+        try:
+            from backend.js_miner import passive_mine_js_background
+            passive_mine_js_background(entry.url, entry.response_body, proj)
         except Exception:
             pass
 
@@ -294,6 +347,80 @@ async def _fallback_tcp_tunnel(reader: asyncio.StreamReader, writer: asyncio.Str
     await asyncio.gather(pipe_c2r(), pipe_r2c(), return_exceptions=True)
 
 
+async def _read_http_body(reader: asyncio.StreamReader, headers: Dict[str, str], content_length: int) -> str:
+    """Reads request body handling both standard Content-Length and Transfer-Encoding: chunked."""
+    te = headers.get("transfer-encoding", "").lower()
+    if "chunked" in te:
+        chunks = []
+        try:
+            while True:
+                size_line = await reader.readline()
+                if not size_line:
+                    break
+                size_str = size_line.decode("utf-8", errors="replace").strip().split(";")[0]
+                chunk_len = int(size_str, 16) if size_str else 0
+                if chunk_len == 0:
+                    await reader.readline()
+                    break
+                chunk_data = await reader.readexactly(chunk_len)
+                chunks.append(chunk_data)
+                await reader.readline()
+        except Exception:
+            pass
+        return b"".join(chunks).decode("utf-8", errors="replace")
+    elif content_length > 0:
+        body_bytes = await reader.readexactly(content_length)
+        return body_bytes.decode("utf-8", errors="replace")
+    return ""
+
+
+async def _handle_intercept_if_active(
+    method: str,
+    url: str,
+    headers: Dict[str, Any],
+    body: str,
+    project: str
+) -> Tuple[bool, str, str, Dict[str, Any], str]:
+    """Suspends request if intercept mode is active and awaits operator forward/drop/modify decision."""
+    if not is_intercept_enabled():
+        return False, method, url, headers, body
+
+    trap_id, trap_event = create_intercept_trap({
+        "project": project,
+        "method": method,
+        "url": url,
+        "headers": headers,
+        "body": body,
+        "reasoning": "[Proxy Trap Intercepted]"
+    })
+
+    backend_url = os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=0.3, proxy=None, trust_env=False) as client:
+            await client.post(f"{backend_url}/api/intercept/broadcast-trap", json={"id": trap_id})
+    except Exception:
+        pass
+
+    try:
+        await asyncio.wait_for(trap_event.wait(), timeout=120.0)
+        res_data = pop_intercept_result(trap_id)
+        if res_data and res_data.get("decision") == "drop":
+            return True, method, url, headers, body
+        elif res_data and res_data.get("modified_data"):
+            mod = res_data["modified_data"]
+            return (
+                False,
+                mod.get("method", method),
+                mod.get("url", url),
+                mod.get("headers", headers),
+                mod.get("body", body)
+            )
+    except asyncio.TimeoutError:
+        pop_intercept_result(trap_id)
+
+    return False, method, url, headers, body
+
+
 async def _handle_decrypted_tls_session(
     tls_reader: asyncio.StreamReader,
     tls_writer: asyncio.StreamWriter,
@@ -335,10 +462,7 @@ async def _handle_decrypted_tls_session(
                             content_length = 0
 
             # Read request body if present
-            body_text = ""
-            if content_length > 0:
-                body_bytes = await tls_reader.readexactly(content_length)
-                body_text = body_bytes.decode("utf-8", errors="replace")
+            body_text = await _read_http_body(tls_reader, sub_headers, content_length)
 
             full_url = f"https://{dest_host}:{dest_port}{sub_path}" if dest_port != 443 else f"https://{dest_host}{sub_path}"
 
@@ -378,8 +502,9 @@ async def _handle_decrypted_tls_session(
                 })
                 break
 
-            # Auto-Inject Active Session Cookies
+            # Auto-Inject Active Session Cookies & Auth Headers
             active_cookies = _get_active_cookies_for_host(dest_host, target_project)
+            active_auth = _get_active_auth_headers_for_host(dest_host, target_project)
             fwd_headers = dict(sub_headers)
             fwd_headers.pop("host", None)
             fwd_headers.pop("Host", None)
@@ -396,6 +521,29 @@ async def _handle_decrypted_tls_session(
                         cookie_parts.append(f"{ck}={cv}")
                 fwd_headers["Cookie"] = "; ".join(cookie_parts)
 
+            for ah_k, ah_v in active_auth.items():
+                if ah_k not in fwd_headers and ah_k.lower() not in [k.lower() for k in fwd_headers.keys()]:
+                    fwd_headers[ah_k] = ah_v
+
+            # Apply Legitimate Rotating Browser User-Agent
+            fwd_headers, _ = apply_rotating_user_agent(fwd_headers, force_rotate=False)
+
+            # Check Intercept Trap
+            should_drop, sub_method, full_url, fwd_headers, body_text = await _handle_intercept_if_active(
+                sub_method, full_url, fwd_headers, body_text, target_project
+            )
+            if should_drop:
+                dropped_res = (
+                    "HTTP/1.1 403 Forbidden\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "X-Spectra-Dropped: 1\r\n"
+                    "Connection: close\r\n\r\n"
+                    "[!] Request dropped by operator in Intercept Trap.\r\n"
+                )
+                tls_writer.write(dropped_res.encode("utf-8"))
+                await tls_writer.drain()
+                break
+
             # Dispatch decrypted request to real target server via HTTPS
             start_t = time.time()
             status_code = 502
@@ -403,8 +551,11 @@ async def _handle_decrypted_tls_session(
             res_body_text = ""
             res_bytes = b""
 
+            upstream_p = _get_upstream_proxy(target_project)
+            proxy_kwargs = {"proxy": upstream_p} if upstream_p else {"proxy": None, "trust_env": False}
+
             try:
-                async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=30.0, proxy=None, trust_env=False) as client:
+                async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=30.0, **proxy_kwargs) as client:
                     resp = await client.request(
                         method=sub_method,
                         url=full_url,
@@ -425,11 +576,11 @@ async def _handle_decrypted_tls_session(
 
             duration_ms = int((time.time() - start_t) * 1000)
 
-            # Write HTTP response back to client over the TLS stream
+            # Write HTTP response back to client over the TLS stream (Fix Gzip desync and duplicate Content-Length)
             reason_phrase = "OK" if status_code == 200 else "Response"
             tls_writer.write(f"HTTP/1.1 {status_code} {reason_phrase}\r\n".encode("utf-8"))
             for hk, hv in res_headers.items():
-                if hk.lower() not in ["transfer-encoding", "content-length"]:
+                if hk.lower() not in ["transfer-encoding", "content-length", "content-encoding"]:
                     tls_writer.write(f"{hk}: {hv}\r\n".encode("utf-8"))
             tls_writer.write(f"Content-Length: {len(res_bytes)}\r\n\r\n".encode("utf-8"))
             tls_writer.write(res_bytes)
@@ -512,6 +663,22 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
         if method == "CONNECT":
             dest_host, dest_port_str = raw_url.split(":", 1) if ":" in raw_url else (raw_url, "443")
             dest_port = int(dest_port_str) if dest_port_str.isdigit() else 443
+
+            # Loop guard for HTTPS CONNECT
+            clean_dest = dest_host.strip().lower()
+            if (clean_dest in ["127.0.0.1", "localhost", _proxy_host.lower()]) and dest_port == _proxy_port:
+                loop_err = (
+                    "HTTP/1.1 400 Bad Request\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "X-Spectra-Error: Loopback to proxy port prohibited\r\n"
+                    "Connection: close\r\n\r\n"
+                    "[!] Error: Recursive proxy loop detected.\r\n"
+                )
+                writer.write(loop_err.encode("utf-8"))
+                await writer.drain()
+                writer.close()
+                return
+
             tunnel_url = f"https://{dest_host}:{dest_port}/"
 
             # Scope & Guardrail check on destination host
@@ -578,11 +745,6 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
         # ----------------------------------------------------------------------
         # CASE 2: REGULAR HTTP PROXY REQUEST
         # ----------------------------------------------------------------------
-        body_text = ""
-        if content_length > 0:
-            body_bytes = await reader.readexactly(content_length)
-            body_text = body_bytes.decode("utf-8", errors="replace")
-
         # Resolve full target URL
         if raw_url.startswith("http://") or raw_url.startswith("https://"):
             full_url = raw_url
@@ -593,6 +755,24 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
         parsed = urllib.parse.urlparse(full_url)
         target_host = parsed.netloc
         target_path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
+
+        # Loop guard for plain HTTP
+        clean_target_host = target_host.split(":")[0].strip().lower()
+        target_p = int(target_host.split(":")[1]) if ":" in target_host else (443 if parsed.scheme == "https" else 80)
+        if (clean_target_host in ["127.0.0.1", "localhost", _proxy_host.lower()]) and target_p == _proxy_port:
+            loop_err = (
+                "HTTP/1.1 400 Bad Request\r\n"
+                "Content-Type: text/plain\r\n"
+                "X-Spectra-Error: Loopback to proxy port prohibited\r\n"
+                "Connection: close\r\n\r\n"
+                "[!] Error: Recursive proxy loop detected.\r\n"
+            )
+            writer.write(loop_err.encode("utf-8"))
+            await writer.drain()
+            writer.close()
+            return
+
+        body_text = await _read_http_body(reader, headers, content_length)
 
         # Scope Check
         db = SessionLocal()
@@ -631,8 +811,9 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
             })
             return
 
-        # Auto-Inject Active Session Cookies
+        # Auto-Inject Active Session Cookies & Auth Headers
         active_cookies = _get_active_cookies_for_host(target_host, target_project)
+        active_auth = _get_active_auth_headers_for_host(target_host, target_project)
         fwd_headers = dict(headers)
         # Remove hop-by-hop headers
         for hop in ["proxy-connection", "proxy-authorization", "keep-alive"]:
@@ -648,14 +829,41 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
                     cookie_parts.append(f"{ck}={cv}")
             fwd_headers["Cookie"] = "; ".join(cookie_parts)
 
+        for ah_k, ah_v in active_auth.items():
+            if ah_k not in fwd_headers and ah_k.lower() not in [k.lower() for k in fwd_headers.keys()]:
+                fwd_headers[ah_k] = ah_v
+
+        # Apply Legitimate Rotating Browser User-Agent
+        fwd_headers, _ = apply_rotating_user_agent(fwd_headers, force_rotate=False)
+
+        # Check Intercept Trap
+        should_drop, method, full_url, fwd_headers, body_text = await _handle_intercept_if_active(
+            method, full_url, fwd_headers, body_text, target_project
+        )
+        if should_drop:
+            dropped_res = (
+                "HTTP/1.1 403 Forbidden\r\n"
+                "Content-Type: text/plain\r\n"
+                "X-Spectra-Dropped: 1\r\n"
+                "Connection: close\r\n\r\n"
+                "[!] Request dropped by operator in Intercept Trap.\r\n"
+            )
+            writer.write(dropped_res.encode("utf-8"))
+            await writer.drain()
+            writer.close()
+            return
+
         # Forward request to actual target server
         start_t = time.time()
         status_code = 502
         res_headers: Dict[str, str] = {}
         res_body_text = ""
 
+        upstream_p = _get_upstream_proxy(target_project)
+        proxy_kwargs = {"proxy": upstream_p} if upstream_p else {"proxy": None, "trust_env": False}
+
         try:
-            async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=30.0, proxy=None, trust_env=False) as client:
+            async with httpx.AsyncClient(verify=False, follow_redirects=False, timeout=30.0, **proxy_kwargs) as client:
                 res = await client.request(
                     method=method,
                     url=full_url,
@@ -676,12 +884,12 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
 
         duration_ms = int((time.time() - start_t) * 1000)
 
-        # Build response to client
+        # Build response to client (Fix Gzip desync and duplicate Content-Length)
         reason_phrase = "OK" if status_code == 200 else "Response"
         res_line = f"HTTP/1.1 {status_code} {reason_phrase}\r\n"
         writer.write(res_line.encode("utf-8"))
         for hk, hv in res_headers.items():
-            if hk.lower() not in ["transfer-encoding"]:
+            if hk.lower() not in ["transfer-encoding", "content-length", "content-encoding"]:
                 writer.write(f"{hk}: {hv}\r\n".encode("utf-8"))
         writer.write(f"Content-Length: {len(res_bytes)}\r\n\r\n".encode("utf-8"))
         writer.write(res_bytes)

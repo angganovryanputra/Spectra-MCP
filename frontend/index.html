@@ -99,204 +99,358 @@
   </style>
 </head>
 
-<body class="bg-[#0B0F17] text-slate-200 font-sans antialiased h-screen overflow-hidden flex flex-col select-none"
+<body class="bg-[#0B0F17] text-slate-200 font-sans antialiased h-screen overflow-hidden flex flex-row select-none"
   x-data="spectraApp()" x-init="initApp()">
 
   <!-- ========================================================================= -->
-  <!-- TOP COMMAND BAR (HEADER)                                                  -->
+  <!-- LEFT SIDEBAR (COLLAPSIBLE NAVIGATION RAIL)                                -->
   <!-- ========================================================================= -->
-  <header class="h-14 bg-[#111827]/95 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 z-30">
+  <aside :class="sidebarExpanded ? 'w-64' : 'w-16'"
+    class="h-screen bg-[#111827] border-r border-[#1E293B] flex flex-col shrink-0 z-40 transition-all duration-200 select-none shadow-xl">
 
-    <!-- Left: Branding & Main Navigation Tabs -->
-    <div class="flex items-center space-x-4">
-      <!-- Brand Logo -->
-      <div class="flex items-center space-x-2">
-        <div
-          class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-600 to-rose-500 p-0.5 flex items-center justify-center shadow-lg">
+    <!-- Sidebar Header: Brand & Collapse Toggle -->
+    <div class="h-14 border-b border-[#1E293B] px-3.5 flex items-center shrink-0"
+      :class="sidebarExpanded ? 'justify-between' : 'justify-center'">
+
+      <!-- Brand (Expanded Mode) -->
+      <div x-show="sidebarExpanded" class="flex items-center space-x-2.5 overflow-hidden">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-600 to-rose-500 p-0.5 flex items-center justify-center shadow-lg shrink-0">
           <div class="w-full h-full bg-[#0B0F17] rounded-[7px] flex items-center justify-center">
             <i data-lucide="shield-alert" class="w-4 h-4 text-sky-400"></i>
           </div>
         </div>
-        <div>
+        <div class="truncate">
           <div class="font-mono font-bold text-xs tracking-wider text-slate-100 flex items-center space-x-1">
             <span>SPECTRA</span>
             <span class="text-sky-400">//</span>
-            <span class="text-slate-400 text-[10px]">MCP GATEWAY</span>
+            <span class="text-slate-400 text-[10px]">GATEWAY</span>
           </div>
-          <div class="text-[9px] text-slate-400 flex items-center space-x-1">
-            <span class="relative flex h-2 w-2">
-              <span x-show="wsConnected"
-                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2"
-                :class="wsConnected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+          <div class="text-[9px] text-slate-400 flex items-center space-x-1.5 font-mono">
+            <span class="relative flex h-1.5 w-1.5 shrink-0">
+              <span x-show="wsConnected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-1.5 w-1.5" :class="wsConnected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
             </span>
-            <span x-text="wsConnected ? 'LIVE FEED' : 'OFFLINE'" class="font-mono font-semibold"
-              :class="wsConnected ? 'text-emerald-400' : 'text-rose-400'"></span>
+            <span x-text="wsConnected ? 'LIVE FEED' : 'OFFLINE'" :class="wsConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400'" class="truncate"></span>
           </div>
         </div>
       </div>
 
-      <!-- MAIN APP TABS -->
-      <nav class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-lg p-0.5 font-mono text-xs">
-        <!-- Proxy Tab -->
-        <button @click="currentAppTab = 'proxy'"
-          :class="currentAppTab === 'proxy' ? 'bg-[#1E293B] text-sky-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center">
-          <i data-lucide="activity" class="w-3.5 h-3.5 mr-1.5"></i>
-          Proxy Traffic
-        </button>
+      <!-- Brand Icon (Collapsed Mode) -->
+      <div x-show="!sidebarExpanded" class="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-600 to-rose-500 p-0.5 flex items-center justify-center shadow-lg cursor-pointer"
+        @click="toggleSidebar()" title="Click to Expand Sidebar (Ctrl+B)">
+        <div class="w-full h-full bg-[#0B0F17] rounded-[7px] flex items-center justify-center">
+          <i data-lucide="shield-alert" class="w-4 h-4 text-sky-400"></i>
+        </div>
+      </div>
 
-        <!-- Intercept Tab -->
-        <button @click="currentAppTab = 'intercept'"
-          :class="currentAppTab === 'intercept' ? 'bg-[#1E293B] text-rose-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center relative">
-          <i data-lucide="crosshair" class="w-3.5 h-3.5 mr-1.5"></i>
-          Intercept
-          <span x-show="interceptPending.length > 0"
-            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-600 text-white font-bold animate-pulse"
-            x-text="interceptPending.length"></span>
-        </button>
+      <!-- Collapse / Expand Toggle Button -->
+      <button x-show="sidebarExpanded" @click="toggleSidebar()"
+        class="p-1.5 rounded-lg hover:bg-[#1E293B] text-slate-400 hover:text-slate-200 transition"
+        title="Collapse Sidebar (Ctrl+B)">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
+    </div>
 
-        <!-- Repeater Tab -->
-        <button @click="currentAppTab = 'repeater'"
-          :class="currentAppTab === 'repeater' ? 'bg-[#1E293B] text-amber-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center">
-          <i data-lucide="repeat" class="w-3.5 h-3.5 mr-1.5"></i>
-          Repeater
-        </button>
+    <!-- Sidebar Navigation Scroll Area -->
+    <div class="flex-1 overflow-y-auto px-2 py-3 space-y-4 smooth-scroll">
 
-        <!-- Fuzzer Tab -->
-        <button @click="currentAppTab = 'fuzzer'"
-          :class="currentAppTab === 'fuzzer' ? 'bg-[#1E293B] text-purple-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center">
-          <i data-lucide="zap" class="w-3.5 h-3.5 mr-1.5"></i>
-          Fuzzer
-        </button>
+      <!-- CLUSTER 1: GATEWAY & TESTING -->
+      <div>
+        <div x-show="sidebarExpanded" class="px-3 mb-1.5 text-[10px] font-mono font-bold tracking-wider uppercase text-slate-500">
+          Gateway &amp; Testing
+        </div>
+        <div x-show="!sidebarExpanded" class="h-px bg-[#1E293B] mx-2 mb-2"></div>
 
-        <!-- Scope & Guardrails Tab -->
-        <button @click="currentAppTab = 'scope'"
-          :class="currentAppTab === 'scope' ? 'bg-[#1E293B] text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 mr-1.5"></i>
-          Scope Guardrails
-        </button>
+        <nav class="space-y-1 font-mono text-xs">
+          <!-- Proxy Traffic -->
+          <button @click="currentAppTab = 'proxy'"
+            :class="currentAppTab === 'proxy' ? 'bg-sky-500/15 text-sky-300 border border-sky-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Proxy Traffic (HTTP/HTTPS)' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="activity" class="w-4 h-4 shrink-0 text-sky-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Proxy Traffic</span>
+            </div>
+            <span x-show="sidebarExpanded && logs.length > 0"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-sky-950/80 text-sky-300 border border-sky-800/60"
+              x-text="logs.length > 999 ? (logs.length/1000).toFixed(1) + 'k' : logs.length"></span>
+          </button>
 
-        <!-- AI Activity Tab (Commands & Payload Vault) -->
-        <button @click="currentAppTab = 'ai_activity'; fetchCommands(); fetchPayloads()"
-          :class="currentAppTab === 'ai_activity' ? 'bg-[#1E293B] text-teal-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center relative">
-          <i data-lucide="terminal" class="w-3.5 h-3.5 mr-1.5"></i>
-          AI Activity
-          <span x-show="(stats.total_commands || 0) + (stats.total_payloads || 0) > 0"
-            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30"
-            x-text="(stats.total_commands || 0) + (stats.total_payloads || 0)"></span>
-        </button>
+          <!-- Intercept Trap -->
+          <button @click="currentAppTab = 'intercept'"
+            :class="currentAppTab === 'intercept' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Intercept Trap' + (interceptPending.length ? ' (' + interceptPending.length + ' pending)' : '') : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="crosshair" class="w-4 h-4 shrink-0 text-rose-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Intercept</span>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span x-show="interceptPending.length > 0"
+                class="px-1.5 py-0.5 rounded-full text-[9px] bg-rose-600 text-white font-bold animate-pulse shadow-sm"
+                :class="!sidebarExpanded ? 'absolute top-1 right-1' : ''"
+                x-text="interceptPending.length"></span>
+              <span x-show="sidebarExpanded && interceptEnabled && interceptPending.length === 0"
+                class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+            </div>
+          </button>
 
-        <!-- Attack Surface Tab -->
-        <button @click="currentAppTab = 'attack_surface'; fetchAttackSurface()"
-          :class="currentAppTab === 'attack_surface' ? 'bg-[#1E293B] text-cyan-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center relative">
-          <i data-lucide="network" class="w-3.5 h-3.5 mr-1.5"></i>
-          Attack Surface
-          <span x-show="attackSurfaceData && attackSurfaceData.summary && attackSurfaceData.summary.total_endpoints > 0"
-            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30"
-            x-text="attackSurfaceData && attackSurfaceData.summary ? attackSurfaceData.summary.total_endpoints : 0"></span>
-        </button>
+          <!-- Repeater -->
+          <button @click="currentAppTab = 'repeater'"
+            :class="currentAppTab === 'repeater' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'HTTP Repeater' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="repeat" class="w-4 h-4 shrink-0 text-amber-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Repeater</span>
+            </div>
+            <span x-show="sidebarExpanded && repeaterTabs.length > 1"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/40"
+              x-text="repeaterTabs.length + ' tabs'"></span>
+          </button>
 
-        <!-- OAST Callbacks Tab -->
-        <button @click="currentAppTab = 'oast'; fetchOastEvents()"
-          :class="currentAppTab === 'oast' ? 'bg-[#1E293B] text-orange-400 font-semibold' : 'text-slate-400 hover:text-slate-200'"
-          class="px-3 py-1.5 rounded transition flex items-center relative">
-          <i data-lucide="radio" class="w-3.5 h-3.5 mr-1.5"></i>
-          OAST
-          <span x-show="oastEvents && oastEvents.length > 0"
-            class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-orange-500/20 text-orange-300 font-bold border border-orange-500/30"
-            x-text="oastEvents ? oastEvents.length : 0"></span>
-        </button>
-      </nav>
+          <!-- Fuzzer -->
+          <button @click="currentAppTab = 'fuzzer'"
+            :class="currentAppTab === 'fuzzer' ? 'bg-purple-500/15 text-purple-300 border border-purple-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Parameter Fuzzer (§...§)' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="zap" class="w-4 h-4 shrink-0 text-purple-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Fuzzer</span>
+            </div>
+            <span x-show="sidebarExpanded && fuzzerRunning"
+              class="w-2 h-2 rounded-full bg-purple-400 animate-ping"></span>
+          </button>
+        </nav>
+      </div>
 
-      <!-- Project Selector Dropdown -->
-      <div class="flex items-center space-x-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg px-2.5 py-1">
-        <i data-lucide="folder-git-2" class="w-3.5 h-3.5 text-indigo-400"></i>
-        <div class="text-[10px] text-slate-400 font-mono uppercase mr-1">Project:</div>
+      <!-- CLUSTER 2: RECON & TARGETS -->
+      <div>
+        <div x-show="sidebarExpanded" class="px-3 mb-1.5 text-[10px] font-mono font-bold tracking-wider uppercase text-slate-500">
+          Recon &amp; Discovery
+        </div>
+        <div x-show="!sidebarExpanded" class="h-px bg-[#1E293B] mx-2 mb-2"></div>
 
+        <nav class="space-y-1 font-mono text-xs">
+          <!-- Attack Surface Graph -->
+          <button @click="currentAppTab = 'attack_surface'; fetchAttackSurface()"
+            :class="currentAppTab === 'attack_surface' ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Attack Surface Graph' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="network" class="w-4 h-4 shrink-0 text-cyan-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Attack Surface</span>
+            </div>
+            <span x-show="attackSurfaceData && attackSurfaceData.summary && attackSurfaceData.summary.total_endpoints > 0"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 font-semibold"
+              :class="!sidebarExpanded ? 'absolute top-1 right-1 text-[8px] px-1' : ''"
+              x-text="attackSurfaceData && attackSurfaceData.summary ? attackSurfaceData.summary.total_endpoints : 0"></span>
+          </button>
+
+          <!-- OAST Engine -->
+          <button @click="currentAppTab = 'oast'; fetchOastEvents()"
+            :class="currentAppTab === 'oast' ? 'bg-orange-500/15 text-orange-300 border border-orange-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'OAST Callbacks Engine' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="radio" class="w-4 h-4 shrink-0 text-orange-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">OAST Engine</span>
+            </div>
+            <span x-show="oastEvents && oastEvents.length > 0"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-orange-950/80 text-orange-300 border border-orange-800/60 font-semibold"
+              :class="!sidebarExpanded ? 'absolute top-1 right-1 text-[8px] px-1' : ''"
+              x-text="oastEvents ? oastEvents.length : 0"></span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- CLUSTER 3: AI & GOVERNANCE -->
+      <div>
+        <div x-show="sidebarExpanded" class="px-3 mb-1.5 text-[10px] font-mono font-bold tracking-wider uppercase text-slate-500">
+          AI &amp; Governance
+        </div>
+        <div x-show="!sidebarExpanded" class="h-px bg-[#1E293B] mx-2 mb-2"></div>
+
+        <nav class="space-y-1 font-mono text-xs">
+          <!-- AI Activity -->
+          <button @click="currentAppTab = 'ai_activity'; fetchCommands(); fetchPayloads()"
+            :class="currentAppTab === 'ai_activity' ? 'bg-teal-500/15 text-teal-300 border border-teal-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'AI Activity & Vault' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="terminal" class="w-4 h-4 shrink-0 text-teal-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">AI Activity</span>
+            </div>
+            <span x-show="(stats.total_commands || 0) + (stats.total_payloads || 0) > 0"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-teal-950/80 text-teal-300 border border-teal-800/60 font-semibold"
+              :class="!sidebarExpanded ? 'absolute top-1 right-1 text-[8px] px-1' : ''"
+              x-text="(stats.total_commands || 0) + (stats.total_payloads || 0)"></span>
+          </button>
+
+          <!-- Scope Guardrails -->
+          <button @click="currentAppTab = 'scope'"
+            :class="currentAppTab === 'scope' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Scope Guardrails' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="shield-check" class="w-4 h-4 shrink-0 text-emerald-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Scope Guardrails</span>
+            </div>
+          </button>
+        </nav>
+      </div>
+
+    </div>
+
+    <!-- Sidebar Footer: Project Selector, Proxy Status, Session Cookies -->
+    <div class="border-t border-[#1E293B] p-2.5 bg-[#0B0F17]/80 space-y-2 shrink-0 font-mono text-xs">
+
+      <!-- Project Selector (Expanded) -->
+      <div x-show="sidebarExpanded" class="bg-[#111827] border border-[#1E293B] rounded-lg p-2 space-y-1">
+        <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase">
+          <span class="flex items-center space-x-1">
+            <i data-lucide="folder-git-2" class="w-3 h-3 text-indigo-400"></i>
+            <span>Project Scope</span>
+          </span>
+          <button @click="openNewProjectModal = true" class="text-indigo-400 hover:text-indigo-300 font-bold px-1" title="Create New Project">+</button>
+        </div>
         <select x-model="selectedProject" @change="onProjectChange()"
-          class="bg-transparent text-xs text-sky-300 font-mono font-semibold focus:outline-none cursor-pointer">
+          class="w-full bg-[#0B0F17] text-xs text-sky-300 font-mono font-semibold focus:outline-none cursor-pointer border border-[#1E293B] rounded px-2 py-1 truncate">
           <option value="ALL">🌐 ALL PROJECTS</option>
           <template x-for="p in projects" :key="p.id">
             <option :value="p.name" x-text="p.name + ' (' + p.requests_count + ')'"></option>
           </template>
         </select>
-
-        <button @click="openNewProjectModal = true"
-          class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white transition" title="Create New Project">
-          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-        </button>
       </div>
-    </div>
 
-    <!-- Right Controls: Intercept Toggle, Exports, Actions -->
-    <div class="flex items-center space-x-2">
-      <!-- INTERCEPT ON/OFF TOGGLE SWITCH -->
-      <button @click="toggleIntercept()"
-        :class="interceptEnabled ? 'bg-rose-950 border-rose-600 text-rose-300 glow-rose' : 'bg-[#0B0F17] border-[#1E293B] text-slate-400 hover:text-slate-200'"
-        class="px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition flex items-center shadow-md">
-        <span class="w-2 h-2 rounded-full mr-2"
-          :class="interceptEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'"></span>
-        <span x-text="interceptEnabled ? 'INTERCEPT IS ON' : 'INTERCEPT IS OFF'"></span>
+      <!-- Project Selector Trigger (Collapsed) -->
+      <button x-show="!sidebarExpanded" @click="toggleSidebar()"
+        class="w-10 h-10 mx-auto rounded-lg bg-[#111827] border border-[#1E293B] hover:border-indigo-500/50 flex items-center justify-center text-indigo-400 transition"
+        :title="'Current Project: ' + selectedProject + ' (Click to expand)'">
+        <i data-lucide="folder-git-2" class="w-4 h-4"></i>
       </button>
 
-      <!-- BUILT-IN FORWARD PROXY STATUS BADGE -->
-      <div class="hidden md:flex items-center px-2.5 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs shadow-sm"
-        :title="'Built-in Forward Interception Proxy for Agent Scripts (HTTP_PROXY=http://127.0.0.1:' + proxyPort + ')'">
-        <span class="w-2 h-2 rounded-full mr-1.5"
-          :class="proxyRunning ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-500'"></span>
-        <span class="text-[10px] text-slate-400 mr-1 font-bold">PROXY</span>
-        <span class="text-cyan-300 font-semibold" x-text="':' + (proxyPort || '8088')"></span>
+      <!-- Proxy Port Status Pill (Expanded) -->
+      <div x-show="sidebarExpanded" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#111827] border border-[#1E293B] text-[11px]"
+        :title="'Forward Interception Proxy: 127.0.0.1:' + proxyPort">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full shrink-0" :class="proxyRunning ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-500'"></span>
+          <span class="text-slate-400 font-bold text-[10px]">PROXY PORT</span>
+        </div>
+        <span class="text-cyan-300 font-bold" x-text="':' + (proxyPort || '8088')"></span>
       </div>
 
-      <!-- EXPORT DROPDOWN BUTTONS -->
-      <div class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs">
-        <button @click="exportHar()"
-          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
-          title="Export Traffic to HAR 1.2 (Burp Suite / ZAP)">
-          <i data-lucide="download" class="w-3.5 h-3.5 mr-1 text-sky-400"></i>
-          <span>HAR</span>
-        </button>
-        <button @click="exportReport()"
-          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
-          title="Generate Executive Markdown Report">
-          <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1 text-emerald-400"></i>
-          <span>Report</span>
-        </button>
-        <button @click="exportOpenAPI()"
-          class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center"
-          title="Generate Auto-Reverse OpenAPI 3.0 / Swagger">
-          <i data-lucide="file-code" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>
-          <span>OpenAPI</span>
-        </button>
-      </div>
-
-      <!-- Session & Cookie Config Button -->
+      <!-- Session Cookies Button -->
       <button @click="openSessionModal()"
-        class="flex items-center px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-700/70 text-amber-300 rounded-md text-xs font-semibold font-mono transition shadow-md"
-        title="Configure & Paste Session Cookies for AI Agent">
-        <i data-lucide="cookie" class="w-3.5 h-3.5 mr-1.5 text-amber-400"></i>
-        <span>Session & Cookies</span>
-        <span class="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500 text-black font-bold"
+        :class="sidebarExpanded ? 'w-full px-2.5 py-1.5 justify-between' : 'w-10 h-10 mx-auto justify-center'"
+        class="flex items-center bg-amber-950/60 hover:bg-amber-900/80 border border-amber-800/60 text-amber-300 rounded-lg text-[11px] font-semibold transition"
+        title="Configure & Inject Session Cookies">
+        <div class="flex items-center space-x-2 truncate">
+          <i data-lucide="cookie" class="w-3.5 h-3.5 shrink-0 text-amber-400"></i>
+          <span x-show="sidebarExpanded" class="truncate text-[11px]">Active Session</span>
+        </div>
+        <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500 text-black font-bold"
+          :class="!sidebarExpanded ? 'hidden' : ''"
           x-text="stats.active_sessions || 0"></span>
       </button>
 
-      <!-- Clear History Button -->
-      <button @click="clearLogs()"
-        class="flex items-center px-3 py-1.5 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-700/80 text-slate-400 hover:text-rose-300 rounded-md text-xs font-mono font-semibold transition shadow-sm group"
-        title="Immediately clear all HTTP history and vulnerability findings">
-        <i data-lucide="trash-2"
-          class="w-3.5 h-3.5 mr-1.5 text-slate-500 group-hover:text-rose-400 transition-colors"></i>
-        <span>Clear History</span>
-      </button>
     </div>
-  </header>
+  </aside>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN APP CONTAINER (HEADER + ACTIVE WORKSPACE VIEWS)                      -->
+  <!-- ========================================================================= -->
+  <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#0B0F17]">
+
+    <!-- TOP COMMAND BAR (CLEAN & LEGA) -->
+    <header class="h-14 bg-[#111827]/95 border-b border-[#1E293B] px-4 flex items-center justify-between shrink-0 z-30">
+
+      <!-- Left: Sidebar Toggle + Dynamic Breadcrumb -->
+      <div class="flex items-center space-x-3 min-w-0">
+        <button @click="toggleSidebar()"
+          class="p-1.5 rounded-lg bg-[#0B0F17] border border-[#1E293B] hover:bg-[#1E293B] text-slate-400 hover:text-slate-200 transition shadow-sm"
+          :title="sidebarExpanded ? 'Collapse Sidebar (Ctrl+B)' : 'Expand Sidebar (Ctrl+B)'">
+          <i :data-lucide="sidebarExpanded ? 'panel-left-close' : 'panel-left'" class="w-4 h-4"></i>
+        </button>
+
+        <div class="min-w-0 flex items-center space-x-2">
+          <span class="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-[#0B0F17] border border-[#1E293B] text-slate-400 hidden sm:inline"
+            x-text="getActiveTabCategory()"></span>
+          <span class="text-slate-500 text-xs font-mono hidden sm:inline">/</span>
+          <h1 class="text-sm font-mono font-bold text-slate-100 truncate" x-text="getActiveTabTitle()"></h1>
+          <span class="text-[11px] font-mono text-slate-400 hidden md:inline truncate" x-text="'· ' + getActiveTabSubtitle()"></span>
+        </div>
+      </div>
+
+      <!-- Right Controls: Intercept Toggle, Proxy Port Badge, Live Status, Exports, Clear -->
+      <div class="flex items-center space-x-2 shrink-0">
+        <!-- INTERCEPT ON/OFF TOGGLE SWITCH -->
+        <button @click="toggleIntercept()"
+          :class="interceptEnabled ? 'bg-rose-950 border-rose-600 text-rose-300 glow-rose' : 'bg-[#0B0F17] border-[#1E293B] text-slate-400 hover:text-slate-200'"
+          class="px-3 py-1.5 rounded-md border text-xs font-mono font-semibold transition flex items-center shadow-md">
+          <span class="w-2 h-2 rounded-full mr-2 shrink-0"
+            :class="interceptEnabled ? 'bg-rose-500 animate-ping' : 'bg-slate-500'"></span>
+          <span x-text="interceptEnabled ? 'INTERCEPT IS ON' : 'INTERCEPT IS OFF'"></span>
+        </button>
+
+        <!-- BUILT-IN FORWARD PROXY STATUS BADGE (In Header on wide screens) -->
+        <div class="hidden xl:flex items-center px-2.5 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs shadow-sm"
+          :title="'Built-in Forward Interception Proxy for Agent Scripts (HTTP_PROXY=http://127.0.0.1:' + proxyPort + ')'">
+          <span class="w-2 h-2 rounded-full mr-1.5"
+            :class="proxyRunning ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-slate-500'"></span>
+          <span class="text-[10px] text-slate-400 mr-1 font-bold">PROXY</span>
+          <span class="text-cyan-300 font-semibold" x-text="':' + (proxyPort || '8088')"></span>
+        </div>
+
+        <!-- Live Feed Pill -->
+        <div class="hidden lg:flex items-center px-2.5 py-1.5 bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs">
+          <span class="relative flex h-2 w-2 mr-2">
+            <span x-show="wsConnected" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2" :class="wsConnected ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+          </span>
+          <span x-text="wsConnected ? 'LIVE FEED' : 'OFFLINE'" :class="wsConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400'"></span>
+        </div>
+
+        <!-- EXPORT DROPDOWN BUTTONS -->
+        <div class="flex items-center bg-[#0B0F17] border border-[#1E293B] rounded-md font-mono text-xs">
+          <button @click="exportHar()"
+            class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
+            title="Export Traffic to HAR 1.2 (Burp Suite / ZAP)">
+            <i data-lucide="download" class="w-3.5 h-3.5 mr-1 text-sky-400"></i>
+            <span>HAR</span>
+          </button>
+          <button @click="exportReport()"
+            class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center border-r border-[#1E293B]"
+            title="Generate Executive Markdown Report">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1 text-emerald-400"></i>
+            <span>Report</span>
+          </button>
+          <button @click="exportOpenAPI()"
+            class="px-2.5 py-1.5 hover:bg-[#1E293B] text-slate-300 transition flex items-center"
+            title="Generate Auto-Reverse OpenAPI 3.0 / Swagger">
+            <i data-lucide="file-code" class="w-3.5 h-3.5 mr-1 text-purple-400"></i>
+            <span>OpenAPI</span>
+          </button>
+        </div>
+
+        <!-- Clear History Button -->
+        <button @click="clearLogs()"
+          class="flex items-center px-3 py-1.5 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-700/80 text-slate-400 hover:text-rose-300 rounded-md text-xs font-mono font-semibold transition shadow-sm group"
+          title="Immediately clear all HTTP history and vulnerability findings">
+          <i data-lucide="trash-2"
+            class="w-3.5 h-3.5 mr-1.5 text-slate-500 group-hover:text-rose-400 transition-colors"></i>
+          <span class="hidden sm:inline">Clear History</span>
+        </button>
+      </div>
+    </header>
 
   <!-- ========================================================================= -->
   <!-- MAIN WORKSPACE VIEWS                                                      -->
@@ -1120,6 +1274,14 @@
                   <div x-show="finding.remediation"
                     class="p-2.5 rounded bg-sky-950/30 border border-sky-800/40 text-xs text-slate-300"
                     x-text="'Remediation: ' + finding.remediation"></div>
+                  <div class="flex items-center space-x-2 pt-2 border-t border-[#1E293B]">
+                    <button @click="generateFindingDossier(finding.id)"
+                      :disabled="isGeneratingPoc"
+                      class="px-2.5 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-700/80 text-[11px] font-mono font-bold text-rose-200 flex items-center space-x-1.5 transition shadow">
+                      <i data-lucide="file-code-2" class="w-3.5 h-3.5 text-rose-400"></i>
+                      <span>Generate Standalone PoC &amp; Dossier</span>
+                    </button>
+                  </div>
                 </div>
               </template>
             </div>
@@ -2451,6 +2613,20 @@
           <span class="text-rose-300 font-bold" x-text="attackSurfaceData && attackSurfaceData.summary ? attackSurfaceData.summary.vulnerable_endpoints : 0"></span>
         </div>
 
+        <button @click="inferHiddenEndpoints()" :disabled="isInferringRoutes"
+          class="px-2.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded font-bold text-xs flex items-center space-x-1 transition shadow"
+          title="Predict hidden CRUD routes, parameters, and sensitive actuator endpoints">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-300" :class="isInferringRoutes ? 'animate-spin' : ''"></i>
+          <span x-text="isInferringRoutes ? 'Inferring...' : 'Infer Routes'"></span>
+        </button>
+
+        <button @click="viewAttackPaths()" :disabled="isGeneratingAttackPaths"
+          class="px-2.5 py-1.5 bg-rose-700/80 hover:bg-rose-600 text-white rounded font-bold text-xs flex items-center space-x-1 transition shadow"
+          title="Synthesize exploit paths and kill chains leading to crown jewels">
+          <i data-lucide="git-merge" class="w-3.5 h-3.5 text-rose-300" :class="isGeneratingAttackPaths ? 'animate-pulse' : ''"></i>
+          <span x-text="isGeneratingAttackPaths ? 'Tracing...' : 'Attack Paths'"></span>
+        </button>
+
         <button @click="showAddAssetModal = true"
           class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold text-xs flex items-center space-x-1 transition shadow">
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -2618,9 +2794,21 @@
         <div>
           <div class="text-xs font-bold text-slate-100 flex items-center space-x-2">
             <span>OAST Interaction Console</span>
-            <span class="flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-ping"></span>
-              <span x-text="'LISTENER ACTIVE (:' + (window.location.port || '8000') + '/oast/*)'"></span>
+            <span class="flex items-center px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold" title="HTTP Callback Listener">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
+              HTTP :8000
+            </span>
+            <span class="flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+              :class="oastProtocols && oastProtocols.dns && oastProtocols.dns.active ? 'bg-indigo-950 text-indigo-300 border border-indigo-800' : 'bg-slate-900 text-slate-500 border border-slate-800'"
+              title="DNS UDP Out-of-band Listener">
+              <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="oastProtocols && oastProtocols.dns && oastProtocols.dns.active ? 'bg-indigo-400' : 'bg-slate-600'"></span>
+              <span x-text="'DNS UDP :' + (oastProtocols && oastProtocols.dns ? oastProtocols.dns.port : '5353')"></span>
+            </span>
+            <span class="flex items-center px-2 py-0.5 rounded text-[10px] font-bold"
+              :class="oastProtocols && oastProtocols.ldap && oastProtocols.ldap.active ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-900 text-slate-500 border border-slate-800'"
+              title="LDAP/JNDI TCP Out-of-band Listener">
+              <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="oastProtocols && oastProtocols.ldap && oastProtocols.ldap.active ? 'bg-amber-400' : 'bg-slate-600'"></span>
+              <span x-text="'LDAP TCP :' + (oastProtocols && oastProtocols.ldap ? oastProtocols.ldap.port : '1389')"></span>
             </span>
           </div>
           <p class="text-[10px] text-slate-400 mt-0.5">Catch and verify blind exploits (SSRF, JNDI, Blind SQLi, RCE callbacks)</p>
@@ -2724,6 +2912,7 @@
       </div>
     </div>
   </div>
+  </div> <!-- End Main App Container -->
 
   <!-- ADD ASSET MODAL -->
   <div x-show="showAddAssetModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 font-mono">
@@ -2974,6 +3163,9 @@
                     x-text="s.cookie_count + (s.cookie_count === 1 ? ' cookie' : ' cookies')"></span>
                   <span class="text-[10px] text-indigo-400 font-mono"
                     x-text="'[' + (s.project || 'default') + ']'"></span>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase"
+                    :class="s.identity_role === 'victim' ? 'bg-amber-950 text-amber-300 border border-amber-800' : (s.identity_role === 'admin' ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'bg-rose-950 text-rose-300 border border-rose-800')"
+                    x-text="s.identity_role || 'attacker'"></span>
                   <span
                     class="text-[9px] text-emerald-400 font-mono font-semibold flex items-center bg-emerald-950/60 border border-emerald-800/40 px-1.5 py-0.2 rounded">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
@@ -3080,6 +3272,147 @@
     </div>
   </div>
 
+  <!-- MODAL: STANDALONE POC & REMEDIATION DOSSIER -->
+  <div x-show="showPocModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-text" x-cloak>
+    <div @click.away="showPocModal = false" class="bg-[#111827] border border-rose-900/60 rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden font-mono text-xs">
+      <div class="p-4 bg-[#0B0F17] border-b border-[#1E293B] flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="p-2 bg-rose-950 border border-rose-800 rounded-lg text-rose-400">
+            <i data-lucide="file-code-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-bold text-slate-100 flex items-center space-x-2">
+              <span x-text="pocModalData ? pocModalData.title : 'Vulnerability PoC & Dossier'"></span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-bold"
+                x-text="pocModalData ? pocModalData.severity : ''"></span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 font-bold"
+                x-text="pocModalData ? pocModalData.cwe : ''"></span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800 font-bold"
+                x-text="pocModalData ? ('CVSS ' + pocModalData.cvss_score) : ''"></span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-0.5">Standalone zero-dependency exploit verification and client-ready remediation dossier</p>
+          </div>
+        </div>
+        <button @click="showPocModal = false" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="px-4 py-2 bg-[#0B0F17]/80 border-b border-[#1E293B] flex items-center justify-between">
+        <div class="flex items-center space-x-1">
+          <button @click="pocActiveTab = 'python'"
+            :class="pocActiveTab === 'python' ? 'bg-sky-950 text-sky-300 border-sky-800' : 'text-slate-400 border-transparent hover:text-slate-200'"
+            class="px-3 py-1 rounded border font-semibold transition flex items-center space-x-1.5">
+            <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+            <span>Python Script (Standalone)</span>
+          </button>
+          <button @click="pocActiveTab = 'curl'"
+            :class="pocActiveTab === 'curl' ? 'bg-amber-950 text-amber-300 border-amber-800' : 'text-slate-400 border-transparent hover:text-slate-200'"
+            class="px-3 py-1 rounded border font-semibold transition flex items-center space-x-1.5">
+            <i data-lucide="code" class="w-3.5 h-3.5"></i>
+            <span>cURL Command</span>
+          </button>
+          <button @click="pocActiveTab = 'dossier'"
+            :class="pocActiveTab === 'dossier' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'text-slate-400 border-transparent hover:text-slate-200'"
+            class="px-3 py-1 rounded border font-semibold transition flex items-center space-x-1.5">
+            <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+            <span>Remediation Dossier (Markdown)</span>
+          </button>
+        </div>
+
+        <div>
+          <button @click="copyText(pocActiveTab === 'python' ? pocModalData?.exploit_script : (pocActiveTab === 'curl' ? pocModalData?.curl_command : pocModalData?.dossier_markdown))"
+            class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-semibold transition flex items-center space-x-1.5 shadow">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span>Copy Content</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto">
+        <div x-show="pocActiveTab === 'python'">
+          <pre class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-emerald-400 overflow-x-auto whitespace-pre font-mono text-xs leading-relaxed" x-text="pocModalData?.exploit_script || ''"></pre>
+        </div>
+        <div x-show="pocActiveTab === 'curl'">
+          <pre class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-amber-300 overflow-x-auto whitespace-pre font-mono text-xs leading-relaxed" x-text="pocModalData?.curl_command || ''"></pre>
+        </div>
+        <div x-show="pocActiveTab === 'dossier'">
+          <pre class="p-4 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-slate-300 overflow-x-auto whitespace-pre font-mono text-xs leading-relaxed" x-text="pocModalData?.dossier_markdown || ''"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ATTACK PATH & KILL CHAIN GRAPH -->
+  <div x-show="showAttackPathsModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-text" x-cloak>
+    <div @click.away="showAttackPathsModal = false" class="bg-[#111827] border border-rose-900/60 rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden font-mono text-xs">
+      <div class="p-4 bg-[#0B0F17] border-b border-[#1E293B] flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="p-2 bg-rose-950 border border-rose-800 rounded-lg text-rose-400">
+            <i data-lucide="git-merge" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-bold text-slate-100 flex items-center space-x-2">
+              <span>Attack Path &amp; Kill Chain Synthesizer</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-bold"
+                x-text="(attackPathsData ? attackPathsData.total_chains : 0) + ' Exploit Chains'"></span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-0.5">Automated causal correlation linking Entry Assets &rarr; Endpoints &rarr; Vulnerabilities &rarr; Crown Jewels</p>
+          </div>
+        </div>
+        <button @click="showAttackPathsModal = false" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto space-y-4">
+        <template x-if="!attackPathsData || !attackPathsData.chains || attackPathsData.chains.length === 0">
+          <div class="p-8 text-center text-slate-500 bg-[#0B0F17] rounded-xl border border-[#1E293B]">
+            <i data-lucide="shield-check" class="w-8 h-8 mx-auto opacity-30 text-emerald-400 mb-2"></i>
+            <p class="text-sm font-bold text-slate-300">No Multi-Stage Kill Chains Detected Yet</p>
+            <p class="text-xs text-slate-500 mt-1">Run active scans, fuzzing, or AI agent pentest scripts against target endpoints to correlate exploit paths.</p>
+          </div>
+        </template>
+
+        <template x-for="(chain, cIdx) in (attackPathsData?.chains || [])" :key="cIdx">
+          <div class="p-4 bg-[#0B0F17] border border-rose-900/50 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800"
+                x-text="'CHAIN #' + (cIdx + 1)"></span>
+              <span class="text-xs font-bold text-amber-300" x-text="chain.target_impact"></span>
+            </div>
+
+            <div class="space-y-1.5 pt-1">
+              <template x-for="step in chain.steps" :key="step.step">
+                <div class="flex items-center space-x-2 text-[11px]">
+                  <span class="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-300 shrink-0"
+                    x-text="step.step"></span>
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase shrink-0"
+                    :class="step.type === 'ENTRY' ? 'bg-sky-950 text-sky-300 border border-sky-800' : (step.type === 'VULNERABILITY' ? 'bg-rose-950 text-rose-300 border border-rose-800' : (step.type === 'IMPACT' ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'bg-slate-800 text-slate-300 border border-slate-700'))"
+                    x-text="step.type"></span>
+                  <span class="font-bold text-slate-200" x-text="step.label"></span>
+                  <span class="text-slate-400 truncate max-w-md" x-text="step.detail"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <div x-show="attackPathsData?.mermaid_diagram" class="pt-2">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-slate-300">Mermaid Kill Chain Architecture</span>
+            <button @click="copyText(attackPathsData.mermaid_diagram)"
+              class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-semibold flex items-center space-x-1">
+              <i data-lucide="copy" class="w-3 h-3"></i>
+              <span>Copy Mermaid</span>
+            </button>
+          </div>
+          <pre class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-lg text-indigo-300 overflow-x-auto whitespace-pre text-[11px] leading-relaxed" x-text="attackPathsData?.mermaid_diagram || ''"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATIONS -->
   <div class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
     <template x-for="(toast, index) in toasts" :key="index">
@@ -3111,6 +3444,53 @@
         wsConnected: false,
         socket: null,
         currentAppTab: 'proxy', // proxy | intercept | repeater | fuzzer | scope | ai_activity | attack_surface | oast
+        sidebarExpanded: true,
+        toggleSidebar() {
+          this.sidebarExpanded = !this.sidebarExpanded;
+          try {
+            localStorage.setItem('spectra_sidebar_expanded', this.sidebarExpanded);
+          } catch(e) {}
+          this.$nextTick(() => {
+            if (window.lucide) lucide.createIcons();
+          });
+        },
+        getActiveTabTitle() {
+          const map = {
+            proxy: 'Proxy Traffic',
+            intercept: 'Intercept Trap',
+            repeater: 'HTTP Repeater',
+            fuzzer: 'Parameter Fuzzer',
+            scope: 'Scope Guardrails',
+            ai_activity: 'AI Activity & Vault',
+            attack_surface: 'Attack Surface Graph',
+            oast: 'OAST Callbacks Engine'
+          };
+          return map[this.currentAppTab] || 'Dashboard';
+        },
+        getActiveTabCategory() {
+          const cats = {
+            proxy: 'GATEWAY & TESTING',
+            intercept: 'GATEWAY & TESTING',
+            repeater: 'GATEWAY & TESTING',
+            fuzzer: 'GATEWAY & TESTING',
+            attack_surface: 'RECON & TARGETS',
+            oast: 'RECON & TARGETS',
+            ai_activity: 'AI & GOVERNANCE',
+            scope: 'AI & GOVERNANCE'
+          };
+          return cats[this.currentAppTab] || 'GATEWAY';
+        },
+        getActiveTabSubtitle() {
+          if (this.currentAppTab === 'proxy') return `${this.logs.length} Total Requests (${this.filteredLogs.length} Filtered)`;
+          if (this.currentAppTab === 'intercept') return this.interceptPending.length ? `${this.interceptPending.length} Trapped Requests Waiting Operator Decision` : 'Listening on Port ' + (this.proxyPort || '8088');
+          if (this.currentAppTab === 'repeater') return 'Manual HTTP Request Crafting & Differential Baseline';
+          if (this.currentAppTab === 'fuzzer') return 'Automated Multi-Threaded §Marker§ Intruder';
+          if (this.currentAppTab === 'scope') return 'Workspace Out-of-Bounds & Network Access Rules';
+          if (this.currentAppTab === 'ai_activity') return `${(this.stats.total_commands || 0)} Terminal Commands · ${(this.stats.total_payloads || 0)} Payloads`;
+          if (this.currentAppTab === 'attack_surface') return `${(this.attackSurfaceData && this.attackSurfaceData.summary ? this.attackSurfaceData.summary.total_endpoints : 0)} Discovered Target Endpoints`;
+          if (this.currentAppTab === 'oast') return `${(this.oastEvents ? this.oastEvents.length : 0)} Out-of-Band Callbacks Logged`;
+          return '';
+        },
         logs: [],
         filteredLogs: [],
         selectedLogId: null,
@@ -3396,7 +3776,17 @@
             if (savedPageSize) {
               this.pageSize = savedPageSize === 'ALL' ? 999999 : (parseInt(savedPageSize) || 50);
             }
+            const savedSidebar = localStorage.getItem('spectra_sidebar_expanded');
+            if (savedSidebar !== null) this.sidebarExpanded = savedSidebar === 'true';
           } catch (e) { }
+
+          // Global shortcut for toggling sidebar: Ctrl+B / Cmd+B
+          window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+              e.preventDefault();
+              this.toggleSidebar();
+            }
+          });
 
           this.fetchProjects();
           this.fetchStats();
@@ -3479,6 +3869,9 @@
             }
           } else if (msg.type === 'INTERCEPT_TOGGLED') {
             this.interceptEnabled = msg.enabled;
+            this.fetchInterceptStatus();
+          } else if (msg.type === 'INTERCEPT_TRAPPED' || msg.type === 'INTERCEPT_RESOLVED') {
+            this.fetchInterceptStatus();
           } else if (msg.type === 'FUZZER_COMPLETED') {
             this.showToast({
               title: `Fuzzer Attack Finished`,

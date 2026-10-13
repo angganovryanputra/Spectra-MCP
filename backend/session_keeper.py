@@ -37,10 +37,12 @@ async def _ping_session(session_record: ActiveSession) -> bool:
     except Exception:
         pass
 
+    from backend.user_agents import get_random_user_agent
+
     try:
         async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=4.0) as client:
             cookie_hdr = "; ".join([f"{k}={v}" for k, v in cookies.items()])
-            headers = {"User-Agent": "SpectraMCP SessionKeeper/1.0", "Cookie": cookie_hdr}
+            headers = {"User-Agent": get_random_user_agent(), "Cookie": cookie_hdr}
             resp = await client.head(url, headers=headers)
             # If HEAD is 405 Method Not Allowed, fallback to light GET
             if resp.status_code == 405:
@@ -52,7 +54,7 @@ async def _ping_session(session_record: ActiveSession) -> bool:
             url_http = f"http://{domain}/"
             async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=4.0) as client:
                 cookie_hdr = "; ".join([f"{k}={v}" for k, v in cookies.items()])
-                headers = {"User-Agent": "SpectraMCP SessionKeeper/1.0", "Cookie": cookie_hdr}
+                headers = {"User-Agent": get_random_user_agent(), "Cookie": cookie_hdr}
                 resp = await client.head(url_http, headers=headers)
                 return resp.status_code < 500
         except Exception:

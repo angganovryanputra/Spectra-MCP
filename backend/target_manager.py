@@ -261,15 +261,16 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
             except Exception:
                 backend_port = 8000
         proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return
 
         # Do not ingest Spectra's own server infrastructure
         if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [backend_port, proxy_port]:
             return
 
-        if host:
-            service_name = "https" if parsed.scheme == "https" else "http"
-            add_or_update_service(project=project, host=host, port=port, service_name=service_name)
-            add_or_update_endpoint(project=project, host=host, url=url, method=method)
+        service_name = "https" if parsed.scheme == "https" else "http"
+        add_or_update_service(project=project, host=host, port=port, service_name=service_name)
+        add_or_update_endpoint(project=project, host=host, url=url, method=method)
     except Exception:
         pass

@@ -10,6 +10,7 @@ import asyncio
 import urllib.parse
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
+from backend.user_agents import apply_rotating_user_agent
 
 # Predefined curated pentest payload dictionaries
 BUILTIN_PAYLOADS = {
@@ -130,11 +131,15 @@ async def run_fuzz_attack(
     proxy_kwargs = {}
     if upstream_proxy and upstream_proxy.strip():
         proxy_kwargs["proxy"] = upstream_proxy.strip()
+    else:
+        proxy_kwargs["proxy"] = None
+        proxy_kwargs["trust_env"] = False
 
     # Determine baseline template by stripping markers and keeping inner default value
     baseline_url = MARKER_REGEX.sub(r"\1", base_url)
     baseline_body = MARKER_REGEX.sub(r"\1", body)
     baseline_headers = {k: MARKER_REGEX.sub(r"\1", str(v)) for k, v in headers.items()}
+    apply_rotating_user_agent(baseline_headers)
 
     # 1. Baseline Request & Concurrent Attacks with shared connection-pooled client
     baseline_result = {
@@ -174,6 +179,7 @@ async def run_fuzz_attack(
             req_url = replace_markers(base_url, payload)
             req_body = replace_markers(body, payload)
             req_headers = {k: replace_markers(str(v), payload) for k, v in headers.items()}
+            apply_rotating_user_agent(req_headers)
 
             async with sem:
                 item = {

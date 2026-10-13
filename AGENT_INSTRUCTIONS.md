@@ -66,21 +66,48 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
       - **Zero Guardrails by Default**: Secara default tidak ada guardrail yang memblokir target internal/lab (`127.0.0.1`, RFC1918) maupun external domain, sehingga seluruh pengujian berjalan lancar tanpa terhalang SSRF filter bawaan kecuali operator sengaja mengaktifkan Scope Guardrail di Dashboard.
       - Seluruh target hit dari script Anda akan **otomatis tertangkap di Spectra Forward Interception Proxy (:8088)**, disuntikkan session cookies aktif, dianalisis kerentanannya oleh Dual-Track Triage, dan otomatis di-ingest ke Target Knowledge Graph!
     - Untuk script Python tingkat lanjut, Anda juga dapat mengimpor micro-SDK bawaan: `from spectra_client import SpectraSession, report_finding`.
+15. **Multi-Identity BOLA / IDOR Testing:**
+    - Daftarkan sesi akun sekunder (misal penyerang/korban) dengan `set_identity_session(domain="...", identity_role="attacker", raw_cookies="...")`.
+    - Setiap endpoint ber-identifier objek yang Anda tes akan otomatis di-shadow replay oleh Spectra. Anda juga dapat memicu uji manual via `test_bola_idor(log_id=<ID>)`.
+16. **Adaptive WAF Evasion & Payload Mutator:**
+    - Jika target dilindungi WAF (Cloudflare, AWS WAF, Akamai, ModSecurity), gunakan `analyze_waf_response(status_code, headers, body)` untuk mengetahui vendor dan teknik bypass.
+    - Gunakan `mutate_payload(raw_payload="...", vuln_type="SQLI"|"XSS"|"TRAVERSAL")` untuk menghasilkan payload variasi yang lolos filter WAF.
+17. **Semantic API Spec Reconstructor (Hidden Routes Inferrer):**
+    - Gunakan `infer_hidden_endpoints(host="...", project="...")` untuk merekonstruksi dan memprediksi rute tersembunyi (CRUD mutasi, docs swagger, actuator, admin panel) yang belum pernah diuji.
+18. **Exploit Path Chaining Graph (Path to Crown Jewels):**
+    - Gunakan `get_attack_paths(project="...")` untuk melihat jalur rantai eksploitasi (Kill Chain) dari akses luar menuju dampak kritis (RCE, DB dump, PII breach).
+19. **One-Click Standalone Exploit PoC & Dossier:**
+    - Gunakan `generate_exploit_poc(finding_id=<ID>)` untuk menghasilkan script exploit Python mandiri, cURL command, dan dossier CVSS/CWE siap lapor.
+20. **WebSocket Frame Testing:**
+    - Gunakan `send_websocket_message(url="wss://...", message="...")` untuk menguji komunikasi socket real-time.
+21. **High-Speed Parameter Fuzzing (Burp-style Marker §...§):**
+    - Gunakan `fuzz_endpoint(url="http://target/api?id=§1§", payload_type="sqli"|"xss"|"traversal")` untuk mini-intruder fuzzing otomatis dengan analisis delta status & panjang response.
+22. **Multi-Step Stateful Workflow Testing:**
+    - Gunakan `execute_workflow_sequence(sequence=[...], test_step_skipping=True)` untuk menguji urutan logika bisnis berantai dengan ekstraksi variabel dinamis (`{{var}}`) dan pendeteksian bypass otorisasi/pembayaran (`BUSINESS_LOGIC_BYPASS_CONFIRMED`).
+23. **Turbo Race Condition & Concurrency Burst Testing:**
+    - Gunakan `test_race_condition(url="http://target/api/coupon/claim", concurrency=20)` untuk burst mikrodetik terkoordinasi berbasis `asyncio.Barrier` guna mendeteksi double-spending dan limit bypass.
+24. **JavaScript Recon & Secret Mining:**
+    - Gunakan `mine_javascript_assets(content_or_url="https://target/app.js")` untuk menambang rute API tersembunyi, query parameter rahasia, source map (`.map`), serta kebocoran kredensial hardcoded (AWS, JWT, Slack, API keys).
+25. **Semantic Structural Diffing & Noise Reduction:**
+    - Gunakan `compare_http_responses(response_a=<LogID_or_Dict>, response_b=<LogID_or_Dict>)` untuk membersihkan dynamic noise (timestamp, UUID, hex hash, CSRF nonce) dan mendeteksi Soft-403/Soft-404.
+26. **Autonomous JWT Security Auditing:**
+    - Gunakan `audit_jwt_security(token="...", test_url="https://target/api/protected")` untuk menguji Algorithm None bypass, brute-force weak HMAC secret offline, privilege escalation claim tampering, dan kid path traversal.
 ```
 
 ---
 
 ## 3. Fitur Utama yang Aktif
 
+- **Autonomous Multi-Identity BOLA/IDOR Matrix:** Pengujian otorisasi horizontal otomatis antar role akun secara background shadow replay.
+- **Multi-Protocol OAST Engine (HTTP, DNS UDP :5353, LDAP/JNDI TCP :1389):** Deteksi Blind SSRF dan JNDI injection tanpa bergantung pada layanan luar.
+- **Adaptive WAF Evasion & Mutation:** Rekomendasi taktik bypass WAF dan generator mutasi payload otomatis.
+- **Semantic API Spec Reconstructor:** Prediksi rute tersembunyi berdasarkan pola arsitektur REST.
+- **Exploit Path Chaining Graph:** Visualisasi kill chain Mermaid dari akses publik menuju Crown Jewels.
+- **One-Click Standalone PoC Generator:** Pembuatan script Python mandiri, cURL command, dan laporan CVSS/CWE otomatis.
 - **Transparent Auto-Enforcement (`sitecustomize.py` & `.env`):** Menjamin bahwa setiap script Python yang dieksekusi agen otomatis diarahkan ke Forward Interception Proxy Spectra (:8088), bahkan saat agen memanggil terminal host langsung.
 - **Zero Default Guardrails:** Secara default guardrail berada dalam status nonaktif (`scope_enabled = False`, `allow_internal_networks = True`, `blocked_patterns = []`). Pengguna memiliki kontrol penuh dan hanya perlu mengatur guardrail manual jika pengujian membutuhkan pembatasan scope ketat.
 - **TLS MITM Decryption Engine (Dynamic Cert Generator):** Mendekripsi lalu lintas HTTPS dari script agen secara transparan sehingga payload riil, status code, response body, dan findings langsung tercatat (bukan sekadar tunneling CONNECT blind).
 - **Target Knowledge Graph:** State reconnaissance dan mapping target terpusat (Asset -> Service/Port -> Endpoint) dengan tracking status pengujian & auto-ingestion dari script traffic.
-- **OAST Engine (Out-of-Band Callback Listener):** Deteksi blind vulnerabilities dengan korelasi token unik dan live WebSocket hit notification.
 - **Token-Saving JSON & Differential Analysis:** Output JSON terstruktur dan diffing baseline terotomatisasi untuk efisiensi context window agen.
-- **Traffic Isolation:** Request inferensi LLM (OpenCode/Hermes ke OpenAI/Anthropic/Ollama) tidak tercampur atau terganggu oleh lalu lintas pengujian.
 - **Interactive Intercept (Proxy Trap):** Operator dapat menahan (pause), memodifikasi, atau membatalkan request agen sebelum dikirim ke target.
-- **Scope & Guardrails:** Pembatasan scope fleksibel yang dapat dikonfigurasi sesuai kebutuhan proyek.
-- **Repeater Console:** Operator dapat menguji ulang request agen dengan payload kustom secara berdampingan.
 - **Export HAR 1.2 & Markdown:** Ekspor seluruh lalu lintas pengujian untuk dianalisis di Burp Suite atau dibuat laporan pentest eksekutif.
-- **Automated Dual-Track Triage:** Klasifikasi otomatis kerentanan Confirmed vs Potential.

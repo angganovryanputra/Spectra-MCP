@@ -119,6 +119,38 @@ SERVER_EXPOSURE_PATTERNS = [
 ]
 
 
+LFI_PATTERNS = [
+    {
+        "name": "Local File Inclusion — Linux passwd Disclosure",
+        "pattern": re.compile(r"root:[x*]?:0:0:[^:]*:[^:]*:(?:/[a-zA-Z0-9_.-]+)+", re.MULTILINE),
+        "severity": "CRITICAL",
+        "category": "Path Traversal & Local File Inclusion",
+        "remediation": "Do not pass user-controlled input to file path operations. Use path canonicalization and whitelisting."
+    },
+    {
+        "name": "Local File Inclusion — Linux shadow Disclosure",
+        "pattern": re.compile(r"root:\$(?:1|2[axy]?|5|6|y)\$[a-zA-Z0-9./]+:[0-9]*:[0-9]*:", re.MULTILINE),
+        "severity": "CRITICAL",
+        "category": "Path Traversal & Local File Inclusion",
+        "remediation": "Ensure system files cannot be accessed via application endpoints. Store data outside the web root."
+    },
+    {
+        "name": "Local File Inclusion — Windows INI / System File Disclosure",
+        "pattern": re.compile(r"\[(?:fonts|extensions|mci extensions|files|boot loader)\]", re.IGNORECASE),
+        "severity": "CRITICAL",
+        "category": "Path Traversal & Local File Inclusion",
+        "remediation": "Validate and sanitize file path parameters. Prevent directory traversal characters (../, ..\\)."
+    },
+    {
+        "name": "Directory Listing / Directory Indexing Exposed",
+        "pattern": re.compile(r"(?:<title>Index of\s+/|Index of\s+/[a-zA-Z0-9_./-]*\s+<hr>|Directory listing for\s+/)", re.IGNORECASE),
+        "severity": "MEDIUM",
+        "category": "Information Disclosure",
+        "remediation": "Disable directory browsing and auto-indexing in web server configuration."
+    }
+]
+
+
 # ==============================================================================
 # Dual-Track Analyzer Logic
 # ==============================================================================
@@ -249,6 +281,20 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
                     "description": "Authentication endpoint permitted complete login bypass when supplied with boolean-based SQL injection payload (' OR 1=1--), issuing a valid administrative session token without valid credentials.",
                     "remediation": "Enforce strict parameterized queries (prepared statements) or ORM abstraction for all authentication query execution. Never concatenate untrusted user input directly into SQL statements."
                 })
+
+    # 5. Local File Inclusion & Traversal Signatures
+    for lfi_check in LFI_PATTERNS:
+        match = lfi_check["pattern"].search(scan_body)
+        if match:
+            snippet = scan_body[max(0, match.start() - 30): min(len(scan_body), match.end() + 70)]
+            findings.append({
+                "title": lfi_check["name"],
+                "severity": lfi_check["severity"],
+                "category": lfi_check["category"],
+                "evidence": snippet.strip(),
+                "description": f"Local file inclusion or traversal signature confirmed in HTTP response body matching pattern: {lfi_check['pattern'].pattern}",
+                "remediation": lfi_check["remediation"]
+            })
 
     # If any Track 1 signature matched, we have confirmed findings
     if findings:
@@ -449,6 +495,49 @@ def analyze_traffic(log_entry) -> Tuple[str, List[Dict[str, Any]]]:
                 "evidence": f"HTTP {status_code} returned for {log_entry.method} {log_entry.path}",
                 "description": f"The target returned an unhandled server fault status ({status_code}) which may indicate logic failure or unhandled exception on injected inputs.",
                 "remediation": "Audit server logs for unhandled exception paths and enforce robust error boundaries."
+            })
+
+    # 5. Insecure Session Cookie Flags Check (Missing HttpOnly, Secure, SameSite)
+    set_cookie_raw = res_headers_lower.get("set-cookie", "")
+    if set_cookie_raw:
+        cookie_lower = set_cookie_raw.lower()
+        is_session_cookie = any(k in cookie_lower for k in [
+            "session", "sess", "token", "auth", "jwt", "sid", "phpsessid", "jsessionid", "aspsessionid", "connect.sid"
+        ])
+        if is_session_cookie:
+            missing_flags = []
+            if "httponly" not in cookie_lower:
+                missing_flags.append("HttpOnly")
+            if "secure" not in cookie_lower:
+                missing_flags.append("Secure")
+            if "samesite" not in cookie_lower:
+                missing_flags.append("SameSite")
+
+            if missing_flags:
+                findings.append({
+                    "title": f"Insecure Session Cookie: Missing {', '.join(missing_flags)} Flag(s)",
+                    "severity": "MEDIUM" if ("HttpOnly" in missing_flags or "Secure" in missing_flags) else "LOW",
+                    "category": "Insecure Cookie Configuration",
+                    "evidence": f"Set-Cookie: {set_cookie_raw[:150]}",
+                    "description": f"Session cookie is missing recommended security flags ({', '.join(missing_flags)}), increasing susceptibility to XSS token theft or MITM interception.",
+                    "remediation": "Set `HttpOnly; Secure; SameSite=Lax` (or Strict) on all sensitive authentication and session cookies."
+                })
+
+    # 6. Missing Clickjacking Protection (X-Frame-Options / CSP frame-ancestors)
+    content_type = res_headers_lower.get("content-type", "").lower()
+    is_html_resp = "text/html" in content_type or "<html" in scan_body[:1000].lower() or "<!doctype html" in scan_body[:1000].lower()
+    if is_html_resp and status_code == 200:
+        has_xfo = "x-frame-options" in res_headers_lower
+        csp_header = res_headers_lower.get("content-security-policy", "").lower()
+        has_frame_ancestors = "frame-ancestors" in csp_header
+        if not has_xfo and not has_frame_ancestors:
+            findings.append({
+                "title": "Missing Clickjacking Protection (Missing X-Frame-Options / frame-ancestors)",
+                "severity": "LOW",
+                "category": "Clickjacking / Missing Security Header",
+                "evidence": f"Content-Type: {content_type or 'text/html'} without X-Frame-Options or CSP frame-ancestors",
+                "description": "HTML response does not specify X-Frame-Options or Content-Security-Policy frame-ancestors, allowing malicious third-party pages to iframe this application and execute UI redress / clickjacking attacks.",
+                "remediation": "Configure web server or application framework to emit `X-Frame-Options: DENY` (or `SAMEORIGIN`) and `Content-Security-Policy: frame-ancestors 'self'`."
             })
 
     if findings:

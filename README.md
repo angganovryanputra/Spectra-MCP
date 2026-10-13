@@ -574,7 +574,7 @@ Click **Export & Reports** in the header to generate enterprise deliverables:
 
 ## 🧰 Complete MCP Tools Reference Specification
 
-The SPECTRA FastMCP server (`mcp_server.py`) exposes **14 specialized offensive security tools**:
+The SPECTRA FastMCP server (`mcp_server.py`) exposes **28 specialized offensive security tools**:
 
 ---
 
@@ -801,6 +801,202 @@ async def request_manual_login(
 
 ---
 
+### 15. `set_identity_session`
+Registers an authenticated session tagged with a specific identity role (e.g. `'attacker'`, `'victim'`, `'admin'`, `'guest'`) to enable Spectra's Autonomous BOLA/IDOR Shadow Matrix.
+
+```python
+async def set_identity_session(
+    domain: str,
+    identity_role: str = "attacker",
+    raw_cookies: str = "",
+    project: str = "default"
+) -> str
+```
+
+---
+
+### 16. `test_bola_idor`
+Executes an on-demand BOLA/IDOR shadow test on a specific logged endpoint (by Log ID), replaying with secondary identities to verify unauthorized object-level access.
+
+```python
+async def test_bola_idor(
+    log_id: int,
+    project: str = "default"
+) -> str
+```
+
+---
+
+### 17. `mutate_payload`
+Generates evasive, obfuscated variations of an exploit payload (SQLi, XSS, Path Traversal) with header spoofing sets to bypass modern Web Application Firewalls (Cloudflare, AWS WAF, Akamai, ModSecurity).
+
+```python
+async def mutate_payload(
+    raw_payload: str,
+    vuln_type: str = "SQLI",
+    strategy: str = "ALL"
+) -> str
+```
+
+---
+
+### 18. `analyze_waf_response`
+Fingerprints active WAF vendor signatures from response status, headers, and body patterns. Returns detected vendors and targeted bypass tactics.
+
+```python
+async def analyze_waf_response(
+    status_code: int,
+    headers: Dict[str, Any],
+    body: str = ""
+) -> str
+```
+
+---
+
+### 19. `infer_hidden_endpoints`
+Analyzes observed REST architectural patterns on the target host and predicts hidden, unmapped attack surface routes (CRUD mutations, API documentation, debug actuators, admin consoles, and version probes).
+
+```python
+async def infer_hidden_endpoints(
+    host: str,
+    project: str = "default",
+    auto_register_to_graph: bool = True
+) -> str
+```
+
+---
+
+### 20. `get_attack_paths`
+Synthesizes an interconnected attack path graph linking `External Entry -> Exposed Asset -> Target Route -> Vulnerability -> Crown Jewels`, returning structured kill chains and Mermaid diagram representation.
+
+```python
+async def get_attack_paths(
+    project: str = "default"
+) -> str
+```
+
+---
+
+### 21. `generate_exploit_poc`
+Generates a standalone, zero-dependency Python exploit script, reproducible cURL command, HTML PoC, and complete CVSS 3.1/4.0 & CWE remediation dossier for a verified finding.
+
+```python
+async def generate_exploit_poc(
+    finding_id: int
+) -> str
+```
+
+---
+
+### 22. `send_websocket_message`
+Dispatches a test message frame to a target WebSocket server, captures the server's reply frame, and logs the full-duplex transaction into the database for analysis and replay.
+
+```python
+async def send_websocket_message(
+    url: str,
+    message: str,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: float = 5.0,
+    project: str = "default"
+) -> str
+```
+
+---
+
+### 23. `fuzz_endpoint`
+High-speed asynchronous parameter fuzzer and mini-intruder. Injects payloads using Burp-style position markers (`§...§`), automatically computes baseline differences, response length deltas, and flags offensive anomalies (SQL errors, reflected payloads, WAF blocks) using rotating legitimate browser User-Agents.
+
+```python
+async def fuzz_endpoint(
+    url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: str = "",
+    payload_type: str = "sqli", # 'sqli', 'xss', 'traversal', 'cmd_injection', 'ssti', 'auth_bypass'
+    custom_payloads: Optional[List[str]] = None,
+    concurrency: int = 5,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str
+```
+
+---
+
+### 24. `execute_workflow_sequence`
+Multi-Step Stateful Business Logic Workflow Engine. Chains dependent HTTP requests with dynamic variable extraction (`{{var}}`), response token interpolation, and automated step-skipping to detect state enforcement and authorization bypasses.
+
+```python
+async def execute_workflow_sequence(
+    sequence: Any, # List of step dicts or JSON string
+    initial_context: Optional[Dict[str, Any]] = None,
+    test_step_skipping: bool = False,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str
+```
+
+---
+
+### 25. `test_race_condition`
+Turbo Race Condition & Single-Packet Burst Engine. Uses an `asyncio.Barrier` synchronization barrier to align and simultaneously dispatch microsecond bursts against target endpoints, identifying concurrency limits, double-spending, and coupon reuse flaws.
+
+```python
+async def test_race_condition(
+    url: str,
+    method: str = "POST",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[str] = "",
+    concurrency: int = 20,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str
+```
+
+---
+
+### 26. `mine_javascript_assets`
+JavaScript Recon, Endpoint, and Secret Miner. Analyzes client-side scripts to extract hidden API routes, REST endpoints, query parameters, source map references (`.map`), and hardcoded credentials (AWS keys, JWTs, Slack webhooks, API tokens), automatically ingesting discoveries into the Target Knowledge Graph.
+
+```python
+async def mine_javascript_assets(
+    content_or_url: str,
+    base_url: Optional[str] = None,
+    auto_register: bool = True,
+    project: str = "default"
+) -> str
+```
+
+---
+
+### 27. `compare_http_responses`
+Semantic Structural Diffing & Noise Reduction Engine. Filters volatile tokens (timestamps, UUIDs, hex hashes, CSRF nonces), computes normalized similarity ratios, and detects heuristic Soft-403 (unauthorized) and Soft-404 (not found) responses, saving token budget for AI agents.
+
+```python
+async def compare_http_responses(
+    response_a: Any, # HttpLog ID or {"status_code": 200, "body": "..."}
+    response_b: Any, # HttpLog ID or {"status_code": 200, "body": "..."}
+    max_diff_lines: int = 50
+) -> str
+```
+
+---
+
+### 28. `audit_jwt_security`
+Autonomous JWT & Session Token Security Audit Suite. Performs zero-dependency algorithm-none signature stripping, offline dictionary cracking of HMAC secrets, claim tampering (privilege escalation to admin), Key ID (`kid`) path manipulation, and live replay verification against target endpoints.
+
+```python
+async def audit_jwt_security(
+    token: str,
+    test_url: Optional[str] = None,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    claims_override: Optional[Dict[str, Any]] = None,
+    project: str = "default"
+) -> str
+```
+
+---
+
 ## ⚙️ Configuration & Environment Variables
 
 SPECTRA is fully configurable via environment variables or a `.env` file:
@@ -812,6 +1008,8 @@ SPECTRA is fully configurable via environment variables or a `.env` file:
 | `SPECTRA_PROXY_PORT` | `8088` | Port for the Built-in Forward Interception Proxy |
 | `SPECTRA_PROXY_HOST` | `127.0.0.1` | Host interface bound by the Forward Proxy |
 | `SPECTRA_PROXY_MITM_ENABLED` | `true` | Enables dynamic TLS MITM decryption for HTTPS traffic |
+| `SPECTRA_DNS_PORT` | `5353` *(fallback: 53)* | Port for the built-in UDP DNS OAST callback listener |
+| `SPECTRA_LDAP_PORT` | `1389` *(fallback: 389)* | Port for the built-in TCP LDAP/JNDI OAST callback listener |
 | `SPECTRA_CA_DIR` | `./.spectra_ca` | Storage directory for self-signed root CA certificate & private key |
 | `REQUESTS_CA_BUNDLE` | `./.spectra_ca/spectra_ca.crt` | CA trust bundle automatically configured for Python `requests` |
 | `SSL_CERT_FILE` | `./.spectra_ca/spectra_ca.crt` | OpenSSL trust file automatically configured for `httpx` and `urllib` |

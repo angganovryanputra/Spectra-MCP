@@ -87,6 +87,19 @@ $SitePackages = Join-Path $VenvDir "Lib\site-packages\sitecustomize.py"
 Copy-Item (Join-Path $PSScriptRoot "sitecustomize.py") $SitePackages -Force
 Write-Host "[+] AI Agent transparent proxy hook installed in venv." -ForegroundColor Green
 
+# 8. Initialize CA Certificate and Trust Store
+Write-Host "[*] Initializing Spectra Root CA certificate..." -ForegroundColor Cyan
+& $VenvPython -c "from backend.ca_manager import get_ca_cert_path; print('[+] Spectra Root CA Certificate ready at:', get_ca_cert_path())"
+$CaCert = Join-Path $PSScriptRoot ".spectra_ca\spectra_ca.crt"
+if (Test-Path $CaCert) {
+    try {
+        certutil -addstore -f "Root" $CaCert | Out-Null
+        Write-Host "[+] Spectra Root CA successfully trusted in Windows System Store." -ForegroundColor Green
+    } catch {
+        Write-Host "[!] Note: Run PowerShell as Administrator to install CA certificate system-wide." -ForegroundColor Yellow
+    }
+}
+
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Green
 Write-Host "  [SUCCESS] Spectra Installation Complete!                              " -ForegroundColor Green

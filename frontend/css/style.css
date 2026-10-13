@@ -64,3 +64,21 @@
 .status-pill:hover {
   filter: brightness(1.15);
 }
+
+/* Sidebar Rail & Micro-Animation Enhancements */
+aside {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+aside nav button {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+aside nav button:hover {
+  transform: translateX(1px);
+}
+
+aside nav button:active {
+  transform: translateX(0);
+}

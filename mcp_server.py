@@ -53,6 +53,8 @@ from backend.oast_engine import (
     generate_oast_token as engine_generate_oast_token,
     poll_oast_events as engine_poll_oast_events
 )
+from backend.user_agents import apply_rotating_user_agent, get_random_user_agent
+from backend.fuzzer import run_fuzz_attack, BUILTIN_PAYLOADS, MARKER_REGEX
 
 # Initialize FastMCP Server
 mcp = FastMCP("spectra_mcp")
@@ -551,8 +553,7 @@ async def send_http_request(
     # 3. OUTBOUND HEADER PREPARATION & SESSION COOKIE INJECTION
     # --------------------------------------------------------------------------
     outbound_headers = dict(headers)
-    if "User-Agent" not in outbound_headers and "user-agent" not in outbound_headers:
-        outbound_headers["User-Agent"] = "SpectraMCP/1.3 (Autonomous Pentest Agent)"
+    apply_rotating_user_agent(outbound_headers)
     if "Accept" not in outbound_headers and "accept" not in outbound_headers:
         outbound_headers["Accept"] = "*/*"
     if host and "Host" not in outbound_headers and "host" not in outbound_headers:
@@ -765,7 +766,7 @@ async def browser_navigate_and_render(
             "path": urllib.parse.urlparse(url).path or "/",
             "status_code": 200,
             "duration_ms": 1500,
-            "request_headers": {"User-Agent": "SpectraMCP Playwright Headless"},
+            "request_headers": {"User-Agent": get_random_user_agent()},
             "request_body": json.dumps({"click_selector": click_selector, "fill_inputs": fill_inputs}),
             "response_headers": {"Content-Type": "text/html"},
             "response_body": result.get("dom_text", "")[:50000],
@@ -1611,5 +1612,577 @@ async def poll_oast_events(
     }, indent=2)
 
 
+# ==============================================================================
+# MCP Tool 15: set_identity_session (Multi-Identity Vault for BOLA/IDOR Testing)
+# ==============================================================================
+
+@mcp.tool()
+async def set_identity_session(
+    domain: str,
+    identity_role: str = "attacker",
+    raw_cookies: str = "",
+    project: str = "default"
+) -> str:
+    """
+    Registers an authenticated session tagged with a specific identity role (e.g. 'attacker', 'victim', 'admin', 'guest').
+    Enables Spectra's Autonomous BOLA/IDOR Shadow Matrix to test authorization boundaries across identities.
+    
+    Parameters:
+      - domain: Target hostname (e.g. 'target.local' or 'api.target.com').
+      - identity_role: The role tag (default: 'attacker', or 'victim', 'admin', 'guest').
+      - raw_cookies: Cookie string (e.g. 'session=xyz; token=abc').
+      - project: Workspace name (defaults to active project).
+    """
+    from backend.bola_matrix import set_identity_session as engine_set_identity
+    res = engine_set_identity(
+        project=project,
+        domain=domain,
+        identity_role=identity_role,
+        raw_cookie_str=raw_cookies
+    )
+    return json.dumps({
+        "status": "success",
+        "message": f"Session identity [{identity_role}] registered for {domain}.",
+        "identity": res
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 16: test_bola_idor (Autonomous BOLA / IDOR Verification)
+# ==============================================================================
+
+@mcp.tool()
+async def test_bola_idor(
+    log_id: int,
+    project: str = "default"
+) -> str:
+    """
+    Executes an on-demand BOLA/IDOR shadow test on a specific logged endpoint (by Log ID).
+    Spectra replays the request using registered secondary identities (attacker, unauthenticated)
+    and checks if unauthorized access succeeds.
+    """
+    from backend.database import SessionLocal, HttpLog
+    from backend.bola_matrix import execute_bola_shadow_replay
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    db = SessionLocal()
+    try:
+        log = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+        if not log:
+            return f"[!] Log #{log_id} not found."
+        req_hdrs = json.loads(log.request_headers) if log.request_headers else {}
+        finding = await execute_bola_shadow_replay(
+            log_id=log.id,
+            project=target_project,
+            url=log.url,
+            method=log.method,
+            req_headers=req_hdrs,
+            req_body=log.request_body,
+            orig_status=log.status_code,
+            orig_body=log.response_body
+        )
+        if finding:
+            return json.dumps({
+                "status": "VULNERABILITY_CONFIRMED",
+                "message": "BOLA/IDOR vulnerability detected! Unauthorized identity successfully accessed object data.",
+                "finding": finding
+            }, indent=2)
+        else:
+            return json.dumps({
+                "status": "CLEAN_OR_NO_DISCLOSURE",
+                "message": f"Shadow replays against Log #{log_id} returned authorization errors or identical denial as expected."
+            }, indent=2)
+    finally:
+        db.close()
+
+
+# ==============================================================================
+# MCP Tool 17: mutate_payload (Adaptive WAF Evasion Engine)
+# ==============================================================================
+
+@mcp.tool()
+async def mutate_payload(
+    raw_payload: str,
+    vuln_type: str = "SQLI",
+    strategy: str = "ALL"
+) -> str:
+    """
+    Generates evasive, obfuscated variations of an exploit payload (SQLi, XSS, Path Traversal)
+    to bypass commercial Web Application Firewalls (Cloudflare, AWS WAF, Akamai, ModSecurity).
+    Returns mutated payloads and recommended header spoofing sets.
+    """
+    from backend.waf_mutator import mutate_payload as engine_mutate
+    res = engine_mutate(raw_payload=raw_payload, vuln_type=vuln_type, strategy=strategy)
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 18: analyze_waf_response (WAF Fingerprinting & Bypass Recommendations)
+# ==============================================================================
+
+@mcp.tool()
+async def analyze_waf_response(
+    status_code: int,
+    headers: Dict[str, Any],
+    body: str = ""
+) -> str:
+    """
+    Fingerprints active WAF vendor signatures from response status, headers, and body patterns.
+    Returns detected vendors (Cloudflare, AWS WAF, Akamai, ModSecurity, Imperva) and targeted bypass tactics.
+    """
+    from backend.waf_mutator import analyze_waf_response as engine_analyze_waf
+    res = engine_analyze_waf(status_code=status_code, headers=headers, body=body)
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 19: infer_hidden_endpoints (Semantic API Spec Reconstructor)
+# ==============================================================================
+
+@mcp.tool()
+async def infer_hidden_endpoints(
+    host: str,
+    project: str = "default",
+    auto_register_to_graph: bool = True
+) -> str:
+    """
+    Analyzes observed REST architectural patterns on the target host and predicts hidden, unmapped attack surface routes
+    (CRUD mutations, API documentation, debug actuators, admin consoles, and version probes).
+    Optionally auto-registers predictions into the Target Knowledge Graph as 'UNTESTED' endpoints.
+    """
+    from backend.api_spec_inferrer import infer_endpoints_from_observed
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    res = infer_endpoints_from_observed(
+        host=host,
+        project=target_project,
+        auto_register_to_graph=auto_register_to_graph
+    )
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 20: get_attack_paths (Exploit Path Chaining & Kill Chain Visualizer)
+# ==============================================================================
+
+@mcp.tool()
+async def get_attack_paths(
+    project: str = "default"
+) -> str:
+    """
+    Constructs an interconnected attack path graph linking:
+    [External Entry] -> [Exposed Asset/Service] -> [Target Route] -> [Vulnerability Finding] -> [Crown Jewels / Impact].
+    Returns structured kill chains and Mermaid diagram representation.
+    """
+    from backend.attack_path import build_attack_path_graph
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    res = build_attack_path_graph(project=target_project)
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 21: generate_exploit_poc (One-Click Standalone PoC & Dossier Generator)
+# ==============================================================================
+
+@mcp.tool()
+async def generate_exploit_poc(
+    finding_id: int
+) -> str:
+    """
+    Generates a standalone, zero-dependency Python exploit script, cURL command, HTML PoC,
+    and complete CVSS/CWE remediation dossier for a verified vulnerability finding.
+    """
+    from backend.poc_generator import generate_finding_dossier
+    dossier = generate_finding_dossier(finding_id=finding_id)
+    if not dossier:
+        return f"[!] Finding #{finding_id} was not found."
+    return json.dumps(dossier, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 22: send_websocket_message (WebSocket Full-Duplex Frame Tester)
+# ==============================================================================
+
+@mcp.tool()
+async def send_websocket_message(
+    url: str,
+    message: str,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: float = 5.0,
+    project: str = "default"
+) -> str:
+    """
+    Dispatches a test message frame to a target WebSocket server, captures the server's reply frame,
+    and logs the transaction into the database for analysis and replay.
+    """
+    from backend.ws_manager import send_ws_message
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    res = await send_ws_message(
+        url=url,
+        message=message,
+        headers=headers,
+        timeout=timeout,
+        project=target_project
+    )
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 23: fuzz_endpoint (High-Speed Parameter Fuzzer / Mini-Intruder)
+# ==============================================================================
+
+@mcp.tool()
+async def fuzz_endpoint(
+    url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: str = "",
+    payload_type: str = "sqli",
+    custom_payloads: Optional[list] = None,
+    concurrency: int = 5,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str:
+    """
+    Executes high-speed parameter fuzzing against a target endpoint using position markers (§...§).
+    Automates baseline request calculation, differential analysis, status code changes, response length deltas,
+    and offensive anomaly detection (SQL errors, reflected payloads, WAF blocks) using rotating legitimate browser headers.
+
+    Parameters:
+      - url: Target URL with optional §marker§ (e.g. 'http://target/api/users?id=§1§')
+      - method: HTTP method ('GET', 'POST', etc.)
+      - headers: Optional custom HTTP headers
+      - body: Request body with optional §marker§ (e.g. '{"user":"§admin§","pass":"test"}')
+      - payload_type: Built-in payload preset ('sqli', 'xss', 'traversal', 'cmd_injection', 'ssti', 'auth_bypass')
+      - custom_payloads: Optional list of custom string payloads to inject
+      - concurrency: Concurrent worker threads (default: 5)
+      - project: Project workspace name
+      - agent_id: Identifier of calling AI agent
+    """
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    # Scope check on baseline URL
+    db = SessionLocal()
+    proj_proxy = ""
+    try:
+        clean_url = MARKER_REGEX.sub(r"\1", url)
+        is_allowed, block_reason = await async_check_scope(target_project, clean_url, db)
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            proj_proxy = proj_obj.upstream_proxy or ""
+    finally:
+        db.close()
+
+    if not is_allowed:
+        return f"[!] BLOCKED BY SPECTRA SCOPE GUARD: Target '{url}' is outside authorized scope ({block_reason})."
+
+    # Select payloads
+    active_payloads = custom_payloads or BUILTIN_PAYLOADS.get(payload_type.lower().strip(), BUILTIN_PAYLOADS["sqli"])
+
+    upstream_proxy = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+    result = await run_fuzz_attack(
+        base_url=url,
+        method=method,
+        headers=headers or {},
+        body=body or "",
+        payloads=active_payloads,
+        concurrency=concurrency,
+        upstream_proxy=upstream_proxy or None
+    )
+    return json.dumps(result, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 24: execute_workflow_sequence (Multi-Step Stateful Workflow Engine)
+# ==============================================================================
+
+@mcp.tool()
+async def execute_workflow_sequence(
+    sequence: Any,
+    initial_context: Optional[Dict[str, Any]] = None,
+    test_step_skipping: bool = False,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str:
+    """
+    Executes a multi-stage stateful HTTP sequence with dynamic parameter extraction,
+    variable chaining ({{var}}), session identity swapping, and automated logic flaw bypass testing.
+
+    Parameters:
+      - sequence: List of step dictionaries (or JSON string) defining the workflow stages.
+        Each step: {
+          "name": "Step Name",
+          "url": "http://...",
+          "method": "POST",
+          "headers": {...},
+          "body": "...",
+          "extract": {"order_id": "json.data.id", "csrf": "header.x-csrf-token"}
+        }
+      - initial_context: Optional dictionary of pre-seeded variables.
+      - test_step_skipping: If True, tests skipping intermediate steps (e.g. Step 1 -> Step 3)
+        to identify business logic execution order enforcement flaws.
+      - project: Project workspace name.
+      - agent_id: Identifier of the calling AI agent.
+    """
+    from backend.workflow_engine import execute_workflow
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    if isinstance(sequence, str):
+        try:
+            sequence = json.loads(sequence)
+        except Exception as e:
+            return f"[!] Error parsing sequence JSON: {str(e)}"
+
+    if not isinstance(sequence, list):
+        return "[!] Error: sequence must be a list of step specifications."
+
+    db = SessionLocal()
+    proj_proxy = ""
+    try:
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            proj_proxy = proj_obj.upstream_proxy or ""
+    finally:
+        db.close()
+
+    upstream_proxy = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+
+    result = await execute_workflow(
+        sequence=sequence,
+        initial_context=initial_context or {},
+        project=target_project,
+        agent_id=agent_id,
+        test_step_skipping=test_step_skipping,
+        upstream_proxy=upstream_proxy or None
+    )
+    return json.dumps(result, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 25: test_race_condition (Turbo Race Condition & Burst Testing Engine)
+# ==============================================================================
+
+@mcp.tool()
+async def test_race_condition(
+    url: str,
+    method: str = "POST",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[str] = "",
+    concurrency: int = 20,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str:
+    """
+    Executes microsecond-synchronized concurrent bursts against web endpoints
+    using an asyncio.Barrier connection-prewarming pipeline to identify race conditions,
+    double-spending, coupon reuse, and state-breakage flaws.
+
+    Parameters:
+      - url: Target endpoint URL.
+      - method: HTTP method (default: 'POST').
+      - headers: Optional request headers.
+      - body: Optional request payload.
+      - concurrency: Number of synchronized requests in burst (default: 20, max: 50).
+      - project: Project workspace name.
+      - agent_id: Identifier of the calling AI agent.
+    """
+    from backend.race_engine import run_race_attack
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    db = SessionLocal()
+    proj_proxy = ""
+    try:
+        is_allowed, block_reason = await async_check_scope(target_project, url, db)
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            proj_proxy = proj_obj.upstream_proxy or ""
+    finally:
+        db.close()
+
+    if not is_allowed:
+        return f"[!] BLOCKED BY SPECTRA SCOPE GUARD: Target '{url}' is outside authorized scope ({block_reason})."
+
+    upstream_proxy = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+
+    result = await run_race_attack(
+        url=url,
+        method=method,
+        headers=headers or {},
+        body=body or "",
+        concurrency=concurrency,
+        upstream_proxy=upstream_proxy or None
+    )
+    return json.dumps(result, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 26: mine_javascript_assets (Passive & Active JS Recon & Secret Miner)
+# ==============================================================================
+
+@mcp.tool()
+async def mine_javascript_assets(
+    content_or_url: str,
+    base_url: Optional[str] = None,
+    auto_register: bool = True,
+    project: str = "default"
+) -> str:
+    """
+    Extracts hidden API routes, endpoints, query/body parameter names, source maps (.map),
+    and leaked credentials (AWS keys, JWTs, Slack webhooks, hardcoded API keys) from
+    client-side JavaScript scripts or URLs. Discovered endpoints are automatically ingested
+    into the Target Knowledge Graph.
+
+    Parameters:
+      - content_or_url: Raw JavaScript source code OR full URL to remote script (e.g. 'https://target/app.js').
+      - base_url: Optional base URL for resolving relative API endpoints when supplying raw code.
+      - auto_register: Automatically register endpoints into the Attack Surface Graph and record leaked secrets (default: True).
+      - project: Project workspace name.
+    """
+    from backend.js_miner import mine_javascript
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    db = SessionLocal()
+    proj_proxy = ""
+    try:
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            proj_proxy = proj_obj.upstream_proxy or ""
+    finally:
+        db.close()
+
+    upstream_proxy = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+
+    result = await mine_javascript(
+        content_or_url=content_or_url,
+        base_url=base_url,
+        auto_register=auto_register,
+        project=target_project,
+        upstream_proxy=upstream_proxy or None
+    )
+    return json.dumps(result, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 27: compare_http_responses (Semantic Structural Diffing Engine)
+# ==============================================================================
+
+@mcp.tool()
+async def compare_http_responses(
+    response_a: Any,
+    response_b: Any,
+    max_diff_lines: int = 50
+) -> str:
+    """
+    Performs semantic structural diffing between two HTTP responses with volatile token stripping
+    (timestamps, UUIDs, hex hashes, CSRF nonces) and heuristic Soft-403 / Soft-404 error detection.
+    Eliminates AI agent token waste by summarizing exact behavioral deviations.
+
+    Parameters:
+      - response_a: Either an HttpLog ID (integer/string) OR a dictionary {"status_code": 200, "body": "...", "headers": {...}}.
+      - response_b: Either an HttpLog ID (integer/string) OR a dictionary {"status_code": 200, "body": "...", "headers": {...}}.
+      - max_diff_lines: Maximum number of structural diff lines to return (default: 50).
+    """
+    from backend.diff_engine import compute_semantic_diff
+
+    def _resolve_response(resp_input: Any) -> Dict[str, Any]:
+        if isinstance(resp_input, (int, str)) and str(resp_input).isdigit():
+            log_id = int(resp_input)
+            db = SessionLocal()
+            try:
+                log_entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+                if log_entry:
+                    hdrs = {}
+                    try:
+                        hdrs = json.loads(log_entry.response_headers) if log_entry.response_headers else {}
+                    except Exception:
+                        pass
+                    return {
+                        "status_code": log_entry.status_code or 0,
+                        "body": log_entry.response_body or "",
+                        "headers": hdrs
+                    }
+            finally:
+                db.close()
+            return {"status_code": 0, "body": f"[Log #{log_id} not found]", "headers": {}}
+        elif isinstance(resp_input, str):
+            try:
+                parsed = json.loads(resp_input)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                pass
+            return {"status_code": 200, "body": resp_input, "headers": {}}
+        elif isinstance(resp_input, dict):
+            return resp_input
+        return {"status_code": 0, "body": str(resp_input), "headers": {}}
+
+    res_a = _resolve_response(response_a)
+    res_b = _resolve_response(response_b)
+
+    diff_result = compute_semantic_diff(res_a, res_b, max_diff_lines=max_diff_lines)
+    return json.dumps(diff_result, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 28: audit_jwt_security (Autonomous JWT & Session Token Security Audit)
+# ==============================================================================
+
+@mcp.tool()
+async def audit_jwt_security(
+    token: str,
+    test_url: Optional[str] = None,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    claims_override: Optional[Dict[str, Any]] = None,
+    project: str = "default"
+) -> str:
+    """
+    Audits JSON Web Tokens (JWT) for critical session vulnerabilities:
+    - Algorithm None bypasses ('none', 'None', 'NONE')
+    - Weak secret dictionary brute-force cracking (HS256/HS384/HS512)
+    - Privilege escalation / claim tampering (role: admin, is_admin: True)
+    - Key ID (kid) parameter manipulation
+    - Automated live replay against target endpoint with Soft-403 heuristic detection.
+
+    Parameters:
+      - token: Raw JWT string (with or without 'Bearer ' prefix).
+      - test_url: Optional protected endpoint URL to verify exploitability in live replay mode.
+      - method: HTTP method for test_url (default: 'GET').
+      - headers: Optional baseline request headers.
+      - claims_override: Optional key-value dictionary to inject into token payload.
+      - project: Project workspace name.
+    """
+    from backend.jwt_tester import audit_jwt_security as run_jwt_audit
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    db = SessionLocal()
+    proj_proxy = ""
+    try:
+        if test_url:
+            is_allowed, block_reason = await async_check_scope(target_project, test_url, db)
+            if not is_allowed:
+                return f"[!] BLOCKED BY SPECTRA SCOPE GUARD: Target '{test_url}' is outside authorized scope ({block_reason})."
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        if proj_obj:
+            proj_proxy = proj_obj.upstream_proxy or ""
+    finally:
+        db.close()
+
+    upstream_proxy = proj_proxy.strip() if proj_proxy else (os.getenv("SPECTRA_UPSTREAM_PROXY") or "").strip()
+
+    result = await run_jwt_audit(
+        token=token,
+        test_url=test_url,
+        method=method,
+        headers=headers,
+        claims_override=claims_override,
+        upstream_proxy=upstream_proxy or None
+    )
+    return json.dumps(result, indent=2)
+
+
 if __name__ == "__main__":
     mcp.run()
+

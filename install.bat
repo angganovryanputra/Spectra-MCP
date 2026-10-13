@@ -76,6 +76,19 @@ echo [*] Installing AI Agent Proxy Enforcer into venv...
 copy /Y sitecustomize.py venv\Lib\site-packages\sitecustomize.py >nul
 echo [+] AI Agent transparent proxy hook installed in venv.
 
+:: 8. Initialize CA Certificate and Trust Store
+echo [*] Initializing Spectra Root CA certificate...
+venv\Scripts\python.exe -c "from backend.ca_manager import get_ca_cert_path; print('[+] Spectra Root CA ready at:', get_ca_cert_path())"
+if exist ".spectra_ca\spectra_ca.crt" (
+    echo [*] Registering Spectra Root CA in Windows Certificate Store...
+    certutil -addstore -f "Root" .spectra_ca\spectra_ca.crt >nul 2>nul
+    if errorlevel 0 (
+        echo [+] Spectra Root CA successfully trusted in Windows System Store.
+    ) else (
+        echo [!] Note: To trust CA system-wide, import .spectra_ca\spectra_ca.crt into Trusted Root Certification Authorities.
+    )
+)
+
 echo.
 echo ========================================================================
 echo   [SUCCESS] Spectra Installation Complete!

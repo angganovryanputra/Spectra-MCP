@@ -10,12 +10,25 @@ window.OastModule = {
       oastVulnTypeInput: 'BLIND_SSRF',
       oastDescriptionInput: 'AI Agent Blind Vulnerability Probe',
       isGeneratingOast: false,
-      oastSearchQuery: ''
+      oastSearchQuery: '',
+      oastProtocols: { http: { active: true }, dns: { active: false }, ldap: { active: false } }
     };
   },
 
   methods: {
+    async fetchProtocolsStatus() {
+      try {
+        const resp = await fetch('/api/oast/protocols/status');
+        if (resp.ok) {
+          this.oastProtocols = await resp.json();
+        }
+      } catch (err) {
+        console.error('Failed to fetch protocol status:', err);
+      }
+    },
+
     async fetchOastEvents() {
+      await this.fetchProtocolsStatus();
       const proj = this.selectedProject || 'default';
       try {
         const resp = await fetch(`/api/oast/events?project=${encodeURIComponent(proj)}&limit=100`);

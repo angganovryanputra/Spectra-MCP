@@ -51,7 +51,33 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
     except Exception:
         pass
 
-    # 3. Patch `requests` library to guarantee proxy routing and MITM TLS inspection
+    # Rotating legitimate desktop browser User-Agents pool
+    _LEGITIMATE_UAS = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    ]
+    import random
+    def _get_legit_ua():
+        return random.choice(_LEGITIMATE_UAS)
+
+    def _inject_browser_headers(headers_dict):
+        """Injects legitimate modern browser User-Agent and matching Client Hints."""
+        try:
+            from backend.user_agents import get_random_browser_profile
+            prof = get_random_browser_profile()
+            headers_dict["User-Agent"] = prof["user_agent"]
+            if prof.get("sec_ch_ua"):
+                headers_dict["Sec-Ch-Ua"] = prof["sec_ch_ua"]
+                headers_dict["Sec-Ch-Ua-Mobile"] = prof["sec_ch_ua_mobile"]
+                headers_dict["Sec-Ch-Ua-Platform"] = prof["sec_ch_ua_platform"]
+        except Exception:
+            headers_dict["User-Agent"] = _get_legit_ua()
+
+    # 3. Patch `requests` library to guarantee proxy routing and legitimate browser User-Agent
     try:
         import requests
         _orig_session_init = requests.Session.__init__
@@ -64,6 +90,10 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
                 }
             if getattr(self, "verify", None) is True:
                 self.verify = False
+            # Inject rotating legitimate browser User-Agent and Client Hints if missing or default python-requests
+            curr_ua = self.headers.get("User-Agent", "") if getattr(self, "headers", None) else ""
+            if not curr_ua or "python" in curr_ua.lower():
+                _inject_browser_headers(self.headers)
         requests.Session.__init__ = _spectra_session_init
     except Exception:
         pass
@@ -77,6 +107,15 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
                 kwargs["proxy"] = proxy_url
             if "verify" not in kwargs:
                 kwargs["verify"] = False
+            hdrs = kwargs.get("headers")
+            if hdrs is None:
+                new_hdrs = {}
+                _inject_browser_headers(new_hdrs)
+                kwargs["headers"] = new_hdrs
+            elif isinstance(hdrs, dict):
+                curr_ua = hdrs.get("User-Agent") or hdrs.get("user-agent", "")
+                if not curr_ua or "python" in curr_ua.lower() or "httpx" in curr_ua.lower():
+                    _inject_browser_headers(hdrs)
             _orig_httpx_init(self, *args, **kwargs)
         httpx.Client.__init__ = _spectra_httpx_init
 
@@ -87,6 +126,15 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
                     kwargs["proxy"] = proxy_url
                 if "verify" not in kwargs:
                     kwargs["verify"] = False
+                hdrs = kwargs.get("headers")
+                if hdrs is None:
+                    new_hdrs = {}
+                    _inject_browser_headers(new_hdrs)
+                    kwargs["headers"] = new_hdrs
+                elif isinstance(hdrs, dict):
+                    curr_ua = hdrs.get("User-Agent") or hdrs.get("user-agent", "")
+                    if not curr_ua or "python" in curr_ua.lower() or "httpx" in curr_ua.lower():
+                        _inject_browser_headers(hdrs)
                 _orig_async_init(self, *args, **kwargs)
             httpx.AsyncClient.__init__ = _spectra_async_init
     except Exception:
@@ -100,6 +148,18 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
             "https": proxy_url
         })
         _opener = urllib.request.build_opener(_proxy_handler)
+        _headers_to_add = [("User-Agent", _get_legit_ua())]
+        try:
+            from backend.user_agents import get_random_browser_profile
+            prof = get_random_browser_profile()
+            _headers_to_add = [("User-Agent", prof["user_agent"])]
+            if prof.get("sec_ch_ua"):
+                _headers_to_add.append(("Sec-Ch-Ua", prof["sec_ch_ua"]))
+                _headers_to_add.append(("Sec-Ch-Ua-Mobile", prof["sec_ch_ua_mobile"]))
+                _headers_to_add.append(("Sec-Ch-Ua-Platform", prof["sec_ch_ua_platform"]))
+        except Exception:
+            pass
+        _opener.addheaders = _headers_to_add
         urllib.request.install_opener(_opener)
     except Exception:
         pass

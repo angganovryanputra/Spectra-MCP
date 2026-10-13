@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
+import ipaddress
 import urllib.parse
 from sqlalchemy.orm import Session, defer
 from sqlalchemy import desc, func, or_
@@ -64,12 +65,34 @@ async def startup_event():
     except Exception as ex:
         print(f"[!] Notice: Spectra Forward Proxy startup error: {ex}")
 
+    try:
+        from backend.dns_server import start_dns_server
+        await start_dns_server()
+    except Exception as ex:
+        print(f"[!] Notice: Spectra DNS OAST listener startup error: {ex}")
+
+    try:
+        from backend.ldap_server import start_ldap_server
+        await start_ldap_server()
+    except Exception as ex:
+        print(f"[!] Notice: Spectra LDAP OAST listener startup error: {ex}")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     stop_session_keeper()
     try:
         from backend.forward_proxy import stop_forward_proxy
         await stop_forward_proxy()
+    except Exception:
+        pass
+    try:
+        from backend.dns_server import stop_dns_server
+        stop_dns_server()
+    except Exception:
+        pass
+    try:
+        from backend.ldap_server import stop_ldap_server
+        stop_ldap_server()
     except Exception:
         pass
 
@@ -100,10 +123,15 @@ async def host_and_auth_security_middleware(request: Request, call_next):
     client_host = request.client.host if request.client else "unknown"
     # 1. Localhost enforcement: if remote access is not explicitly enabled, block remote IPs
     if not SPECTRA_ALLOW_REMOTE:
-        is_local_client = (
-            client_host in ["127.0.0.1", "localhost", "::1", "testclient"] or
-            client_host.startswith("172.")  # Permit WSL2 virtual hyper-v bridge NAT
-        )
+        is_local_client = client_host in ["127.0.0.1", "localhost", "::1", "testclient"]
+        if not is_local_client:
+            try:
+                ip_addr = ipaddress.ip_address(client_host)
+                # Permit WSL2 / Hyper-V virtual switch (172.16.0.0/12) and loopback
+                if ip_addr in ipaddress.ip_network("172.16.0.0/12") or ip_addr.is_loopback:
+                    is_local_client = True
+            except ValueError:
+                pass
         if not is_local_client:
             return JSONResponse(
                 {"detail": f"Remote access forbidden for {client_host}: Spectra dashboard is restricted to localhost (127.0.0.1) or WSL2. Set SPECTRA_ALLOW_REMOTE=true in environment to permit external remote IPs."},
@@ -404,6 +432,36 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
     except Exception:
         pass
 
+    # Passive JavaScript Recon & Secret Mining
+    try:
+        from backend.js_miner import passive_mine_js_background
+        passive_mine_js_background(log_entry.url, log_entry.response_body, project_name)
+    except Exception:
+        pass
+
+    # Autonomous Multi-Identity BOLA/IDOR Shadow Replay
+    try:
+        from backend.bola_matrix import is_candidate_for_bola, execute_bola_shadow_replay
+        if is_candidate_for_bola(log_entry.url, log_entry.method, log_entry.request_body):
+            req_hdrs = {}
+            try:
+                req_hdrs = json.loads(log_entry.request_headers) if log_entry.request_headers else {}
+            except Exception:
+                pass
+            asyncio.create_task(execute_bola_shadow_replay(
+                log_id=log_entry.id,
+                project=project_name,
+                url=log_entry.url,
+                method=log_entry.method,
+                req_headers=req_hdrs,
+                req_body=log_entry.request_body,
+                orig_status=log_entry.status_code,
+                orig_body=log_entry.response_body,
+                ws_broadcast_callback=ws_manager.broadcast
+            ))
+    except Exception:
+        pass
+
     # Invalidate stats cache on new log
     _invalidate_stats_cache()
 
@@ -424,6 +482,30 @@ async def record_and_broadcast_log(log_data: dict, db: Session) -> HttpLog:
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    client_host = websocket.client.host if websocket.client else "unknown"
+    if not SPECTRA_ALLOW_REMOTE:
+        is_local_client = client_host in ["127.0.0.1", "localhost", "::1", "testclient"]
+        if not is_local_client:
+            try:
+                ip_addr = ipaddress.ip_address(client_host)
+                if ip_addr in ipaddress.ip_network("172.16.0.0/12") or ip_addr.is_loopback:
+                    is_local_client = True
+            except ValueError:
+                pass
+        if not is_local_client:
+            await websocket.close(code=1008)  # Policy violation
+            return
+
+    if SPECTRA_API_KEY:
+        api_key = (
+            websocket.query_params.get("api_key") or
+            websocket.headers.get("x-spectra-key") or
+            ""
+        )
+        if api_key != SPECTRA_API_KEY:
+            await websocket.close(code=1008)
+            return
+
     await ws_manager.connect(websocket)
     try:
         await websocket.send_json({"type": "CONNECTED", "server": "SPECTRA_MCP_V1"})
@@ -501,8 +583,24 @@ async def delete_project(name: str, db: Session = Depends(get_db)):
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    db.query(HttpLog).filter(HttpLog.project == clean_name).delete()
-    db.query(ActiveSession).filter(ActiveSession.project == clean_name).delete()
+    # Cascade delete all child findings and dependent telemetry logs
+    log_ids = [l.id for l in db.query(HttpLog.id).filter(HttpLog.project == clean_name).all()]
+    if log_ids:
+        db.query(Finding).filter(Finding.log_id.in_(log_ids)).delete(synchronize_session=False)
+        db.query(HttpLog).filter(HttpLog.project == clean_name).delete(synchronize_session=False)
+
+    db.query(ActiveSession).filter(ActiveSession.project == clean_name).delete(synchronize_session=False)
+    db.query(CapturedPayload).filter(CapturedPayload.project == clean_name).delete(synchronize_session=False)
+    db.query(AgentCommandLog).filter(AgentCommandLog.project == clean_name).delete(synchronize_session=False)
+    db.query(OastEvent).filter(OastEvent.project == clean_name).delete(synchronize_session=False)
+
+    # Clean up target graph assets
+    asset_ids = [a.id for a in db.query(TargetAsset.id).filter(TargetAsset.project == clean_name).all()]
+    if asset_ids:
+        db.query(TargetService).filter(TargetService.asset_id.in_(asset_ids)).delete(synchronize_session=False)
+        db.query(TargetEndpoint).filter(TargetEndpoint.asset_id.in_(asset_ids)).delete(synchronize_session=False)
+        db.query(TargetAsset).filter(TargetAsset.project == clean_name).delete(synchronize_session=False)
+
     db.delete(proj)
     db.commit()
 
@@ -570,6 +668,16 @@ async def toggle_intercept(req: InterceptToggleRequest):
     new_state = set_intercept_mode(req.enabled)
     await ws_manager.broadcast({"type": "INTERCEPT_TOGGLED", "enabled": new_state})
     return {"enabled": new_state}
+
+
+@app.post("/api/intercept/broadcast-trap")
+async def broadcast_intercept_trap_endpoint(data: Dict[str, Any]):
+    """Broadcasts a newly trapped proxy request to active frontend WebSocket listeners."""
+    await ws_manager.broadcast({
+        "type": "INTERCEPT_TRAPPED",
+        "intercept_id": data.get("id")
+    })
+    return {"status": "broadcasted"}
 
 
 @app.post("/api/intercept/{intercept_id}/action")
@@ -1645,6 +1753,313 @@ def update_oast_config_endpoint(req: OastConfigRequest):
     from backend.oast_engine import set_base_callback_url, get_base_callback_url
     set_base_callback_url(req.callback_url)
     return {"status": "updated", "callback_url": get_base_callback_url()}
+
+
+# ==============================================================================
+# Advanced Offensive Capabilities Endpoints (BOLA, OAST, WAF, Attack Path, PoC, WS)
+# ==============================================================================
+
+class SetIdentityRequest(BaseModel):
+    project: str = "default"
+    domain: str
+    identity_role: str = "attacker"
+    cookies: Optional[List[Dict[str, Any]]] = None
+    raw_cookie_str: Optional[str] = None
+
+
+@app.get("/api/identities")
+def get_identities_endpoint(project: str = "default", domain: Optional[str] = None):
+    """Retrieves all registered multi-identity sessions for a project."""
+    from backend.bola_matrix import get_identities_for_project
+    return {"identities": get_identities_for_project(project=project, domain=domain)}
+
+
+@app.post("/api/identities")
+def set_identity_endpoint(req: SetIdentityRequest):
+    """Stores a secondary or role-based identity session (e.g. Attacker, Victim, Admin)."""
+    from backend.bola_matrix import set_identity_session
+    return set_identity_session(
+        project=req.project,
+        domain=req.domain,
+        identity_role=req.identity_role,
+        cookies=req.cookies,
+        raw_cookie_str=req.raw_cookie_str
+    )
+
+
+@app.post("/api/bola/test/{log_id}")
+async def trigger_bola_test_endpoint(log_id: int):
+    """Manually executes BOLA shadow replay on a specific logged endpoint."""
+    from backend.database import SessionLocal, HttpLog
+    from backend.bola_matrix import execute_bola_shadow_replay
+    db = SessionLocal()
+    try:
+        log = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+        if not log:
+            raise HTTPException(status_code=404, detail="Log entry not found")
+        req_hdrs = json.loads(log.request_headers) if log.request_headers else {}
+        finding = await execute_bola_shadow_replay(
+            log_id=log.id,
+            project=log.project,
+            url=log.url,
+            method=log.method,
+            req_headers=req_hdrs,
+            req_body=log.request_body,
+            orig_status=log.status_code,
+            orig_body=log.response_body,
+            ws_broadcast_callback=ws_manager.broadcast
+        )
+        return {"status": "tested", "finding": finding}
+    finally:
+        db.close()
+
+
+class WafAnalyzeRequest(BaseModel):
+    status_code: int
+    headers: Dict[str, Any] = {}
+    body: str = ""
+
+
+@app.post("/api/waf/analyze")
+def analyze_waf_endpoint(req: WafAnalyzeRequest):
+    """Fingerprints active WAF vendor signatures and returns evasion recommendations."""
+    from backend.waf_mutator import analyze_waf_response
+    return analyze_waf_response(status_code=req.status_code, headers=req.headers, body=req.body)
+
+
+class WafMutateRequest(BaseModel):
+    raw_payload: str
+    vuln_type: str = "SQLI"
+    strategy: str = "ALL"
+
+
+@app.post("/api/waf/mutate")
+def mutate_payload_endpoint(req: WafMutateRequest):
+    """Generates evasive, obfuscated variations of an exploit payload."""
+    from backend.waf_mutator import mutate_payload
+    return mutate_payload(raw_payload=req.raw_payload, vuln_type=req.vuln_type, strategy=req.strategy)
+
+
+@app.get("/api/attack-path")
+def get_attack_path_endpoint(project: str = "default"):
+    """Returns synthesized exploit kill chains and Mermaid diagram."""
+    from backend.attack_path import build_attack_path_graph
+    return build_attack_path_graph(project=project)
+
+
+class InferEndpointsRequest(BaseModel):
+    host: str
+    project: str = "default"
+    auto_register: bool = True
+
+
+@app.post("/api/attack-surface/infer")
+def infer_endpoints_endpoint(req: InferEndpointsRequest):
+    """Predicts hidden, untested endpoints from observed REST architectural patterns."""
+    from backend.api_spec_inferrer import infer_endpoints_from_observed
+    return infer_endpoints_from_observed(
+        host=req.host,
+        project=req.project,
+        auto_register_to_graph=req.auto_register
+    )
+
+
+@app.get("/api/findings/{finding_id}/dossier")
+def get_finding_dossier_endpoint(finding_id: int):
+    """Generates standalone Python exploit script, curl command, and CVSS/CWE remediation dossier."""
+    from backend.poc_generator import generate_finding_dossier
+    dossier = generate_finding_dossier(finding_id=finding_id)
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return dossier
+
+
+@app.get("/api/ws-frames")
+def get_ws_frames_endpoint(project: str = "default", url: Optional[str] = None, limit: int = 50):
+    """Retrieves logged WebSocket frames."""
+    from backend.ws_manager import list_ws_frames
+    return {"frames": list_ws_frames(project=project, url=url, limit=limit)}
+
+
+class SendWsRequest(BaseModel):
+    url: str
+    message: str
+    headers: Optional[Dict[str, str]] = None
+    timeout: float = 5.0
+    project: str = "default"
+
+
+@app.post("/api/ws-send")
+async def send_ws_message_endpoint(req: SendWsRequest):
+    """Sends a WebSocket message frame to a target socket endpoint."""
+    from backend.ws_manager import send_ws_message
+    return await send_ws_message(
+        url=req.url,
+        message=req.message,
+        headers=req.headers,
+        timeout=req.timeout,
+        project=req.project
+    )
+
+
+@app.get("/api/oast/protocols/status")
+def get_oast_protocols_status_endpoint():
+    """Returns operational status of all OAST protocol listeners (HTTP, DNS, LDAP)."""
+    from backend.dns_server import get_dns_server_status
+    from backend.ldap_server import get_ldap_server_status
+    from backend.oast_engine import get_base_callback_url
+    return {
+        "http_callback_url": get_base_callback_url(),
+        "dns": get_dns_server_status(),
+        "ldap": get_ldap_server_status()
+    }
+
+
+# ==============================================================================
+# Advanced Manual-Grade Offensive Testing API Endpoints
+# ==============================================================================
+
+class WorkflowRunRequest(BaseModel):
+    sequence: List[Dict[str, Any]]
+    initial_context: Optional[Dict[str, Any]] = None
+    test_step_skipping: bool = False
+    project: str = "default"
+    agent_id: str = "primary_agent"
+
+
+@app.post("/api/workflow/run")
+async def run_workflow_endpoint(req: WorkflowRunRequest, db: Session = Depends(get_db)):
+    """Executes stateful multi-step workflow sequence with dynamic token chaining."""
+    from backend.workflow_engine import execute_workflow
+    proj = req.project.strip().lower()
+    proj_obj = db.query(Project).filter(Project.name == proj).first()
+    upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    return await execute_workflow(
+        sequence=req.sequence,
+        initial_context=req.initial_context or {},
+        project=proj,
+        agent_id=req.agent_id,
+        test_step_skipping=req.test_step_skipping,
+        upstream_proxy=upstream_proxy
+    )
+
+
+class RaceRunRequest(BaseModel):
+    url: str
+    method: str = "POST"
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[str] = ""
+    concurrency: int = 20
+    project: str = "default"
+
+
+@app.post("/api/race/run")
+async def run_race_endpoint(req: RaceRunRequest, db: Session = Depends(get_db)):
+    """Executes microsecond-synchronized concurrent burst testing."""
+    from backend.race_engine import run_race_attack
+    proj = req.project.strip().lower()
+    is_allowed, block_reason = await async_check_scope(proj, req.url, db)
+    if not is_allowed:
+        raise HTTPException(status_code=403, detail=f"Target URL is outside authorized scope: {block_reason}")
+    proj_obj = db.query(Project).filter(Project.name == proj).first()
+    upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    return await run_race_attack(
+        url=req.url,
+        method=req.method,
+        headers=req.headers,
+        body=req.body,
+        concurrency=req.concurrency,
+        upstream_proxy=upstream_proxy
+    )
+
+
+class JsMinerRequest(BaseModel):
+    content_or_url: str
+    base_url: Optional[str] = None
+    auto_register: bool = True
+    project: str = "default"
+
+
+@app.post("/api/js-miner/mine")
+async def mine_js_endpoint(req: JsMinerRequest, db: Session = Depends(get_db)):
+    """Extracts endpoints, parameters, source maps, and credentials from JavaScript."""
+    from backend.js_miner import mine_javascript
+    proj = req.project.strip().lower()
+    proj_obj = db.query(Project).filter(Project.name == proj).first()
+    upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    return await mine_javascript(
+        content_or_url=req.content_or_url,
+        base_url=req.base_url,
+        auto_register=req.auto_register,
+        project=proj,
+        upstream_proxy=upstream_proxy
+    )
+
+
+class DiffCompareRequest(BaseModel):
+    response_a: Any
+    response_b: Any
+    max_diff_lines: int = 50
+
+
+@app.post("/api/diff/compare")
+def compare_diff_endpoint(req: DiffCompareRequest, db: Session = Depends(get_db)):
+    """Computes semantic structural diff with dynamic token stripping and soft-403/404 heuristics."""
+    from backend.diff_engine import compute_semantic_diff
+
+    def _resolve(resp_input: Any) -> Dict[str, Any]:
+        if isinstance(resp_input, (int, str)) and str(resp_input).isdigit():
+            log_id = int(resp_input)
+            log_entry = db.query(HttpLog).filter(HttpLog.id == log_id).first()
+            if log_entry:
+                hdrs = {}
+                try:
+                    hdrs = json.loads(log_entry.response_headers) if log_entry.response_headers else {}
+                except Exception:
+                    pass
+                return {
+                    "status_code": log_entry.status_code or 0,
+                    "body": log_entry.response_body or "",
+                    "headers": hdrs
+                }
+            return {"status_code": 0, "body": f"[Log #{log_id} not found]", "headers": {}}
+        elif isinstance(resp_input, dict):
+            return resp_input
+        return {"status_code": 200, "body": str(resp_input), "headers": {}}
+
+    res_a = _resolve(req.response_a)
+    res_b = _resolve(req.response_b)
+    return compute_semantic_diff(res_a, res_b, max_diff_lines=req.max_diff_lines)
+
+
+class JwtAuditRequest(BaseModel):
+    token: str
+    test_url: Optional[str] = None
+    method: str = "GET"
+    headers: Optional[Dict[str, str]] = None
+    claims_override: Optional[Dict[str, Any]] = None
+    project: str = "default"
+
+
+@app.post("/api/jwt/audit")
+async def audit_jwt_endpoint(req: JwtAuditRequest, db: Session = Depends(get_db)):
+    """Audits JWT for alg: none, weak secret cracking, claim tampering, and live replay bypasses."""
+    from backend.jwt_tester import audit_jwt_security as run_jwt_audit
+    proj = req.project.strip().lower()
+    if req.test_url:
+        is_allowed, block_reason = await async_check_scope(proj, req.test_url, db)
+        if not is_allowed:
+            raise HTTPException(status_code=403, detail=f"Target URL is outside authorized scope: {block_reason}")
+    proj_obj = db.query(Project).filter(Project.name == proj).first()
+    upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    return await run_jwt_audit(
+        token=req.token,
+        test_url=req.test_url,
+        method=req.method,
+        headers=req.headers,
+        claims_override=req.claims_override,
+        upstream_proxy=upstream_proxy
+    )
 
 
 # ==============================================================================
