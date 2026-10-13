@@ -10,7 +10,7 @@ import json
 import time
 import asyncio
 import urllib.parse
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union, Tuple
 import httpx
 
 try:
@@ -394,7 +394,8 @@ async def send_http_request(
     finding_description: str = "",
     finding_remediation: str = "",
     output_format: str = "json",
-    diff_baseline_id: Optional[int] = None
+    diff_baseline_id: Optional[int] = None,
+    distill_response: bool = False
 ) -> str:
     """
     Executes an HTTP/HTTPS request, routes it through the Spectra security proxy,
@@ -679,6 +680,20 @@ async def send_http_request(
 
     fmt_choice = (output_format or "json").strip().lower()
 
+    distilled_data = None
+    if distill_response or fmt_choice == "distilled":
+        try:
+            from backend.body_distiller import distill_response_body
+            distilled_data = distill_response_body(
+                res_body,
+                content_type=res_headers.get("content-type", "text/html"),
+                reflected_query=url.split("?")[1] if "?" in url else None
+            )
+            if fmt_choice == "distilled":
+                return distilled_data.get("compact_summary", "")
+        except Exception:
+            distilled_data = None
+
     if fmt_choice == "json":
         res_dict = {
             "status": "success" if (status_code and status_code < 500) else "warning",
@@ -695,6 +710,8 @@ async def send_http_request(
             "body_total_chars": len(res_body),
             "diff_with_baseline": diff_text
         }
+        if distilled_data:
+            res_dict["distilled_response"] = distilled_data
         return json.dumps(res_dict, indent=2)
 
     if fmt_choice == "compact":
@@ -2293,6 +2310,251 @@ async def clear_attack_surface_graph(
         "deleted_assets": cleared_count,
         "project": target_project
     }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 32: distill_http_response (P1)
+# ==============================================================================
+
+@mcp.tool()
+async def distill_http_response(
+    body: str,
+    content_type: str = "text/html",
+    reflected_query: Optional[str] = None,
+    max_length: int = 4000
+) -> str:
+    """
+    Distills raw HTML or large JSON API response bodies into compact, high-density security representations.
+    Extracts forms, inputs, API routes, sensitive keys, and reflected parameters while stripping
+    CSS, SVGs, base64 blobs, and boilerplate scripts. Reduces LLM context token usage by 85-95%.
+
+    Parameters:
+      - body: Raw response body string or JSON.
+      - content_type: MIME type ('text/html' or 'application/json'). Defaults to 'text/html'.
+      - reflected_query: Optional string to check where it reflects in attributes or DOM text.
+      - max_length: Maximum character length for compact representation. Defaults to 4000.
+    """
+    from backend.body_distiller import distill_response_body
+
+    res = distill_response_body(
+        body=body,
+        content_type=content_type,
+        max_length=max_length,
+        reflected_query=reflected_query
+    )
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 33: spray_oast_canaries (P2)
+# ==============================================================================
+
+@mcp.tool()
+async def spray_oast_canaries(
+    target_url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: str = "",
+    target_params: Optional[List[str]] = None,
+    vuln_types: Optional[List[str]] = None,
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str:
+    """
+    Autonomously sprays multi-protocol OAST canary tokens (HTTP, DNS, LDAP/JNDI, XXE) across
+    all discovered query, body, and header parameters. Correlates incoming out-of-band callbacks
+    to deterministically detect Blind SSRF, Blind RCE, XXE, and Log4j with zero manual effort.
+
+    Parameters:
+      - target_url: Full URL of the target endpoint.
+      - method: HTTP method ('GET', 'POST', etc.). Defaults to 'GET'.
+      - headers: Optional custom headers.
+      - body: Optional body data.
+      - target_params: Specific parameters to spray (leave empty to auto-discover all parameters).
+      - vuln_types: List of vulnerability vectors ('ssrf', 'dns', 'log4j', 'xxe', 'all'). Defaults to ['ssrf', 'dns', 'log4j'].
+      - project: Project workspace name. Defaults to 'default'.
+      - agent_id: Identifier of the testing agent. Defaults to 'primary_agent'.
+    """
+    from backend.oast_sprayer import spray_oast_canaries as run_spray
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    # Scope validation
+    db = SessionLocal()
+    try:
+        is_allowed, block_reason = await async_check_scope(target_project, target_url, db)
+        if not is_allowed:
+            return f"[!] Out of Scope: Target '{target_url}' violates guardrail policy: {block_reason}"
+        proj_obj = db.query(Project).filter(Project.name == target_project).first()
+        upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    finally:
+        db.close()
+
+    res = await run_spray(
+        target_url=target_url,
+        method=method,
+        headers=headers,
+        body=body,
+        target_params=target_params,
+        vuln_types=vuln_types,
+        project=target_project,
+        agent_id=agent_id,
+        upstream_proxy=upstream_proxy
+    )
+    return json.dumps(res, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 34: record_testing_hypothesis (P3)
+# ==============================================================================
+
+@mcp.tool()
+async def record_testing_hypothesis(
+    target: str,
+    vuln_type: str,
+    hypothesis: str,
+    status: str = "PLANNED",
+    evidence_notes: str = "",
+    project: str = "default",
+    agent_id: str = "primary_agent"
+) -> str:
+    """
+    Records an attack hypothesis into the agent's persistent working memory ledger.
+    Prevents context amnesia during long campaigns and tracks planned vs confirmed testing avenues.
+
+    Parameters:
+      - target: Endpoint, URL, or host:port being tested (e.g. '/api/orders/{id}' or '192.168.1.10:80').
+      - vuln_type: Vulnerability type (e.g. 'BOLA', 'SQLI', 'SSRF', 'BAC', 'RACE', 'XSS', 'AUTH_BYPASS').
+      - hypothesis: Specific reasoning and attack hypothesis (e.g. 'Testing IDOR on user_id param because endpoint returns order object').
+      - status: Status ('PLANNED', 'TESTING', 'CONFIRMED', 'DISPROVEN', 'BLOCKED'). Defaults to 'PLANNED'.
+      - evidence_notes: Preliminary evidence or reasoning notes.
+      - project: Project workspace name. Defaults to 'default'.
+      - agent_id: Agent identifier. Defaults to 'primary_agent'.
+    """
+    from backend.hypothesis_manager import create_hypothesis
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    res = create_hypothesis(
+        project=target_project,
+        target=target,
+        vuln_type=vuln_type,
+        hypothesis=hypothesis,
+        status=status,
+        evidence_notes=evidence_notes,
+        agent_id=agent_id
+    )
+    return json.dumps({
+        "status": "recorded",
+        "hypothesis": res
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 35: get_testing_agenda (P3)
+# ==============================================================================
+
+@mcp.tool()
+async def get_testing_agenda(
+    project: str = "default"
+) -> str:
+    """
+    Retrieves the agent's active testing agenda and to-do list of unverified attack hypotheses.
+    Use this at the beginning of a session or after compaction to know exactly what targets still need testing.
+
+    Parameters:
+      - project: Project workspace name. Defaults to 'default'.
+    """
+    from backend.hypothesis_manager import get_testing_agenda as fetch_agenda
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    agenda = fetch_agenda(project=target_project)
+    return json.dumps(agenda, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 36: update_hypothesis_status (P3)
+# ==============================================================================
+
+@mcp.tool()
+async def update_hypothesis_status(
+    hypothesis_id: int,
+    status: str,
+    evidence_notes: str = "",
+    project: str = "default"
+) -> str:
+    """
+    Updates the status and findings evidence of a recorded attack hypothesis.
+
+    Parameters:
+      - hypothesis_id: ID of the hypothesis to update.
+      - status: New status ('PLANNED', 'TESTING', 'CONFIRMED', 'DISPROVEN', 'BLOCKED').
+      - evidence_notes: Verified findings, response excerpt, or disproof explanation.
+      - project: Project workspace name. Defaults to 'default'.
+    """
+    from backend.hypothesis_manager import update_hypothesis as edit_hypothesis
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    res = edit_hypothesis(
+        hypothesis_id=hypothesis_id,
+        status=status,
+        evidence_notes=evidence_notes,
+        project=target_project
+    )
+    if not res:
+        return f"[!] Hypothesis #{hypothesis_id} not found in project '{target_project}'."
+    return json.dumps({
+        "status": "updated",
+        "hypothesis": res
+    }, indent=2)
+
+
+# ==============================================================================
+# MCP Tool 37: verify_dom_execution (P4)
+# ==============================================================================
+
+@mcp.tool()
+async def verify_dom_execution(
+    url: str,
+    payload: Optional[str] = None,
+    param_name: Optional[str] = None,
+    trigger_event: str = "load",
+    wait_timeout_ms: int = 4000,
+    project: str = "default"
+) -> str:
+    """
+    Spawns a sandboxed headless Chromium browser to deterministically verify whether a client-side
+    exploit payload (XSS, DOM Injection, CSP bypass) actually executed in the real browser DOM.
+    Hooks window.alert/confirm/prompt dialogs and console sinks for 100% false-positive-free verification.
+
+    Parameters:
+      - url: Target URL to test.
+      - payload: Optional exploit payload (e.g. '<script>alert(1)</script>' or '\"><svg onload=alert(1)>').
+      - param_name: Optional query/body parameter name to inject the payload into.
+      - trigger_event: Event trigger ('load' or 'click'). Defaults to 'load'.
+      - wait_timeout_ms: Timeout in milliseconds for browser navigation and DOM execution. Defaults to 4000.
+      - project: Project workspace name for scope guardrail validation.
+    """
+    from backend.browser_oracle import verify_dom_execution as run_oracle
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+
+    # Scope validation
+    db = SessionLocal()
+    try:
+        is_allowed, block_reason = await async_check_scope(target_project, url, db)
+        if not is_allowed:
+            return f"[!] Out of Scope: Target '{url}' violates guardrail policy: {block_reason}"
+    finally:
+        db.close()
+
+    res = await run_oracle(
+        url=url,
+        payload=payload,
+        param_name=param_name,
+        trigger_event=trigger_event,
+        wait_timeout_ms=wait_timeout_ms
+    )
+    return json.dumps(res, indent=2)
 
 
 if __name__ == "__main__":

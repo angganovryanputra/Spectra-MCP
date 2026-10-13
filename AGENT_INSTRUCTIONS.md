@@ -95,6 +95,16 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
 27. **Penghapusan & Pembersihan Attack Surface:**
     - Gunakan `delete_attack_surface_node(node_type="asset"|"endpoint"|"service", node_id=<ID>, project="...")` untuk menghapus host, rute, atau service yang sudah usang/salah deteksi dari Attack Surface Knowledge Graph.
     - Gunakan `clear_attack_surface_graph(project="...")` untuk mengosongkan seluruh aset dan endpoint target pada workspace proyek tertentu.
+28. **LLM Semantic Response Distillation (Hemat Token 90%):**
+    - Gunakan parameter `distill_response=True` pada `send_http_request` atau panggil tool `distill_http_response(body="...")` untuk mereduksi respons HTML/JSON raksasa menjadi representasi padat keamanan (forms, inputs, API routes, reflections, dan sensitive keys) guna menghemat context window.
+29. **Autonomous OAST Canary Spraying (Blind Exploit Sprayer):**
+    - Gunakan `spray_oast_canaries(target_url="https://target/api", vuln_types=["ssrf", "dns", "log4j", "xxe"])` untuk secara otomatis menemukan seluruh parameter input dan menyemprotkan token canary multi-protokol guna mendeteksi Blind SSRF, Blind RCE, dan Log4j secara instan.
+30. **Agent Working Memory & Attack Hypothesis Ledger:**
+    - Catat rencana pengujian Anda dengan `record_testing_hypothesis(target="...", vuln_type="IDOR", hypothesis="Testing param id for horizontal privilege escalation")`.
+    - Tinjau to-do list pengujian kapan saja dengan `get_testing_agenda(project="...")`.
+    - Perbarui hasil pembuktian Anda dengan `update_hypothesis_status(hypothesis_id=<ID>, status="CONFIRMED"|"DISPROVEN", evidence_notes="...")`.
+31. **Browser DOM Execution Oracle (Verifikasi XSS 100% Deterministic):**
+    - Gunakan `verify_dom_execution(url="https://target/search", payload="<script>alert(1)</script>")` untuk membuka headless Chromium sandbox yang memvalidasi apakah dialog alert/confirm atau DOM script sink benar-benar tereksekusi tanpa false positive.
 ```
 
 ---

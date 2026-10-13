@@ -2085,6 +2085,155 @@ async def audit_jwt_endpoint(req: JwtAuditRequest, db: Session = Depends(get_db)
 
 
 # ==============================================================================
+# P1-P4: Advanced AI Agent Capabilities (Distiller, OAST Sprayer, Hypotheses, DOM Oracle)
+# ==============================================================================
+
+class DistillBodyRequest(BaseModel):
+    body: str
+    content_type: Optional[str] = "text/html"
+    max_length: Optional[int] = 4000
+    reflected_query: Optional[str] = None
+
+
+@app.post("/api/distiller/distill")
+def distill_body_endpoint(req: DistillBodyRequest):
+    """P1: Distills large HTML/JSON into concise security summary saving LLM tokens."""
+    from backend.body_distiller import distill_response_body
+    return distill_response_body(
+        body=req.body,
+        content_type=req.content_type or "text/html",
+        max_length=req.max_length or 4000,
+        reflected_query=req.reflected_query
+    )
+
+
+class OastSprayRequest(BaseModel):
+    target_url: str
+    method: Optional[str] = "GET"
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[str] = ""
+    target_params: Optional[List[str]] = None
+    vuln_types: Optional[List[str]] = None
+    project: Optional[str] = "default"
+    agent_id: Optional[str] = "primary_agent"
+
+
+@app.post("/api/oast/spray")
+async def oast_spray_endpoint(req: OastSprayRequest, db: Session = Depends(get_db)):
+    """P2: Sprays multi-protocol OAST canaries across target parameters."""
+    from backend.oast_sprayer import spray_oast_canaries
+    proj = (req.project or "default").strip().lower()
+    is_allowed, block_reason = await async_check_scope(proj, req.target_url, db)
+    if not is_allowed:
+        raise HTTPException(status_code=403, detail=f"Target URL is outside authorized scope: {block_reason}")
+    proj_obj = db.query(Project).filter(Project.name == proj).first()
+    upstream_proxy = proj_obj.upstream_proxy if proj_obj else None
+    return await spray_oast_canaries(
+        target_url=req.target_url,
+        method=req.method or "GET",
+        headers=req.headers,
+        body=req.body or "",
+        target_params=req.target_params,
+        vuln_types=req.vuln_types,
+        project=proj,
+        agent_id=req.agent_id or "primary_agent",
+        upstream_proxy=upstream_proxy
+    )
+
+
+class CreateHypothesisRequest(BaseModel):
+    project: Optional[str] = "default"
+    target: str
+    vuln_type: Optional[str] = "GENERAL"
+    hypothesis: str
+    status: Optional[str] = "PLANNED"
+    evidence_notes: Optional[str] = ""
+    agent_id: Optional[str] = "primary_agent"
+    linked_log_id: Optional[int] = None
+
+
+class UpdateHypothesisRequest(BaseModel):
+    status: Optional[str] = None
+    evidence_notes: Optional[str] = None
+
+
+@app.get("/api/hypotheses")
+def list_hypotheses_endpoint(project: str = "default", status: Optional[str] = None, target: Optional[str] = None):
+    """P3: Lists registered attack hypotheses."""
+    from backend.hypothesis_manager import list_hypotheses
+    return {"hypotheses": list_hypotheses(project=project, status=status, target=target)}
+
+
+@app.get("/api/hypotheses/agenda")
+def get_hypothesis_agenda_endpoint(project: str = "default"):
+    """P3: Returns active testing agenda of unverified hypotheses."""
+    from backend.hypothesis_manager import get_testing_agenda
+    return get_testing_agenda(project=project)
+
+
+@app.post("/api/hypotheses")
+def create_hypothesis_endpoint(req: CreateHypothesisRequest):
+    """P3: Records an attack hypothesis into agent working memory."""
+    from backend.hypothesis_manager import create_hypothesis
+    return create_hypothesis(
+        project=req.project or "default",
+        target=req.target,
+        vuln_type=req.vuln_type or "GENERAL",
+        hypothesis=req.hypothesis,
+        status=req.status or "PLANNED",
+        evidence_notes=req.evidence_notes or "",
+        agent_id=req.agent_id or "primary_agent",
+        linked_log_id=req.linked_log_id
+    )
+
+
+@app.patch("/api/hypotheses/{hypothesis_id}")
+def update_hypothesis_endpoint(hypothesis_id: int, req: UpdateHypothesisRequest, project: Optional[str] = None):
+    """P3: Updates status or notes on a hypothesis."""
+    from backend.hypothesis_manager import update_hypothesis
+    res = update_hypothesis(hypothesis_id, status=req.status, evidence_notes=req.evidence_notes, project=project)
+    if not res:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    return res
+
+
+@app.delete("/api/hypotheses/{hypothesis_id}")
+def delete_hypothesis_endpoint(hypothesis_id: int, project: Optional[str] = None):
+    """P3: Deletes a hypothesis."""
+    from backend.hypothesis_manager import delete_hypothesis
+    ok = delete_hypothesis(hypothesis_id, project=project)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Hypothesis not found")
+    return {"status": "deleted", "id": hypothesis_id}
+
+
+class VerifyDomRequest(BaseModel):
+    url: str
+    payload: Optional[str] = None
+    param_name: Optional[str] = None
+    trigger_event: Optional[str] = "load"
+    wait_timeout_ms: Optional[int] = 4000
+    project: Optional[str] = "default"
+
+
+@app.post("/api/oracle/verify-dom")
+async def verify_dom_endpoint(req: VerifyDomRequest, db: Session = Depends(get_db)):
+    """P4: Validates DOM execution in a sandboxed Chromium instance."""
+    from backend.browser_oracle import verify_dom_execution
+    proj = (req.project or "default").strip().lower()
+    is_allowed, block_reason = await async_check_scope(proj, req.url, db)
+    if not is_allowed:
+        raise HTTPException(status_code=403, detail=f"Target URL is outside authorized scope: {block_reason}")
+    return await verify_dom_execution(
+        url=req.url,
+        payload=req.payload,
+        param_name=req.param_name,
+        trigger_event=req.trigger_event or "load",
+        wait_timeout_ms=req.wait_timeout_ms or 4000
+    )
+
+
+# ==============================================================================
 # Static Dashboard Hosting
 # ==============================================================================
 

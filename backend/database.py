@@ -481,6 +481,40 @@ class OastEvent(Base):
         }
 
 
+class TestingHypothesis(Base):
+    __tablename__ = "testing_hypotheses"
+    __table_args__ = (
+        Index("ix_hypotheses_proj_status", "project", "status"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    project = Column(String(100), default="default", index=True)
+    agent_id = Column(String(100), default="primary_agent", index=True)
+    target = Column(String(255), nullable=False)  # Endpoint, URL, or host:port
+    vuln_type = Column(String(64), default="GENERAL")  # BOLA, SQLI, SSRF, BAC, RACE, XSS, AUTH_BYPASS
+    hypothesis = Column(Text, nullable=False)
+    status = Column(String(32), default="PLANNED")  # PLANNED, TESTING, CONFIRMED, DISPROVEN, BLOCKED
+    evidence_notes = Column(Text, default="")
+    linked_log_id = Column(Integer, ForeignKey("http_logs.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project": self.project or "default",
+            "agent_id": self.agent_id or "primary_agent",
+            "target": self.target,
+            "vuln_type": self.vuln_type or "GENERAL",
+            "hypothesis": self.hypothesis,
+            "status": self.status or "PLANNED",
+            "evidence_notes": self.evidence_notes or "",
+            "linked_log_id": self.linked_log_id,
+            "created_at": self.created_at.isoformat() if self.created_at else "",
+            "updated_at": self.updated_at.isoformat() if self.updated_at else ""
+        }
+
+
 def _run_migrations():
     """Safely adds newly introduced columns and high-performance indexes to existing SQLite tables."""
     import sqlite3
@@ -531,6 +565,7 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS ix_oast_events_proj_id ON oast_events(project, id DESC)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_active_sessions_proj_dom_role ON active_sessions(project, domain, identity_role)")
         cur.execute("CREATE INDEX IF NOT EXISTS ix_ws_frames_proj_id ON ws_frame_logs(project, id DESC)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_hypotheses_proj_status ON testing_hypotheses(project, status)")
         con.commit()
         con.close()
     except Exception as ex:
