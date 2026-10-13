@@ -2443,6 +2443,17 @@ async def record_testing_hypothesis(
         evidence_notes=evidence_notes,
         agent_id=agent_id
     )
+
+    # Relay event to live dashboard WebSockets if dashboard is running
+    try:
+        client = await _get_dashboard_client()
+        await client.post(
+            f"{get_backend_url()}/api/hypotheses/broadcast-event",
+            json={"type": "HYPOTHESIS_CREATED", "hypothesis": res, "project": target_project}
+        )
+    except Exception:
+        pass
+
     return json.dumps({
         "status": "recorded",
         "hypothesis": res
@@ -2456,7 +2467,7 @@ async def record_testing_hypothesis(
 @mcp.tool()
 async def get_testing_agenda(
     project: str = "default"
-) -> str:
+):
     """
     Retrieves the agent's active testing agenda and to-do list of unverified attack hypotheses.
     Use this at the beginning of a session or after compaction to know exactly what targets still need testing.
@@ -2481,7 +2492,7 @@ async def update_hypothesis_status(
     status: str,
     evidence_notes: str = "",
     project: str = "default"
-) -> str:
+):
     """
     Updates the status and findings evidence of a recorded attack hypothesis.
 
@@ -2502,6 +2513,17 @@ async def update_hypothesis_status(
     )
     if not res:
         return f"[!] Hypothesis #{hypothesis_id} not found in project '{target_project}'."
+
+    # Relay event to live dashboard WebSockets if dashboard is running
+    try:
+        client = await _get_dashboard_client()
+        await client.post(
+            f"{get_backend_url()}/api/hypotheses/broadcast-event",
+            json={"type": "HYPOTHESIS_UPDATED", "hypothesis": res, "project": target_project}
+        )
+    except Exception:
+        pass
+
     return json.dumps({
         "status": "updated",
         "hypothesis": res

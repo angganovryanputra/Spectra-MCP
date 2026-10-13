@@ -204,6 +204,13 @@ def distill_response_body(
                 "original_size": orig_size,
                 "distilled_size": dist_size,
                 "token_reduction_percent": reduction,
+                "stats": {
+                    "original_bytes": orig_size,
+                    "distilled_bytes": dist_size,
+                    "token_reduction_pct": f"{reduction}%"
+                },
+                "forms": [],
+                "api_endpoints": [],
                 "schema_summary": schema_summary,
                 "sensitive_indicators": sorted(list(set(sensitive_keys))),
                 "compact_summary": markdown_summary
@@ -260,8 +267,15 @@ def distill_response_body(
         "original_size": orig_size,
         "distilled_size": dist_size,
         "token_reduction_percent": reduction,
+        "stats": {
+            "original_bytes": orig_size,
+            "distilled_bytes": dist_size,
+            "token_reduction_pct": f"{reduction}%"
+        },
         "forms_count": len(parser.forms),
+        "forms": parser.forms,
         "endpoints_count": len(parser.endpoints),
+        "api_endpoints": sorted(list(parser.endpoints)),
         "reflections": parser.reflected_locations,
         "comments": parser.comments,
         "compact_summary": compact_html_str

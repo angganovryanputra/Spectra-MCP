@@ -50,6 +50,7 @@
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="/static/js/attack_surface.js"></script>
   <script src="/static/js/oast.js"></script>
+  <script src="/static/js/hypotheses.js"></script>
 
   <!-- Alpine.js -->
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
@@ -292,6 +293,22 @@
               class="px-1.5 py-0.5 rounded text-[10px] bg-teal-950/80 text-teal-300 border border-teal-800/60 font-semibold"
               :class="!sidebarExpanded ? 'absolute top-1 right-1 text-[8px] px-1' : ''"
               x-text="(stats.total_commands || 0) + (stats.total_payloads || 0)"></span>
+          </button>
+
+          <!-- Attack Hypothesis Ledger / Agent Working Memory (P3) -->
+          <button @click="currentAppTab = 'hypotheses'; fetchHypotheses()"
+            :class="currentAppTab === 'hypotheses' ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/40 font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1E293B]/70 border border-transparent'"
+            :title="!sidebarExpanded ? 'Attack Hypothesis Ledger (Working Memory)' : ''"
+            class="w-full rounded-lg transition-all duration-150 flex items-center relative"
+            :class="sidebarExpanded ? 'px-3 py-2 justify-between' : 'h-10 justify-center'">
+            <div class="flex items-center space-x-2.5 truncate">
+              <i data-lucide="brain-circuit" class="w-4 h-4 shrink-0 text-indigo-400"></i>
+              <span x-show="sidebarExpanded" class="truncate">Hypothesis Ledger</span>
+            </div>
+            <span x-show="hypothesisAgenda && hypothesisAgenda.total_hypotheses > 0"
+              class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 font-semibold"
+              :class="!sidebarExpanded ? 'absolute top-1 right-1 text-[8px] px-1' : ''"
+              x-text="hypothesisAgenda ? hypothesisAgenda.total_hypotheses : 0"></span>
           </button>
 
           <!-- Scope Guardrails -->
@@ -1236,6 +1253,12 @@
                     <button @click="resBodyBeautified = false"
                       :class="!resBodyBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
                       class="px-2 py-0.5 rounded border transition">Raw</button>
+                    <button @click="distillCurrentResponseBody(selectedLogDetail?.response_body, selectedLogDetail?.response_headers)"
+                      class="px-2 py-0.5 rounded border border-indigo-700/60 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 font-bold transition flex items-center space-x-1"
+                      title="Compress HTML/JSON and extract forms, inputs, and endpoints (85-95% token savings)">
+                      <i data-lucide="sparkles" class="w-2.5 h-2.5 text-indigo-400"></i>
+                      <span>Distill (P1)</span>
+                    </button>
                     <button @click="resBodyExpanded = !resBodyExpanded"
                       :class="resBodyExpanded ? 'bg-emerald-950 text-emerald-300 font-bold border-emerald-700' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
                       class="px-2 py-0.5 rounded border transition"
@@ -1690,6 +1713,18 @@
             <button @click="repeaterResBeautified = false"
               :class="!repeaterResBeautified ? 'bg-[#1E293B] text-slate-200 font-bold' : 'text-slate-400 border-[#1E293B] hover:text-slate-200'"
               class="px-2 py-0.5 rounded border transition">Raw</button>
+            <button @click="distillCurrentResponseBody(repeaterResponse?.response_body, repeaterResponse?.response_headers)"
+              class="px-2 py-0.5 rounded border border-indigo-700/60 bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 font-bold transition flex items-center space-x-1"
+              title="Compress HTML/JSON and extract forms, inputs, and endpoints (85-95% token savings)">
+              <i data-lucide="sparkles" class="w-2.5 h-2.5 text-indigo-400"></i>
+              <span>Distill (P1)</span>
+            </button>
+            <button @click="verifyRepeaterDomExecution()"
+              class="px-2 py-0.5 rounded border border-rose-700/60 bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-bold transition flex items-center space-x-1"
+              title="Spawn headless Chromium sandbox to deterministically verify DOM/XSS payload execution">
+              <i data-lucide="shield-alert" class="w-2.5 h-2.5 text-rose-400"></i>
+              <span>Verify DOM (P4)</span>
+            </button>
             <button
               @click="copyText(repeaterResBeautified ? beautifyText(repeaterResponse?.response_body, null, repeaterResponse?.response_headers) : repeaterResponse?.response_body)"
               class="px-2 py-0.5 rounded bg-[#1E293B] hover:bg-slate-700 text-slate-300 transition"
@@ -2834,6 +2869,12 @@
           <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
           <span>Generate OAST Token</span>
         </button>
+        <button @click="showOastSprayModal = true"
+          class="px-3 py-1.5 bg-gradient-to-r from-orange-600 to-rose-600 hover:from-orange-500 hover:to-rose-500 text-white rounded font-bold text-xs flex items-center space-x-1.5 transition shadow glow-orange"
+          title="Autonomous Multi-Protocol Canary Sprayer (SSRF, DNS, LDAP/JNDI, XXE)">
+          <i data-lucide="spray-can" class="w-3.5 h-3.5"></i>
+          <span>Spray Canaries (P2)</span>
+        </button>
         <button @click="clearAllOastEvents()"
           class="px-2.5 py-1.5 bg-[#0B0F17] hover:bg-rose-950/60 border border-[#1E293B] hover:border-rose-800 text-slate-400 hover:text-rose-300 rounded text-xs transition flex items-center space-x-1"
           title="Clear recorded callback events">
@@ -2922,6 +2963,180 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- VIEW 9: ATTACK HYPOTHESIS LEDGER & AGENT WORKING MEMORY (P3)              -->
+  <!-- ========================================================================= -->
+  <div x-show="currentAppTab === 'hypotheses'" class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[#0B0F17] font-mono">
+    <!-- Top Header & Metrics Bar -->
+    <div class="p-3 bg-[#111827] border-b border-[#1E293B] flex items-center justify-between shrink-0">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-950/80 border border-indigo-800/80 rounded-lg text-indigo-400 shadow-md">
+          <i data-lucide="brain-circuit" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-slate-100 flex items-center space-x-2">
+            <span>Agent Working Memory &amp; Hypothesis Ledger</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 font-bold"
+              x-text="(hypothesisAgenda ? hypothesisAgenda.total_hypotheses : 0) + ' Hypotheses'"></span>
+            <span x-show="hypothesisAgenda && hypothesisAgenda.confirmed_findings_count > 0"
+              class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold flex items-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
+              <span x-text="hypothesisAgenda.confirmed_findings_count + ' Confirmed Findings'"></span>
+            </span>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-0.5">Persistent agenda tracking planned vs confirmed avenues — zero context window amnesia</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <button @click="showNewHypothesisModal = true"
+          class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold text-xs flex items-center space-x-1.5 transition shadow">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          <span>Record Hypothesis</span>
+        </button>
+        <button @click="fetchHypotheses()" :disabled="isLoadingHypotheses"
+          class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold text-xs flex items-center space-x-1.5 transition">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="isLoadingHypotheses ? 'animate-spin' : ''"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Agenda Status Metric Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 p-3 bg-[#0B0F17] border-b border-[#1E293B] shrink-0 text-xs">
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-slate-500 uppercase font-bold block">Total Hypotheses</span>
+        <span class="text-base font-bold text-slate-200" x-text="hypothesisAgenda ? hypothesisAgenda.total_hypotheses : 0"></span>
+      </div>
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-sky-400 uppercase font-bold block">Planned</span>
+        <span class="text-base font-bold text-sky-300" x-text="hypothesisAgenda ? hypothesisAgenda.planned_count : 0"></span>
+      </div>
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-amber-400 uppercase font-bold block">Testing (Active)</span>
+        <span class="text-base font-bold text-amber-300 flex items-center">
+          <span class="w-2 h-2 rounded-full bg-amber-400 mr-1.5 animate-pulse" x-show="hypothesisAgenda && hypothesisAgenda.in_progress_count > 0"></span>
+          <span x-text="hypothesisAgenda ? hypothesisAgenda.in_progress_count : 0"></span>
+        </span>
+      </div>
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-emerald-400 uppercase font-bold block">Confirmed</span>
+        <span class="text-base font-bold text-emerald-300" x-text="hypothesisAgenda ? hypothesisAgenda.confirmed_findings_count : 0"></span>
+      </div>
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-slate-400 uppercase font-bold block">Disproven</span>
+        <span class="text-base font-bold text-slate-400" x-text="hypothesisAgenda ? hypothesisAgenda.disproven_count : 0"></span>
+      </div>
+      <div class="p-2.5 bg-[#111827] border border-[#1E293B] rounded-lg">
+        <span class="text-[10px] text-rose-400 uppercase font-bold block">Blocked</span>
+        <span class="text-base font-bold text-rose-400" x-text="hypothesisAgenda ? hypothesisAgenda.blocked_count : 0"></span>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="p-2.5 bg-[#111827]/80 border-b border-[#1E293B] flex flex-wrap items-center justify-between gap-2 shrink-0">
+      <div class="flex items-center space-x-1.5 text-xs">
+        <button @click="hypothesisFilterStatus = 'ALL'"
+          :class="hypothesisFilterStatus === 'ALL' ? 'bg-indigo-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">ALL</button>
+        <button @click="hypothesisFilterStatus = 'PLANNED'"
+          :class="hypothesisFilterStatus === 'PLANNED' ? 'bg-sky-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">PLANNED</button>
+        <button @click="hypothesisFilterStatus = 'TESTING'"
+          :class="hypothesisFilterStatus === 'TESTING' ? 'bg-amber-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">TESTING</button>
+        <button @click="hypothesisFilterStatus = 'CONFIRMED'"
+          :class="hypothesisFilterStatus === 'CONFIRMED' ? 'bg-emerald-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">CONFIRMED</button>
+        <button @click="hypothesisFilterStatus = 'DISPROVEN'"
+          :class="hypothesisFilterStatus === 'DISPROVEN' ? 'bg-slate-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">DISPROVEN</button>
+        <button @click="hypothesisFilterStatus = 'BLOCKED'"
+          :class="hypothesisFilterStatus === 'BLOCKED' ? 'bg-rose-600 text-white font-bold' : 'bg-slate-800 text-slate-400 hover:text-white'"
+          class="px-2.5 py-1 rounded text-[11px] transition">BLOCKED</button>
+      </div>
+
+      <div class="relative w-64">
+        <input type="text" x-model="hypothesisSearchQuery" placeholder="Search target, vuln, or reasoning..."
+          class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg pl-8 pr-3 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-500"></i>
+      </div>
+    </div>
+
+    <!-- Hypothesis Cards List -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-3">
+      <template x-if="filteredHypotheses().length === 0">
+        <div class="p-12 text-center text-slate-500 bg-[#111827]/40 rounded-2xl border border-[#1E293B]">
+          <i data-lucide="brain" class="w-10 h-10 mx-auto opacity-20 text-indigo-400 mb-2"></i>
+          <p class="text-sm font-bold text-slate-300">No Attack Hypotheses Found</p>
+          <p class="text-xs text-slate-500 mt-1">AI Agents will automatically record their reasoning avenues here, or you can record one manually.</p>
+        </div>
+      </template>
+
+      <template x-for="h in filteredHypotheses()" :key="h.id">
+        <div class="p-4 bg-[#111827] border border-[#1E293B] rounded-xl space-y-3 shadow-md hover:border-indigo-800/60 transition">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase"
+                :class="getHypothesisStatusBadge(h.status)" x-text="h.status"></span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-indigo-300 border border-slate-700"
+                x-text="h.vuln_type"></span>
+              <span class="text-xs font-bold text-slate-100" x-text="h.target"></span>
+            </div>
+            <div class="flex items-center space-x-2 text-[10px] text-slate-500">
+              <span x-text="'Agent: ' + (h.agent_id || 'primary_agent')"></span>
+              <span>·</span>
+              <span x-text="h.created_at ? h.created_at.replace('T', ' ').slice(0, 19) : ''"></span>
+            </div>
+          </div>
+
+          <!-- Hypothesis Statement -->
+          <div class="p-3 bg-[#0B0F17] rounded-lg border border-[#1E293B] text-slate-200 text-xs leading-relaxed">
+            <div class="text-[10px] text-indigo-400 font-bold uppercase mb-1">Attack Reasoning</div>
+            <div x-text="h.hypothesis"></div>
+          </div>
+
+          <!-- Evidence Notes (if present) -->
+          <div x-show="h.evidence_notes" class="p-2.5 rounded-lg border text-xs"
+            :class="h.status === 'CONFIRMED' ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200' : 'bg-slate-900 border-slate-800 text-slate-300'">
+            <div class="text-[10px] font-bold uppercase mb-0.5"
+              :class="h.status === 'CONFIRMED' ? 'text-emerald-400' : 'text-slate-400'">Evidence / Findings Excerpt</div>
+            <div x-text="h.evidence_notes"></div>
+          </div>
+
+          <!-- Action Toolbar -->
+          <div class="flex items-center justify-between pt-2 border-t border-[#1E293B] text-[10px]">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-slate-500 mr-1">Transition Status:</span>
+              <button @click="updateHypothesisStatusUI(h.id, 'TESTING')" x-show="h.status !== 'TESTING'"
+                class="px-2 py-0.5 rounded bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-800 transition font-bold">
+                Set Testing
+              </button>
+              <button @click="updateHypothesisStatusUI(h.id, 'CONFIRMED')" x-show="h.status !== 'CONFIRMED'"
+                class="px-2 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 transition font-bold">
+                Confirm
+              </button>
+              <button @click="updateHypothesisStatusUI(h.id, 'DISPROVEN')" x-show="h.status !== 'DISPROVEN'"
+                class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                Disproven
+              </button>
+              <button @click="updateHypothesisStatusUI(h.id, 'BLOCKED')" x-show="h.status !== 'BLOCKED'"
+                class="px-2 py-0.5 rounded bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800 transition">
+                Blocked
+              </button>
+            </div>
+
+            <button @click="deleteHypothesisUI(h.id)" class="text-slate-500 hover:text-rose-400 transition flex items-center space-x-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
   </div> <!-- End Main App Container -->
@@ -3425,6 +3640,287 @@
     </div>
   </div>
 
+  <!-- ========================================================================= -->
+  <!-- MODAL 1: LLM RESPONSE BODY DISTILLER (P1)                                 -->
+  <!-- ========================================================================= -->
+  <div x-show="distilledResponseModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto font-mono select-text" x-cloak>
+    <div @click.away="distilledResponseModal = null"
+      class="w-full max-w-4xl bg-[#111827] border border-indigo-700/60 rounded-2xl p-6 space-y-4 text-xs shadow-2xl my-auto">
+      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-indigo-950 border border-indigo-700/60 rounded-xl text-indigo-400">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-sm font-bold text-slate-100">LLM Semantic Response Distiller (P1)</h3>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold"
+                x-text="distilledResponseModal?.stats?.token_reduction_pct ? (distilledResponseModal.stats.token_reduction_pct + ' Token Savings') : 'Distilled'"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-0.5">High-density security distillation stripped of CSS/SVG/blobs for LLM context optimization</p>
+          </div>
+        </div>
+        <button @click="distilledResponseModal = null" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-[11px]">
+        <div class="p-2 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">ORIGINAL BYTES</span>
+          <span class="font-bold text-slate-200" x-text="distilledResponseModal?.stats?.original_bytes || 0"></span>
+        </div>
+        <div class="p-2 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">DISTILLED BYTES</span>
+          <span class="font-bold text-emerald-300" x-text="distilledResponseModal?.stats?.distilled_bytes || 0"></span>
+        </div>
+        <div class="p-2 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">FORMS EXTRACTED</span>
+          <span class="font-bold text-amber-300" x-text="(distilledResponseModal?.forms || []).length"></span>
+        </div>
+        <div class="p-2 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">API ROUTES</span>
+          <span class="font-bold text-sky-300" x-text="(distilledResponseModal?.api_endpoints || []).length"></span>
+        </div>
+      </div>
+
+      <!-- Forms & Endpoints summary -->
+      <div x-show="(distilledResponseModal?.forms || []).length > 0" class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-xl space-y-2">
+        <span class="text-[10px] text-amber-400 uppercase font-bold">Extracted Forms &amp; Inputs</span>
+        <div class="space-y-1">
+          <template x-for="(f, fIdx) in (distilledResponseModal?.forms || [])" :key="fIdx">
+            <div class="p-2 bg-[#111827] rounded border border-slate-800 text-[11px] flex items-center justify-between">
+              <div>
+                <span class="text-amber-300 font-bold" x-text="(f.method || 'GET') + ' ' + (f.action || '/')"></span>
+                <span class="text-slate-400 ml-2" x-text="'Inputs: ' + (f.inputs || []).map(i => i.name || i.id).join(', ')"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Compact Text Box -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] text-slate-400 uppercase font-bold">Compact Security Representation (What LLM Receives)</span>
+          <button @click="copyText(distilledResponseModal?.compact_summary)"
+            class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] flex items-center space-x-1">
+            <i data-lucide="copy" class="w-3 h-3"></i>
+            <span>Copy Distilled Text</span>
+          </button>
+        </div>
+        <pre class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-xl text-indigo-200 overflow-y-auto max-h-64 whitespace-pre-wrap text-[11px] leading-relaxed select-text"
+          x-text="distilledResponseModal?.compact_summary || ''"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 2: BROWSER DOM EXECUTION ORACLE (P4)                                 -->
+  <!-- ========================================================================= -->
+  <div x-show="domOracleModalData" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto font-mono select-text" x-cloak>
+    <div @click.away="domOracleModalData = null"
+      class="w-full max-w-3xl bg-[#111827] border rounded-2xl p-6 space-y-4 text-xs shadow-2xl my-auto"
+      :class="domOracleModalData?.execution_confirmed ? 'border-rose-600/80 shadow-rose-950/50' : 'border-[#1E293B]'">
+      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 rounded-xl border"
+            :class="domOracleModalData?.execution_confirmed ? 'bg-rose-950 text-rose-400 border-rose-700' : 'bg-slate-900 text-slate-400 border-slate-700'">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h3 class="text-sm font-bold text-slate-100">Playwright Chromium DOM Oracle (P4)</h3>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
+                :class="domOracleModalData?.execution_confirmed ? 'bg-rose-950 text-rose-300 border-rose-700' : 'bg-slate-800 text-slate-300 border-slate-700'"
+                x-text="domOracleModalData?.verdict"></span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-0.5">Deterministic, zero-false-positive client-side execution verification in real Chromium DOM</p>
+          </div>
+        </div>
+        <button @click="domOracleModalData = null" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="p-3 bg-[#0B0F17] border border-[#1E293B] rounded-xl space-y-1.5">
+        <div class="text-[10px] text-slate-500 uppercase font-bold">Tested Target URL</div>
+        <div class="text-sky-300 font-bold break-all" x-text="domOracleModalData?.target_url"></div>
+      </div>
+
+      <template x-if="domOracleModalData?.execution_confirmed && domOracleModalData?.execution_evidence">
+        <div class="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl space-y-2">
+          <div class="text-[11px] font-bold text-rose-300 flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-400 mr-1.5 animate-pulse"></span>
+            <span>Intercepted Client-Side Execution Event:</span>
+          </div>
+          <pre class="p-2 bg-[#0B0F17] rounded border border-rose-900/60 text-rose-200 text-[11px]"
+            x-text="JSON.stringify(domOracleModalData.execution_evidence, null, 2)"></pre>
+        </div>
+      </template>
+
+      <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <div class="p-2.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">DIALOGS TRIGGERED</span>
+          <span class="font-bold text-slate-200" x-text="(domOracleModalData?.dialogs_triggered || []).length"></span>
+        </div>
+        <div class="p-2.5 bg-[#0B0F17] border border-[#1E293B] rounded-lg">
+          <span class="text-slate-500 block text-[10px]">CONSOLE LOGS / ERRORS</span>
+          <span class="font-bold text-slate-200" x-text="(domOracleModalData?.console_messages || []).length + ' logs / ' + (domOracleModalData?.page_errors || []).length + ' errors'"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 3: OAST CANARY SPRAYER (P2)                                         -->
+  <!-- ========================================================================= -->
+  <div x-show="showOastSprayModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto font-mono select-text" x-cloak>
+    <div @click.away="showOastSprayModal = false"
+      class="w-full max-w-2xl bg-[#111827] border border-orange-700/60 rounded-2xl p-6 space-y-4 text-xs shadow-2xl my-auto">
+      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-orange-950 border border-orange-700/60 rounded-xl text-orange-400">
+            <i data-lucide="spray-can" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-100">Autonomous OAST Canary Sprayer (P2)</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Sprays multi-protocol canaries across URL query, form body, and headers</p>
+          </div>
+        </div>
+        <button @click="showOastSprayModal = false" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-[10px] text-slate-400 uppercase font-bold">Target URL *</label>
+          <input type="text" x-model="oastSprayForm.target_url" placeholder="http://target.com/api/fetch?url=test"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono mt-1 focus:border-orange-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] text-slate-400 uppercase font-bold">HTTP Method</label>
+            <select x-model="oastSprayForm.method"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-orange-300 font-bold mt-1">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-400 uppercase font-bold">Target Parameters (Optional)</label>
+            <input type="text" x-model="oastSprayForm.target_params" placeholder="Leave empty for auto-discovery"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono mt-1 focus:border-orange-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-slate-400 uppercase font-bold">Vectors to Spray</label>
+          <div class="flex items-center space-x-3 mt-1.5 text-[11px]">
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" value="ssrf" x-model="oastSprayForm.vuln_types" class="rounded bg-slate-900 border-slate-700 text-orange-500">
+              <span class="text-slate-300">HTTP / SSRF</span>
+            </label>
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" value="dns" x-model="oastSprayForm.vuln_types" class="rounded bg-slate-900 border-slate-700 text-indigo-500">
+              <span class="text-slate-300">DNS (5354)</span>
+            </label>
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" value="log4j" x-model="oastSprayForm.vuln_types" class="rounded bg-slate-900 border-slate-700 text-amber-500">
+              <span class="text-slate-300">JNDI / LDAP (1390)</span>
+            </label>
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" value="xxe" x-model="oastSprayForm.vuln_types" class="rounded bg-slate-900 border-slate-700 text-rose-500">
+              <span class="text-slate-300">XXE DTD</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t border-[#1E293B]">
+        <button @click="showOastSprayModal = false" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">Cancel</button>
+        <button @click="triggerOastCanarySprayUI()" :disabled="isSprayingCanaries"
+          class="px-4 py-2 bg-gradient-to-r from-orange-600 to-rose-600 hover:from-orange-500 hover:to-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow disabled:opacity-50">
+          <i data-lucide="spray-can" class="w-3.5 h-3.5"></i>
+          <span x-text="isSprayingCanaries ? 'Spraying Canaries...' : 'Launch Autonomous Spray'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL 4: RECORD HYPOTHESIS (P3)                                           -->
+  <!-- ========================================================================= -->
+  <div x-show="showNewHypothesisModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto font-mono select-text" x-cloak>
+    <div @click.away="showNewHypothesisModal = false"
+      class="w-full max-w-lg bg-[#111827] border border-indigo-700/60 rounded-2xl p-6 space-y-4 text-xs shadow-2xl my-auto">
+      <div class="flex items-center justify-between border-b border-[#1E293B] pb-3">
+        <h3 class="text-sm font-bold text-slate-100 flex items-center space-x-2">
+          <i data-lucide="brain-circuit" class="w-4 h-4 text-indigo-400"></i>
+          <span>Record Attack Hypothesis</span>
+        </h3>
+        <button @click="showNewHypothesisModal = false" class="p-1 hover:bg-[#1E293B] rounded text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-[10px] text-slate-400 uppercase font-bold">Target URL / Endpoint *</label>
+          <input type="text" x-model="newHypothesisForm.target" placeholder="/api/users/profile or https://target.com/export"
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono mt-1 focus:border-indigo-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] text-slate-400 uppercase font-bold">Vulnerability Class</label>
+            <select x-model="newHypothesisForm.vuln_type"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-indigo-300 font-bold mt-1">
+              <option value="BOLA">BOLA / IDOR</option>
+              <option value="BAC">Broken Access Control</option>
+              <option value="SQLI">SQL Injection</option>
+              <option value="SSRF">Server-Side Request Forgery</option>
+              <option value="XSS">Cross-Site Scripting</option>
+              <option value="RACE">Race Condition</option>
+              <option value="AUTH_BYPASS">Authentication Bypass</option>
+              <option value="INFO_DISCLOSURE">Information Disclosure</option>
+              <option value="GENERAL">General Attack Vector</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-400 uppercase font-bold">Initial Status</label>
+            <select x-model="newHypothesisForm.status"
+              class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg px-3 py-2 text-xs text-slate-200 font-bold mt-1">
+              <option value="PLANNED">PLANNED</option>
+              <option value="TESTING">TESTING</option>
+              <option value="CONFIRMED">CONFIRMED</option>
+              <option value="DISPROVEN">DISPROVEN</option>
+              <option value="BLOCKED">BLOCKED</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-slate-400 uppercase font-bold">Attack Hypothesis &amp; Reasoning *</label>
+          <textarea x-model="newHypothesisForm.hypothesis" rows="3" placeholder="e.g. Endpoint accepts user_id in JSON payload; test tampering ID to access horizontal records."
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-xs text-slate-200 font-mono mt-1 focus:border-indigo-500 focus:outline-none leading-relaxed"></textarea>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-slate-400 uppercase font-bold">Evidence Notes (Optional)</label>
+          <textarea x-model="newHypothesisForm.evidence_notes" rows="2" placeholder="e.g. Response contains PII or sensitive keys."
+            class="w-full bg-[#0B0F17] border border-[#1E293B] rounded-lg p-3 text-xs text-slate-200 font-mono mt-1 focus:border-indigo-500 focus:outline-none leading-relaxed"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-3 border-t border-[#1E293B]">
+        <button @click="showNewHypothesisModal = false" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200">Cancel</button>
+        <button @click="createHypothesisFromUI()" :disabled="isSubmittingHypothesis"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          <span>Save Hypothesis</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATIONS -->
   <div class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
     <template x-for="(toast, index) in toasts" :key="index">
@@ -3446,16 +3942,20 @@
       const attackModuleMethods = (window.AttackSurfaceModule && window.AttackSurfaceModule.methods) ? window.AttackSurfaceModule.methods : {};
       const oastModuleData = (window.OastModule && window.OastModule.data) ? window.OastModule.data() : {};
       const oastModuleMethods = (window.OastModule && window.OastModule.methods) ? window.OastModule.methods : {};
+      const hypothesesModuleData = (window.HypothesesModule && window.HypothesesModule.data) ? window.HypothesesModule.data() : {};
+      const hypothesesModuleMethods = (window.HypothesesModule && window.HypothesesModule.methods) ? window.HypothesesModule.methods : {};
 
       return {
         ...attackModuleData,
         ...oastModuleData,
+        ...hypothesesModuleData,
         ...attackModuleMethods,
         ...oastModuleMethods,
+        ...hypothesesModuleMethods,
 
         wsConnected: false,
         socket: null,
-        currentAppTab: 'proxy', // proxy | intercept | repeater | fuzzer | scope | ai_activity | attack_surface | oast
+        currentAppTab: 'proxy', // proxy | intercept | repeater | fuzzer | scope | ai_activity | attack_surface | oast | hypotheses
         sidebarExpanded: true,
         toggleSidebar() {
           this.sidebarExpanded = !this.sidebarExpanded;
@@ -3475,7 +3975,8 @@
             scope: 'Scope Guardrails',
             ai_activity: 'AI Activity & Vault',
             attack_surface: 'Attack Surface Graph',
-            oast: 'OAST Callbacks Engine'
+            oast: 'OAST Callbacks Engine',
+            hypotheses: 'Hypothesis Ledger'
           };
           return map[this.currentAppTab] || 'Dashboard';
         },
@@ -3488,6 +3989,7 @@
             attack_surface: 'RECON & TARGETS',
             oast: 'RECON & TARGETS',
             ai_activity: 'AI & GOVERNANCE',
+            hypotheses: 'AI & GOVERNANCE',
             scope: 'AI & GOVERNANCE'
           };
           return cats[this.currentAppTab] || 'GATEWAY';
@@ -3501,6 +4003,7 @@
           if (this.currentAppTab === 'ai_activity') return `${(this.stats.total_commands || 0)} Terminal Commands · ${(this.stats.total_payloads || 0)} Payloads`;
           if (this.currentAppTab === 'attack_surface') return `${(this.attackSurfaceData && this.attackSurfaceData.summary ? this.attackSurfaceData.summary.total_endpoints : 0)} Discovered Target Endpoints`;
           if (this.currentAppTab === 'oast') return `${(this.oastEvents ? this.oastEvents.length : 0)} Out-of-Band Callbacks Logged`;
+          if (this.currentAppTab === 'hypotheses') return `${(this.hypothesesList ? this.hypothesesList.length : 0)} Tracked Attack Hypotheses & Agenda`;
           return '';
         },
         logs: [],
@@ -3814,6 +4317,7 @@
           this.fetchAttackSurface();
           this.fetchOastEvents();
           this.fetchProxyStatus();
+          this.fetchHypotheses();
           this.connectWebSocket();
           this.$nextTick(() => lucide.createIcons());
         },
@@ -3996,6 +4500,10 @@
                 message: `Out-of-band hit on token ${ev.token} (${ev.protocol} from ${ev.source_ip || 'remote'})!`
               });
               this.renderIconsDebounced();
+            }
+          } else if (msg.type === 'HYPOTHESIS_CREATED' || msg.type === 'HYPOTHESIS_UPDATED' || msg.type === 'HYPOTHESIS_DELETED') {
+            if (typeof this.handleHypothesisWsEvent === 'function') {
+              this.handleHypothesisWsEvent(msg);
             }
           }
           this.fetchInterceptStatus();
@@ -5529,6 +6037,87 @@
           if (beautified) {
             this.repeaterForm.body = beautified;
             this.showToast({ title: 'Body Beautified', message: `Formatted request body as ${fmt}.` });
+          }
+        },
+
+        distilledResponseModal: null,
+        isDistillingBody: false,
+        async distillCurrentResponseBody(bodyText, headersObj) {
+          if (!bodyText) {
+            this.showToast({ title: 'Empty Body', message: 'No response body content to distill.' });
+            return;
+          }
+          this.isDistillingBody = true;
+          let contentType = 'text/html';
+          if (typeof headersObj === 'object' && headersObj) {
+            const ct = Object.entries(headersObj).find(([k]) => k.toLowerCase() === 'content-type');
+            if (ct && ct[1] && ct[1].includes('json')) contentType = 'application/json';
+          } else if (typeof headersObj === 'string' && headersObj.toLowerCase().includes('application/json')) {
+            contentType = 'application/json';
+          }
+          try {
+            const resp = await fetch('/api/distiller/distill', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                body: bodyText,
+                content_type: contentType,
+                max_length: 5000
+              })
+            });
+            if (resp.ok) {
+              this.distilledResponseModal = await resp.json();
+              this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+            } else {
+              const err = await resp.text();
+              alert('Distillation failed: ' + err);
+            }
+          } catch (e) {
+            alert('Error distilling body: ' + e);
+          } finally {
+            this.isDistillingBody = false;
+          }
+        },
+
+        isVerifyingDom: false,
+        domOracleModalData: null,
+        async verifyRepeaterDomExecution() {
+          const url = (this.repeaterForm && this.repeaterForm.url) ? this.repeaterForm.url.trim() : '';
+          if (!url) {
+            alert('Please specify a target URL in Repeater.');
+            return;
+          }
+          this.isVerifyingDom = true;
+          this.domOracleModalData = null;
+          const proj = this.selectedProject === 'ALL' ? 'default' : (this.selectedProject || 'default');
+          try {
+            const resp = await fetch('/api/oracle/verify-dom', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: url,
+                payload: this.repeaterForm.body || null,
+                trigger_event: 'load',
+                wait_timeout_ms: 4000,
+                project: proj
+              })
+            });
+            if (resp.ok) {
+              this.domOracleModalData = await resp.json();
+              const isConfirmed = this.domOracleModalData.execution_confirmed;
+              this.showToast({
+                title: isConfirmed ? '🔥 DOM EXECUTION CONFIRMED' : 'NO EXECUTION DETECTED',
+                message: isConfirmed ? `Payload executed in Chromium DOM! Verdict: ${this.domOracleModalData.verdict}` : `Sandbox completed with no client-side DOM execution.`
+              });
+              this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+            } else {
+              const err = await resp.text();
+              alert('DOM Oracle verification error: ' + err);
+            }
+          } catch (e) {
+            alert('DOM Oracle failed: ' + e);
+          } finally {
+            this.isVerifyingDom = false;
           }
         }
       };

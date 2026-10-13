@@ -1,5 +1,7 @@
 /**
  * Spectra / AetherGate - OAST (Out-of-Band Application Security Testing) Component
+ * Features: Multi-protocol listeners (HTTP, DNS, LDAP/JNDI), Token Generator,
+ * and Autonomous Multi-Protocol Canary Sprayer (P2).
  */
 
 window.OastModule = {
@@ -11,7 +13,20 @@ window.OastModule = {
       oastDescriptionInput: 'AI Agent Blind Vulnerability Probe',
       isGeneratingOast: false,
       oastSearchQuery: '',
-      oastProtocols: { http: { active: true }, dns: { active: false }, ldap: { active: false } }
+      oastProtocols: { http: { active: true }, dns: { active: false }, ldap: { active: false } },
+
+      // P2: Autonomous Canary Sprayer UI State
+      showOastSprayModal: false,
+      isSprayingCanaries: false,
+      oastSprayForm: {
+        target_url: '',
+        method: 'GET',
+        headers_raw: '',
+        body: '',
+        target_params: '',
+        vuln_types: ['ssrf', 'dns', 'log4j']
+      },
+      oastSprayResult: null
     };
   },
 
@@ -68,6 +83,67 @@ window.OastModule = {
         alert('Failed to generate OAST token: ' + err);
       } finally {
         this.isGeneratingOast = false;
+      }
+    },
+
+    async triggerOastCanarySprayUI() {
+      if (!this.oastSprayForm.target_url.trim()) {
+        alert('Please enter a valid target URL to spray.');
+        return;
+      }
+
+      this.isSprayingCanaries = true;
+      this.oastSprayResult = null;
+      const proj = this.selectedProject === 'ALL' ? 'default' : (this.selectedProject || 'default');
+
+      let parsedHeaders = null;
+      if (this.oastSprayForm.headers_raw.trim()) {
+        try {
+          parsedHeaders = JSON.parse(this.oastSprayForm.headers_raw.trim());
+        } catch (e) {
+          alert('Headers must be valid JSON: ' + e);
+          this.isSprayingCanaries = false;
+          return;
+        }
+      }
+
+      let parsedParams = null;
+      if (this.oastSprayForm.target_params.trim()) {
+        parsedParams = this.oastSprayForm.target_params.split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      try {
+        const resp = await fetch('/api/oast/spray', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target_url: this.oastSprayForm.target_url.trim(),
+            method: this.oastSprayForm.method,
+            headers: parsedHeaders,
+            body: this.oastSprayForm.body,
+            target_params: parsedParams,
+            vuln_types: this.oastSprayForm.vuln_types,
+            project: proj
+          })
+        });
+
+        if (resp.ok) {
+          this.oastSprayResult = await resp.json();
+          const count = this.oastSprayResult.total_canaries_sprayed || 0;
+          const hits = this.oastSprayResult.confirmed_vulnerabilities_count || 0;
+          this.showToast({
+            title: 'Canary Spray Finished',
+            message: `Sprayed ${count} canaries across ${this.oastSprayResult.parameters_tested.length} parameters. Immediate hits: ${hits}`
+          });
+          await this.fetchOastEvents();
+        } else {
+          const err = await resp.text();
+          alert('Spray error: ' + err);
+        }
+      } catch (err) {
+        alert('Spray failed: ' + err);
+      } finally {
+        this.isSprayingCanaries = false;
       }
     },
 

@@ -2172,10 +2172,10 @@ def get_hypothesis_agenda_endpoint(project: str = "default"):
 
 
 @app.post("/api/hypotheses")
-def create_hypothesis_endpoint(req: CreateHypothesisRequest):
+async def create_hypothesis_endpoint(req: CreateHypothesisRequest):
     """P3: Records an attack hypothesis into agent working memory."""
     from backend.hypothesis_manager import create_hypothesis
-    return create_hypothesis(
+    res = create_hypothesis(
         project=req.project or "default",
         target=req.target,
         vuln_type=req.vuln_type or "GENERAL",
@@ -2185,26 +2185,49 @@ def create_hypothesis_endpoint(req: CreateHypothesisRequest):
         agent_id=req.agent_id or "primary_agent",
         linked_log_id=req.linked_log_id
     )
+    await ws_manager.broadcast({
+        "type": "HYPOTHESIS_CREATED",
+        "hypothesis": res,
+        "project": req.project or "default"
+    })
+    return res
 
 
 @app.patch("/api/hypotheses/{hypothesis_id}")
-def update_hypothesis_endpoint(hypothesis_id: int, req: UpdateHypothesisRequest, project: Optional[str] = None):
+async def update_hypothesis_endpoint(hypothesis_id: int, req: UpdateHypothesisRequest, project: Optional[str] = None):
     """P3: Updates status or notes on a hypothesis."""
     from backend.hypothesis_manager import update_hypothesis
     res = update_hypothesis(hypothesis_id, status=req.status, evidence_notes=req.evidence_notes, project=project)
     if not res:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
+    await ws_manager.broadcast({
+        "type": "HYPOTHESIS_UPDATED",
+        "hypothesis": res,
+        "project": res.get("project") or project or "default"
+    })
     return res
 
 
 @app.delete("/api/hypotheses/{hypothesis_id}")
-def delete_hypothesis_endpoint(hypothesis_id: int, project: Optional[str] = None):
+async def delete_hypothesis_endpoint(hypothesis_id: int, project: Optional[str] = None):
     """P3: Deletes a hypothesis."""
     from backend.hypothesis_manager import delete_hypothesis
     ok = delete_hypothesis(hypothesis_id, project=project)
     if not ok:
         raise HTTPException(status_code=404, detail="Hypothesis not found")
+    await ws_manager.broadcast({
+        "type": "HYPOTHESIS_DELETED",
+        "id": hypothesis_id,
+        "project": project or "default"
+    })
     return {"status": "deleted", "id": hypothesis_id}
+
+
+@app.post("/api/hypotheses/broadcast-event")
+async def broadcast_hypothesis_event(data: Dict[str, Any]):
+    """Relays hypothesis lifecycle events from FastMCP subprocess to connected dashboard WebSockets."""
+    await ws_manager.broadcast(data)
+    return {"status": "broadcasted"}
 
 
 class VerifyDomRequest(BaseModel):

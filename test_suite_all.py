@@ -25,6 +25,7 @@ assert "SPECTRA // Security Testing Gateway" in res_index.text
 assert "/static/css/style.css" in res_index.text
 assert "/static/js/attack_surface.js" in res_index.text
 assert "/static/js/oast.js" in res_index.text
+assert "/static/js/hypotheses.js" in res_index.text
 print("  ✓ Index HTML serves correctly with modular asset links.")
 
 res_css = client.get("/static/css/style.css")
@@ -41,6 +42,11 @@ res_oast_js = client.get("/static/js/oast.js")
 assert res_oast_js.status_code == 200, f"oast.js failed: {res_oast_js.status_code}"
 assert "OastModule" in res_oast_js.text
 print("  ✓ oast.js serves correctly.")
+
+res_hyp_js = client.get("/static/js/hypotheses.js")
+assert res_hyp_js.status_code == 200, f"hypotheses.js failed: {res_hyp_js.status_code}"
+assert "HypothesesModule" in res_hyp_js.text
+print("  ✓ hypotheses.js serves correctly.")
 
 # 2. TEST TARGET KNOWLEDGE GRAPH ENDPOINTS
 print("\n[TEST 2] Verifying Target Knowledge Graph Endpoints...")
@@ -151,5 +157,64 @@ with client.websocket_connect("/ws") as websocket:
     assert ws_msg.get("type") == "OAST_HIT", f"Expected OAST_HIT, got: {ws_msg}"
     assert ws_msg["event"]["token"] == token2
     print(f"  ✓ WebSocket received OAST_HIT event broadcast in real time!")
+
+    # 5. TEST P1-P4 CAPABILITY ENDPOINTS (DISTILLER & HYPOTHESES WORKING MEMORY)
+    print("\n[TEST 5] Verifying P1-P4 REST Endpoints & Live WebSocket Relay...")
+    
+    # P1: Distiller
+    res_distill = client.post("/api/distiller/distill", json={
+        "body": "<html><body><form action='/login' method='POST'><input name='username'/><input name='password'/></form></body></html>",
+        "content_type": "text/html"
+    })
+    assert res_distill.status_code == 200, f"Distill failed: {res_distill.text}"
+    dist_data = res_distill.json()
+    assert len(dist_data["forms"]) == 1
+    assert "compact_summary" in dist_data
+    print("  ✓ Body Distiller endpoint verified (Forms extracted, token compacted).")
+
+    # P3: Hypothesis Working Memory & Agenda
+    res_hyp = client.post("/api/hypotheses", json={
+        "project": "ws_test_proj",
+        "target": "/api/v1/users/admin",
+        "vuln_type": "BOLA",
+        "hypothesis": "Test horizontal privilege escalation via ID tampering",
+        "status": "PLANNED",
+        "evidence_notes": "Endpoint reflects target record",
+        "agent_id": "test_agent"
+    })
+    assert res_hyp.status_code == 200, f"Hypothesis create failed: {res_hyp.text}"
+    hyp_data = res_hyp.json()
+    hyp_id = hyp_data["id"]
+    
+    # Receive WS message for HYPOTHESIS_CREATED
+    ws_hyp_msg = websocket.receive_json()
+    assert ws_hyp_msg.get("type") == "HYPOTHESIS_CREATED", f"Expected HYPOTHESIS_CREATED, got: {ws_hyp_msg}"
+    assert ws_hyp_msg["hypothesis"]["id"] == hyp_id
+    print("  ✓ Hypothesis recorded and broadcasted live via WebSocket!")
+
+    # Verify Agenda
+    res_agenda = client.get("/api/hypotheses/agenda?project=ws_test_proj")
+    assert res_agenda.status_code == 200
+    agenda_data = res_agenda.json()
+    assert agenda_data["total_hypotheses"] >= 1
+    assert agenda_data["planned_count"] >= 1
+    print("  ✓ Hypothesis Agenda tracking verified.")
+
+    # Update Hypothesis Status
+    res_up = client.patch(f"/api/hypotheses/{hyp_id}?project=ws_test_proj", json={
+        "status": "CONFIRMED",
+        "evidence_notes": "BOLA verified: retrieved admin record #1"
+    })
+    assert res_up.status_code == 200
+    assert res_up.json()["status"] == "CONFIRMED"
+
+    # Receive WS message for HYPOTHESIS_UPDATED
+    ws_up_msg = websocket.receive_json()
+    assert ws_up_msg.get("type") == "HYPOTHESIS_UPDATED", f"Expected HYPOTHESIS_UPDATED, got: {ws_up_msg}"
+    print("  ✓ Hypothesis status transition (CONFIRMED) broadcasted live via WebSocket!")
+
+    # Delete Hypothesis
+    res_del = client.delete(f"/api/hypotheses/{hyp_id}?project=ws_test_proj")
+    assert res_del.status_code == 200
 
 print("\n=== ALL TEST SUITE CHECKS PASSED WITH 0 ERRORS! ===")
