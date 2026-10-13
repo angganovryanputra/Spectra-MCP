@@ -92,6 +92,9 @@ Anda terhubung dengan Spectra Security Testing Gateway melalui MCP Tools:
     - Gunakan `compare_http_responses(response_a=<LogID_or_Dict>, response_b=<LogID_or_Dict>)` untuk membersihkan dynamic noise (timestamp, UUID, hex hash, CSRF nonce) dan mendeteksi Soft-403/Soft-404.
 26. **Autonomous JWT Security Auditing:**
     - Gunakan `audit_jwt_security(token="...", test_url="https://target/api/protected")` untuk menguji Algorithm None bypass, brute-force weak HMAC secret offline, privilege escalation claim tampering, dan kid path traversal.
+27. **Penghapusan & Pembersihan Attack Surface:**
+    - Gunakan `delete_attack_surface_node(node_type="asset"|"endpoint"|"service", node_id=<ID>, project="...")` untuk menghapus host, rute, atau service yang sudah usang/salah deteksi dari Attack Surface Knowledge Graph.
+    - Gunakan `clear_attack_surface_graph(project="...")` untuk mengosongkan seluruh aset dan endpoint target pada workspace proyek tertentu.
 ```
 
 ---

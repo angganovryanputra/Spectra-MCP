@@ -161,23 +161,61 @@ def get_ssl_context_for_host(hostname: str) -> ssl.SSLContext:
 
 _current_active_projects = []
 
+def _get_active_context_file() -> str:
+    ca_dir = get_ca_dir()
+    os.makedirs(ca_dir, exist_ok=True)
+    return os.path.join(ca_dir, "active_context.json")
+
 class ProxyContext:
-    """Context manager for associating the current active command/agent with proxy requests."""
+    """Context manager for associating the current active command/agent with proxy requests across processes."""
     def __init__(self, project: str, agent_id: str = "primary_agent"):
         self.project = (project or "default").strip().lower()
         self.agent_id = agent_id or "primary_agent"
 
     def __enter__(self):
         _current_active_projects.append((self.project, self.agent_id))
+        try:
+            ctx_path = _get_active_context_file()
+            tmp_path = ctx_path + f".tmp_{os.getpid()}"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "project": self.project,
+                    "agent_id": self.agent_id,
+                    "timestamp": time.time()
+                }, f)
+            os.replace(tmp_path, ctx_path)
+        except Exception:
+            pass
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if (self.project, self.agent_id) in _current_active_projects:
             _current_active_projects.remove((self.project, self.agent_id))
+        try:
+            ctx_path = _get_active_context_file()
+            if os.path.exists(ctx_path) and not _current_active_projects:
+                try:
+                    os.remove(ctx_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 def get_current_active_context() -> Tuple[str, str]:
     if _current_active_projects:
         return _current_active_projects[-1]
+    try:
+        ctx_path = _get_active_context_file()
+        if os.path.exists(ctx_path):
+            with open(ctx_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if time.time() - float(data.get("timestamp", 0)) < 180:
+                    p = data.get("project")
+                    a = data.get("agent_id")
+                    if p:
+                        return p.strip().lower(), (a or "primary_agent").strip()
+    except Exception:
+        pass
     default_proj = os.getenv("SPECTRA_PROJECT", "default").strip().lower()
     return default_proj, "primary_agent"
 
@@ -654,8 +692,27 @@ async def _handle_client_connection(reader: asyncio.StreamReader, writer: asynci
 
         # Extract Project & Agent context
         ctx_proj, ctx_agent = get_current_active_context()
-        target_project = headers.get("X-Spectra-Project") or ctx_proj
-        target_agent = headers.get("X-Spectra-Agent") or ctx_agent
+        target_project = headers.get("X-Spectra-Project") or headers.get("x-spectra-project")
+        target_agent = headers.get("X-Spectra-Agent") or headers.get("x-spectra-agent")
+
+        # Parse Proxy-Authorization basic credentials if supplied in proxy URL
+        proxy_auth = headers.get("Proxy-Authorization") or headers.get("proxy-authorization")
+        if proxy_auth and proxy_auth.lower().startswith("basic "):
+            try:
+                import base64
+                b64_val = proxy_auth.split(" ", 1)[1].strip()
+                decoded = base64.b64decode(b64_val).decode("utf-8", errors="replace")
+                if ":" in decoded:
+                    p_user, p_pass = decoded.split(":", 1)
+                    if p_user and not target_project:
+                        target_project = p_user.strip().lower()
+                    if p_pass and not target_agent:
+                        target_agent = p_pass.strip()
+            except Exception:
+                pass
+
+        target_project = (target_project or ctx_proj or "default").strip().lower()
+        target_agent = (target_agent or ctx_agent or "primary_agent").strip()
 
         # ----------------------------------------------------------------------
         # CASE 1: HTTPS CONNECT (TLS MITM INTERCEPTION)
@@ -944,3 +1001,29 @@ async def stop_forward_proxy():
         await _proxy_server.wait_closed()
         _proxy_server = None
     _is_proxy_running = False
+
+
+async def ensure_forward_proxy_running(host: Optional[str] = None, port: Optional[int] = None) -> bool:
+    """Ensures the Spectra Forward Proxy server is actively running. Starts it if not listening."""
+    p_host = host or os.getenv("SPECTRA_PROXY_HOST", "127.0.0.1")
+    p_port = port or int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+
+    # Test if port is already listening and responsive
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(p_host, p_port), timeout=0.2)
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except Exception:
+        pass
+
+    # Start forward proxy server in background
+    try:
+        await start_forward_proxy(p_host, p_port)
+        return True
+    except OSError:
+        # Port might have been bound concurrently by another process
+        return True
+    except Exception:
+        return False
+

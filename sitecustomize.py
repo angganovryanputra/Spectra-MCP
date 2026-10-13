@@ -65,7 +65,7 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
         return random.choice(_LEGITIMATE_UAS)
 
     def _inject_browser_headers(headers_dict):
-        """Injects legitimate modern browser User-Agent and matching Client Hints."""
+        """Injects legitimate modern browser User-Agent, matching Client Hints, and Spectra correlation headers."""
         try:
             from backend.user_agents import get_random_browser_profile
             prof = get_random_browser_profile()
@@ -76,6 +76,13 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
                 headers_dict["Sec-Ch-Ua-Platform"] = prof["sec_ch_ua_platform"]
         except Exception:
             headers_dict["User-Agent"] = _get_legit_ua()
+
+        spec_proj = os.environ.get("SPECTRA_PROJECT")
+        spec_agent = os.environ.get("SPECTRA_AGENT_ID")
+        if spec_proj:
+            headers_dict["X-Spectra-Project"] = spec_proj
+        if spec_agent:
+            headers_dict["X-Spectra-Agent"] = spec_agent
 
     # 3. Patch `requests` library to guarantee proxy routing and legitimate browser User-Agent
     try:

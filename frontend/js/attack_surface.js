@@ -148,10 +148,67 @@ window.AttackSurfaceModule = {
       try {
         const resp = await fetch(`/api/targets/assets/${assetId}`, { method: 'DELETE' });
         if (resp.ok) {
+          if (this.showToast) {
+            this.showToast({ title: 'Asset Deleted', message: `Target asset #${assetId} removed.` });
+          }
           await this.fetchAttackSurface();
         }
       } catch (err) {
         console.error('Failed to delete asset:', err);
+      }
+    },
+
+    async deleteEndpoint(endpointId) {
+      if (!confirm(`Are you sure you want to delete endpoint #${endpointId}?`)) return;
+      try {
+        const resp = await fetch(`/api/targets/endpoints/${endpointId}`, { method: 'DELETE' });
+        if (resp.ok) {
+          if (this.showToast) {
+            this.showToast({ title: 'Endpoint Deleted', message: `Endpoint #${endpointId} removed from attack surface.` });
+          }
+          await this.fetchAttackSurface();
+        }
+      } catch (err) {
+        console.error('Failed to delete endpoint:', err);
+      }
+    },
+
+    async deleteService(serviceId) {
+      if (!confirm(`Are you sure you want to remove service #${serviceId}?`)) return;
+      try {
+        const resp = await fetch(`/api/targets/services/${serviceId}`, { method: 'DELETE' });
+        if (resp.ok) {
+          if (this.showToast) {
+            this.showToast({ title: 'Service Removed', message: `Port/Service #${serviceId} removed.` });
+          }
+          await this.fetchAttackSurface();
+        }
+      } catch (err) {
+        console.error('Failed to delete service:', err);
+      }
+    },
+
+    async clearAttackSurface() {
+      const proj = this.selectedProject || 'default';
+      const promptText = proj === 'ALL'
+        ? 'Are you sure you want to CLEAR ALL attack surface assets across ALL projects?'
+        : `Are you sure you want to CLEAR ALL attack surface assets for project '${proj}'?`;
+      if (!confirm(promptText)) return;
+
+      try {
+        const resp = await fetch(`/api/targets/graph?project=${encodeURIComponent(proj)}`, { method: 'DELETE' });
+        if (resp.ok) {
+          const res = await resp.json();
+          if (this.showToast) {
+            this.showToast({
+              title: 'Attack Surface Cleared',
+              message: `Cleared ${res.deleted_assets || 0} assets from attack surface.`
+            });
+          }
+          await this.fetchAttackSurface();
+        }
+      } catch (err) {
+        alert('Failed to clear attack surface: ' + err);
       }
     },
 

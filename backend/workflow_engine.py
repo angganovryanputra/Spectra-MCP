@@ -8,6 +8,7 @@ import re
 import json
 import time
 import asyncio
+import urllib.parse
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
 
@@ -88,6 +89,7 @@ async def run_workflow_sequence(
     steps: List[Dict[str, Any]],
     mutations: Optional[Dict[str, Any]] = None,
     project: str = "default",
+    agent_id: str = "primary_agent",
     upstream_proxy: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -187,6 +189,29 @@ async def run_workflow_sequence(
             }
             results.append(step_result)
 
+            # Record step execution to Spectra HttpLog (Proxy History)
+            try:
+                from backend.forward_proxy import _dispatch_log
+                parsed_step = urllib.parse.urlparse(step_url)
+                await _dispatch_log({
+                    "project": project,
+                    "agent_id": agent_id,
+                    "source": "WORKFLOW_ENGINE",
+                    "method": raw_method,
+                    "url": step_url,
+                    "host": parsed_step.netloc,
+                    "path": parsed_step.path or "/",
+                    "status_code": res_status,
+                    "duration_ms": dur_ms,
+                    "request_headers": step_headers,
+                    "request_body": step_body or "",
+                    "response_headers": res_headers,
+                    "response_body": res_body,
+                    "reasoning": f"[Workflow Sequence: {step_name}] Extracted vars: {list(extracted_vars.keys())}"
+                })
+            except Exception:
+                pass
+
             # Logic flaw analysis
             expected_status = step.get("expected_status")
             if expected_status:
@@ -244,6 +269,7 @@ async def execute_workflow(
         steps=sequence,
         mutations={"override_vars": initial_context},
         project=project,
+        agent_id=agent_id,
         upstream_proxy=upstream_proxy
     )
 

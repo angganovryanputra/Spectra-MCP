@@ -1638,6 +1638,26 @@ def update_target_endpoint_status(endpoint_id: int, req: UpdateEndpointStatusReq
     return ep.to_dict()
 
 
+@app.delete("/api/targets/endpoints/{endpoint_id}")
+def delete_target_endpoint_route(endpoint_id: int, project: Optional[str] = None):
+    """Deletes a specific endpoint from the attack surface."""
+    from backend.target_manager import delete_target_endpoint
+    success = delete_target_endpoint(endpoint_id, project)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Endpoint ID #{endpoint_id} not found.")
+    return {"status": "deleted", "id": endpoint_id}
+
+
+@app.delete("/api/targets/services/{service_id}")
+def delete_target_service_route(service_id: int, project: Optional[str] = None):
+    """Deletes a specific service/port from the attack surface."""
+    from backend.target_manager import delete_target_service
+    success = delete_target_service(service_id, project)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Service ID #{service_id} not found.")
+    return {"status": "deleted", "id": service_id}
+
+
 @app.delete("/api/targets/graph")
 def clear_target_graph_endpoint(project: str = "default", db: Session = Depends(get_db)):
     """Clears target assets, services, and endpoints for a project."""

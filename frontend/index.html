@@ -2632,6 +2632,12 @@
           <i data-lucide="plus" class="w-3.5 h-3.5"></i>
           <span>Add Asset</span>
         </button>
+        <button @click="clearAttackSurface()"
+          class="px-2.5 py-1.5 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded font-bold text-xs flex items-center space-x-1 transition shadow"
+          title="Clear all assets and endpoints from attack surface for current project">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+          <span>Clear Surface</span>
+        </button>
         <button @click="fetchAttackSurface()"
           class="p-1.5 bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] rounded text-slate-300 transition" title="Refresh Graph">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
@@ -2694,6 +2700,7 @@
                 <span class="font-bold text-cyan-400" x-text="s.port + '/' + s.protocol"></span>
                 <span class="text-slate-400" x-text="'(' + s.service_name + ')'"></span>
                 <span x-show="s.state" :class="s.state === 'open' ? 'text-emerald-400' : 'text-amber-400'" class="text-[9px] font-mono" x-text="'[' + s.state + ']'"></span>
+                <button @click="deleteService(s.id)" class="text-slate-600 hover:text-rose-400 ml-1" title="Remove Port"><i data-lucide="x" class="w-3 h-3"></i></button>
               </span>
             </template>
             <span x-show="!asset.services || asset.services.length === 0" class="text-slate-600 text-[10px]">No ports cataloged yet.</span>
@@ -2751,12 +2758,17 @@
                         <option value="VULNERABLE">VULNERABLE</option>
                       </select>
                     </td>
-                    <td class="px-3 py-2 text-right">
+                    <td class="px-3 py-2 text-right flex items-center justify-end space-x-1.5">
                       <button @click="sendEndpointToRepeater(ep)"
                         class="px-2 py-0.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 rounded text-[10px] font-bold transition inline-flex items-center space-x-1"
                         title="Send URL to Repeater">
                         <i data-lucide="repeat" class="w-3 h-3"></i>
                         <span>Repeater</span>
+                      </button>
+                      <button @click="deleteEndpoint(ep.id)"
+                        class="p-1 hover:bg-rose-950 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-900 rounded transition"
+                        title="Delete Endpoint">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
                       </button>
                     </td>
                   </tr>

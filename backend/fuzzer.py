@@ -118,7 +118,9 @@ async def run_fuzz_attack(
     body: Optional[str] = "",
     payloads: Optional[List[str]] = None,
     concurrency: int = 5,
-    upstream_proxy: Optional[str] = None
+    upstream_proxy: Optional[str] = None,
+    project: str = "default",
+    agent_id: str = "primary_agent"
 ) -> Dict[str, Any]:
     """
     Executes a multi-threaded parameter fuzzing attack with automatic baseline comparison.
@@ -237,6 +239,34 @@ async def run_fuzz_attack(
                         anomalies.append("SSTI_EVALUATED_49")
 
                     item["anomalies"] = anomalies
+
+                    if anomalies:
+                        try:
+                            from backend.forward_proxy import _dispatch_log
+                            import urllib.parse
+                            parsed_fz = urllib.parse.urlparse(mut_url)
+                            is_critical = any(a in ["SQL_ERROR_LEAK", "SSTI_EVALUATED_49"] for a in anomalies)
+                            await _dispatch_log({
+                                "project": project,
+                                "agent_id": agent_id,
+                                "source": "FUZZER",
+                                "method": method,
+                                "url": mut_url,
+                                "host": parsed_fz.netloc,
+                                "path": parsed_fz.path or "/",
+                                "status_code": sc,
+                                "duration_ms": dur_ms,
+                                "request_headers": mut_hdrs,
+                                "request_body": mut_body,
+                                "response_headers": dict(resp.headers),
+                                "response_body": text,
+                                "reasoning": f"[Parameter Fuzzer Anomaly: {', '.join(anomalies)}] Payload: {payload}",
+                                "flag_status": "CONFIRMED" if is_critical else "POTENTIAL",
+                                "finding_title": f"Fuzzing Anomaly Detected: {', '.join(anomalies)}",
+                                "finding_severity": "HIGH" if is_critical else "MEDIUM"
+                            })
+                        except Exception:
+                            pass
                 except Exception as e:
                     item["error"] = str(e)
                     item["anomalies"] = ["TRANSPORT_ERROR"]

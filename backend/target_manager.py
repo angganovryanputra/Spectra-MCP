@@ -265,6 +265,7 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
         if not host:
             return
 
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
         # Do not ingest Spectra's own server infrastructure
         if host in ["localhost", "127.0.0.1", "0.0.0.0", "::1"] and port in [backend_port, proxy_port]:
             return
@@ -274,3 +275,89 @@ def auto_ingest_url_to_target_graph(project: str, url: str, method: str = "GET")
         add_or_update_endpoint(project=project, host=host, url=url, method=method)
     except Exception:
         pass
+
+
+def delete_target_asset(asset_id: int, project: Optional[str] = None) -> bool:
+    """Deletes a target asset and all its associated services and endpoints."""
+    db = SessionLocal()
+    try:
+        q = db.query(TargetAsset).filter(TargetAsset.id == int(asset_id))
+        if project and project.strip().lower() != "all":
+            q = q.filter(TargetAsset.project == project.strip().lower())
+        asset = q.first()
+        if not asset:
+            return False
+        db.delete(asset)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
+def delete_target_endpoint(endpoint_id: int, project: Optional[str] = None) -> bool:
+    """Deletes a specific endpoint from the attack surface knowledge graph."""
+    db = SessionLocal()
+    try:
+        q = db.query(TargetEndpoint).filter(TargetEndpoint.id == int(endpoint_id))
+        endpoint = q.first()
+        if not endpoint:
+            return False
+        if project and project.strip().lower() != "all":
+            asset = db.query(TargetAsset).filter(TargetAsset.id == endpoint.asset_id).first()
+            if not asset or asset.project != project.strip().lower():
+                return False
+        db.delete(endpoint)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
+def delete_target_service(service_id: int, project: Optional[str] = None) -> bool:
+    """Deletes a specific service/port from the attack surface knowledge graph."""
+    db = SessionLocal()
+    try:
+        q = db.query(TargetService).filter(TargetService.id == int(service_id))
+        service = q.first()
+        if not service:
+            return False
+        if project and project.strip().lower() != "all":
+            asset = db.query(TargetAsset).filter(TargetAsset.id == service.asset_id).first()
+            if not asset or asset.project != project.strip().lower():
+                return False
+        db.delete(service)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        return False
+    finally:
+        db.close()
+
+
+def clear_target_graph(project: str = "default") -> int:
+    """Clears all target assets, services, and endpoints for a specific project or all projects."""
+    target_project = (project or "default").strip().lower()
+    db = SessionLocal()
+    try:
+        q = db.query(TargetAsset)
+        if target_project != "all":
+            q = q.filter(TargetAsset.project == target_project)
+        assets = q.all()
+        count = len(assets)
+        for a in assets:
+            db.delete(a)
+        db.commit()
+        return count
+    except Exception:
+        db.rollback()
+        return 0
+    finally:
+        db.close()
+

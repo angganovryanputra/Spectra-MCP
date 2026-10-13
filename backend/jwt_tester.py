@@ -8,6 +8,7 @@ import hmac
 import json
 import base64
 import hashlib
+import urllib.parse
 from typing import Dict, Any, List, Optional, Tuple
 
 import httpx
@@ -205,7 +206,9 @@ async def audit_jwt_security(
     method: str = "GET",
     headers: Optional[Dict[str, str]] = None,
     claims_override: Optional[Dict[str, Any]] = None,
-    upstream_proxy: Optional[str] = None
+    upstream_proxy: Optional[str] = None,
+    project: str = "default",
+    agent_id: str = "primary_agent"
 ) -> Dict[str, Any]:
     """
     Audits a JWT token against offline weaknesses and optionally conducts live
@@ -317,6 +320,32 @@ async def audit_jwt_security(
                         "similarity_to_baseline": diff["normalized_similarity_ratio"],
                         "soft_error_detected": soft["is_soft_403"] or soft["is_soft_404"]
                     })
+
+                    try:
+                        from backend.forward_proxy import _dispatch_log
+                        parsed_u = urllib.parse.urlparse(test_url.strip())
+                        vuln_t = "JWT Signature Verification Bypass (Algorithm None Flaw)" if is_success and "alg_none" in v["vector"] else ""
+                        await _dispatch_log({
+                            "project": project,
+                            "agent_id": agent_id,
+                            "source": "JWT_AUDIT",
+                            "method": method.upper(),
+                            "url": test_url.strip(),
+                            "host": parsed_u.netloc,
+                            "path": parsed_u.path or "/",
+                            "status_code": res.status_code,
+                            "duration_ms": 50,
+                            "request_headers": var_headers,
+                            "request_body": "",
+                            "response_headers": dict(res.headers),
+                            "response_body": res.text,
+                            "reasoning": f"[JWT Replay Attack: {v['vector']}] {v.get('description', '')}",
+                            "flag_status": "CONFIRMED" if is_success else "CLEAN",
+                            "finding_title": vuln_t,
+                            "finding_severity": "CRITICAL" if vuln_t else "INFO"
+                        })
+                    except Exception:
+                        pass
                 except Exception as ex:
                     live_replay_results.append({
                         "vector": v["vector"],

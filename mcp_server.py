@@ -84,7 +84,12 @@ async def _get_dashboard_client() -> httpx.AsyncClient:
                 await _dashboard_client.aclose()
             except Exception:
                 pass
+        hdrs = {}
+        api_key = os.getenv("SPECTRA_API_KEY", "").strip()
+        if api_key:
+            hdrs["X-Spectra-Key"] = api_key
         _dashboard_client = httpx.AsyncClient(
+            headers=hdrs,
             timeout=2.0,
             proxy=None,
             trust_env=False,
@@ -220,8 +225,20 @@ async def _persist_and_stream_log(
                 description=f.get("description", ""),
                 remediation=f.get("remediation", "")
             )
-            db.add(finding)
         db.commit()
+
+        try:
+            from backend.target_manager import auto_ingest_url_to_target_graph
+            auto_ingest_url_to_target_graph(proj, entry.url, entry.method)
+        except Exception:
+            pass
+
+        try:
+            from backend.js_miner import passive_mine_js_background
+            passive_mine_js_background(entry.url, entry.response_body, proj)
+        except Exception:
+            pass
+
         return {"id": entry.id, "flag_status": effective_flag, "findings": effective_findings}
     except Exception:
         db.rollback()
@@ -957,16 +974,29 @@ async def run_pentest_command(
     status = "SUCCESS"
 
     proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
-    proxy_url = f"http://127.0.0.1:{proxy_port}"
+
+    # 1. Guarantee that Spectra Forward Proxy is actively running before command execution
+    try:
+        from backend.forward_proxy import ensure_forward_proxy_running
+        await ensure_forward_proxy_running(port=proxy_port)
+    except Exception:
+        pass
+
+    proxy_url_auth = f"http://{target_project}:{target_agent}@127.0.0.1:{proxy_port}"
+    proxy_url_plain = f"http://127.0.0.1:{proxy_port}"
 
     sub_env = os.environ.copy()
-    sub_env["HTTP_PROXY"] = proxy_url
-    sub_env["HTTPS_PROXY"] = proxy_url
-    sub_env["http_proxy"] = proxy_url
-    sub_env["https_proxy"] = proxy_url
-    sub_env["ALL_PROXY"] = proxy_url
-    sub_env["all_proxy"] = proxy_url
+    sub_env["HTTP_PROXY"] = proxy_url_auth
+    sub_env["HTTPS_PROXY"] = proxy_url_auth
+    sub_env["http_proxy"] = proxy_url_auth
+    sub_env["https_proxy"] = proxy_url_auth
+    sub_env["ALL_PROXY"] = proxy_url_auth
+    sub_env["all_proxy"] = proxy_url_auth
+    sub_env["NO_PROXY"] = ""
+    sub_env["no_proxy"] = ""
     sub_env["SPECTRA_PROJECT"] = target_project
+    sub_env["SPECTRA_AGENT_ID"] = target_agent
+    sub_env["SPECTRA_PROXY_PORT"] = str(proxy_port)
     try:
         from backend.forward_proxy import get_ca_cert_path
         ca_cert_path = get_ca_cert_path()
@@ -990,11 +1020,19 @@ async def run_pentest_command(
     except Exception:
         proxy_ctx = None
 
+    # Auto-immunize curl commands against Windows Schannel SSL rejection
+    cmd_exec = cmd_clean
+    if "curl" in cmd_clean.lower() and "-k" not in cmd_clean and "--insecure" not in cmd_clean:
+        if sys.platform == "win32":
+            cmd_exec = re.sub(r"\bcurl(\.exe)?\b", r"curl.exe -k", cmd_clean, flags=re.IGNORECASE, count=1)
+        else:
+            cmd_exec = re.sub(r"\bcurl\b", r"curl -k", cmd_clean, count=1)
+
     try:
         if proxy_ctx:
             proxy_ctx.__enter__()
         proc = await asyncio.create_subprocess_shell(
-            cmd_clean,
+            cmd_exec,
             cwd=work_dir,
             env=sub_env,
             stdout=asyncio.subprocess.PIPE,
@@ -1885,7 +1923,9 @@ async def fuzz_endpoint(
         body=body or "",
         payloads=active_payloads,
         concurrency=concurrency,
-        upstream_proxy=upstream_proxy or None
+        upstream_proxy=upstream_proxy or None,
+        project=target_project,
+        agent_id=agent_id
     )
     return json.dumps(result, indent=2)
 
@@ -2010,7 +2050,9 @@ async def test_race_condition(
         headers=headers or {},
         body=body or "",
         concurrency=concurrency,
-        upstream_proxy=upstream_proxy or None
+        upstream_proxy=upstream_proxy or None,
+        project=target_project,
+        agent_id=agent_id
     )
     return json.dumps(result, indent=2)
 
@@ -2178,11 +2220,81 @@ async def audit_jwt_security(
         method=method,
         headers=headers,
         claims_override=claims_override,
-        upstream_proxy=upstream_proxy or None
+        upstream_proxy=upstream_proxy or None,
+        project=target_project
     )
     return json.dumps(result, indent=2)
 
 
+# ==============================================================================
+# MCP Tool 29: delete_attack_surface_node
+# ==============================================================================
+
+@mcp.tool()
+async def delete_attack_surface_node(
+    node_type: str,
+    node_id: int,
+    project: str = "default"
+) -> str:
+    """
+    Deletes an asset, service (port), or endpoint from the Spectra attack surface knowledge graph.
+
+    Parameters:
+      - node_type: Type of node to remove ('asset', 'endpoint', or 'service').
+      - node_id: Integer ID of the record in the attack surface.
+      - project: Project workspace name.
+    """
+    from backend.target_manager import delete_target_asset, delete_target_endpoint, delete_target_service
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    ntype = node_type.strip().lower()
+
+    if ntype in ["asset", "host", "target"]:
+        success = delete_target_asset(node_id, project=target_project)
+    elif ntype in ["endpoint", "route", "url"]:
+        success = delete_target_endpoint(node_id, project=target_project)
+    elif ntype in ["service", "port"]:
+        success = delete_target_service(node_id, project=target_project)
+    else:
+        return f"[!] Invalid node_type '{node_type}'. Choose 'asset', 'endpoint', or 'service'."
+
+    if success:
+        return json.dumps({
+            "status": "deleted",
+            "node_type": ntype,
+            "node_id": node_id,
+            "project": target_project
+        }, indent=2)
+    else:
+        return f"[!] Node #{node_id} of type '{node_type}' not found or could not be deleted in project '{target_project}'."
+
+
+# ==============================================================================
+# MCP Tool 30: clear_attack_surface_graph
+# ==============================================================================
+
+@mcp.tool()
+async def clear_attack_surface_graph(
+    project: str = "default"
+) -> str:
+    """
+    Clears all target assets, services, and endpoints from the attack surface knowledge graph for a project.
+
+    Parameters:
+      - project: Project workspace name to clear (or 'all' to clear all projects).
+    """
+    from backend.target_manager import clear_target_graph
+
+    target_project = (project or DEFAULT_PROJECT).strip().lower()
+    cleared_count = clear_target_graph(project=target_project)
+    return json.dumps({
+        "status": "cleared",
+        "deleted_assets": cleared_count,
+        "project": target_project
+    }, indent=2)
+
+
 if __name__ == "__main__":
     mcp.run()
+
 

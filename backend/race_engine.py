@@ -5,6 +5,7 @@ to identify race conditions, double-spending, limit bypasses, and state-breakage
 """
 
 import time
+import json
 import asyncio
 from typing import Dict, Any, List, Optional
 import httpx
@@ -18,7 +19,9 @@ async def run_race_attack(
     headers: Optional[Dict[str, str]] = None,
     body: Optional[str] = "",
     concurrency: int = 20,
-    upstream_proxy: Optional[str] = None
+    upstream_proxy: Optional[str] = None,
+    project: str = "default",
+    agent_id: str = "primary_agent"
 ) -> Dict[str, Any]:
     """
     Spawns `concurrency` parallel tasks that pre-warm their connection,
@@ -138,6 +141,34 @@ async def run_race_attack(
         })
 
     verdict = "POTENTIAL_RACE_CONDITION" if len(success_responses) > 1 else "CONSISTENT_BEHAVIOR"
+
+    try:
+        from backend.forward_proxy import _dispatch_log
+        import urllib.parse
+        parsed_race = urllib.parse.urlparse(url)
+        sample_sc = results[0].get("status_code", 200) if results else 200
+        is_vuln = verdict == "POTENTIAL_RACE_CONDITION"
+        await _dispatch_log({
+            "project": project,
+            "agent_id": agent_id,
+            "source": "RACE_ENGINE",
+            "method": method,
+            "url": url,
+            "host": parsed_race.netloc,
+            "path": parsed_race.path or "/",
+            "status_code": sample_sc,
+            "duration_ms": total_time_ms,
+            "request_headers": headers or {},
+            "request_body": body or "",
+            "response_headers": {},
+            "response_body": json.dumps({"status_distribution": status_distribution, "success_count": len(success_responses)}),
+            "reasoning": f"[Turbo Race Burst: {concurrency} workers, {total_time_ms}ms] Verdict: {verdict}",
+            "flag_status": "POTENTIAL" if is_vuln else "CLEAN",
+            "finding_title": "Race Condition / Concurrency State Flaw" if is_vuln else "",
+            "finding_severity": "HIGH" if is_vuln else "INFO"
+        })
+    except Exception:
+        pass
 
     return {
         "status": "COMPLETED",
