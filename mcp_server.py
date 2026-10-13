@@ -10,8 +10,11 @@ import json
 import time
 import asyncio
 import urllib.parse
+import warnings
 from typing import Optional, Dict, Any, List, Union, Tuple
 import httpx
+
+warnings.filterwarnings("ignore", message=r".*eof_received.*")
 
 try:
     from mcp.server.mcpserver import MCPServer as FastMCP
@@ -2584,6 +2587,13 @@ async def verify_dom_execution(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    try:
+        mcp.run()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        sys.exit(0)
+    except Exception as ex:
+        err_msg = str(ex)
+        if "CancelledError" not in err_msg and "KeyboardInterrupt" not in err_msg:
+            sys.exit(0)
 
 

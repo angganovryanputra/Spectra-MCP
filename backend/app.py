@@ -9,8 +9,12 @@ import json
 import asyncio
 import time
 import secrets
+import warnings
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
+
+warnings.filterwarnings("ignore", message=r".*eof_received.*")
+warnings.filterwarnings("ignore", message=r".*Duplicate Operation ID.*")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query, HTTPException, BackgroundTasks, Response, Request
 from fastapi.staticfiles import StaticFiles
@@ -957,6 +961,7 @@ def get_stats(project: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @app.get("/api/logs")
+@app.get("/api/history")
 def list_logs(
     project: Optional[str] = None,
     agent: Optional[str] = None,
@@ -1691,8 +1696,8 @@ class GenerateOastRequest(BaseModel):
     vuln_type: Optional[str] = "BLIND_CALLBACK"
 
 
-@app.api_route("/oast/{token}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
-@app.api_route("/oast/{token}/{subpath:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"])
+@app.api_route("/oast/{token}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"], operation_id="handle_oast_callback_root", include_in_schema=False)
+@app.api_route("/oast/{token}/{subpath:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH"], operation_id="handle_oast_callback_subpath", include_in_schema=False)
 async def handle_oast_callback(token: str, request: Request, subpath: str = ""):
     """Catches out-of-band HTTP/S callbacks from target servers triggered by blind exploits."""
     from backend.oast_engine import record_oast_hit

@@ -14,6 +14,9 @@ import asyncio
 import urllib.parse
 import ssl
 import datetime
+import warnings
+
+warnings.filterwarnings("ignore", message=r".*eof_received.*")
 import ipaddress
 from typing import Optional, Dict, Any, Tuple
 import httpx
