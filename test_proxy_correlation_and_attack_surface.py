@@ -38,7 +38,14 @@ class MockTargetServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(b'{"status":"ok","message":"Target server responded"}')
+        import urllib.parse
+        query = urllib.parse.urlparse(self.path).query
+        if "syntax" in query or "1=1" in query:
+            self.wfile.write(b'{"error": "You have an error in your SQL syntax near line 1"}')
+        elif query:
+            self.wfile.write(f'{{"status":"ok","echo_query":"{query}"}}'.encode("utf-8"))
+        else:
+            self.wfile.write(b'{"status":"ok","message":"Target server responded"}')
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -261,6 +268,89 @@ class TestProxyCorrelationAndAttackSurface(unittest.IsolatedAsyncioTestCase):
             self.assertGreater(len(race_logs), 0, "Race burst requests must be recorded in HttpLog")
             self.assertGreater(len(jwt_logs), 0, "JWT live audit requests must be recorded in HttpLog")
             print(f"  [+] Verified HttpLog records: Workflow={len(wf_logs)}, Race={len(race_logs)}, JWT={len(jwt_logs)}")
+        finally:
+            db.close()
+
+    async def test_06_repeater_user_agent_and_security(self):
+        """Test that repeater requests sanitize bot UAs and use legitimate browser profiles."""
+        print("\n[TEST 6] Verifying Repeater User-Agent rotation and bot sanitization...")
+        from backend.app import repeater_send_request, RepeaterSendRequest
+        db = SessionLocal()
+        try:
+            req = RepeaterSendRequest(
+                project="test_repeater_ua",
+                method="GET",
+                url=f"http://127.0.0.1:{self.target_port}/api/repeater-test",
+                headers={"User-Agent": "curl/7.88.1"}
+            )
+            result = await repeater_send_request(req, db)
+            req_hdrs = result["request_headers"] if isinstance(result["request_headers"], dict) else json.loads(result["request_headers"])
+            sent_ua = req_hdrs.get("User-Agent") or req_hdrs.get("user-agent")
+            self.assertNotIn("SpectraRepeater", sent_ua)
+            self.assertNotIn("curl", sent_ua.lower())
+            self.assertTrue(any(b in sent_ua for b in ["Chrome", "Safari", "Firefox", "Edg"]))
+            print(f"  [+] Sanitized Repeater UA: {sent_ua}")
+        finally:
+            db.close()
+
+    async def test_07_workflow_and_js_miner_scope_enforcement(self):
+        """Test that workflow engine and js miner strictly respect project scope guardrails."""
+        print("\n[TEST 7] Verifying Workflow Engine & JS Miner scope guardrail enforcement...")
+        proj_name = "test_scope_strict"
+        db = SessionLocal()
+        try:
+            p = db.query(Project).filter(Project.name == proj_name).first()
+            if not p:
+                p = Project(name=proj_name)
+                db.add(p)
+            p.scope_enabled = True
+            p.allowed_hosts = json.dumps(["authorized-target.com"])
+            p.blocked_patterns = json.dumps([])
+            db.commit()
+
+            # 1. Workflow should block out-of-scope step
+            from backend.workflow_engine import execute_workflow
+            wf_res = await execute_workflow(
+                sequence=[
+                    {"name": "Step OutOfScope", "method": "GET", "url": "http://evil-out-of-scope.com/api/steal"}
+                ],
+                project=proj_name
+            )
+            step_res = wf_res["step_results"][0]
+            self.assertEqual(step_res["status"], "BLOCKED_BY_SCOPE")
+            print("  [+] Workflow step blocked by scope guardrail as expected.")
+
+            # 2. JS Miner should block out-of-scope remote URL
+            from backend.js_miner import mine_javascript
+            miner_res = await mine_javascript(
+                content_or_url="http://evil-out-of-scope.com/secret.js",
+                project=proj_name
+            )
+            self.assertIn("error", miner_res)
+            self.assertIn("out of authorized scope", miner_res["error"].lower())
+            print("  [+] JS Miner remote fetch blocked by scope guardrail as expected.")
+        finally:
+            db.close()
+
+    async def test_08_fuzzer_anomaly_history_correlation(self):
+        """Test that parameter fuzzer anomalies dispatch clean logs to HttpLog without NameError."""
+        print("\n[TEST 8] Verifying Parameter Fuzzer anomaly logging to HttpLog...")
+        from backend.fuzzer import run_fuzz_attack
+        proj = "test_fuzzer_anomaly_proj"
+        res = await run_fuzz_attack(
+            base_url=f"http://127.0.0.1:{self.target_port}/api/search?q=§test§",
+            method="GET",
+            payloads=["' OR 1=1--", "<script>alert(1)</script>"],
+            project=proj,
+            agent_id="fuzz_agent"
+        )
+        self.assertEqual(res["total_payloads"], 2)
+        time.sleep(0.3)
+        db = SessionLocal()
+        try:
+            fuzz_logs = db.query(HttpLog).filter(HttpLog.project == proj, HttpLog.source == "FUZZER").all()
+            self.assertGreaterEqual(len(fuzz_logs), 1, "Fuzzer anomalies must be logged into HttpLog")
+            print(f"  [+] Parameter Fuzzer anomaly logged to HttpLog (count={len(fuzz_logs)}) with proper project attribution.")
         finally:
             db.close()
 

@@ -187,6 +187,25 @@ async def mine_javascript(
         source_url = content_or_url.strip()
         base_url = base_url or source_url
 
+        # Validate against project scope guardrails
+        if target_project:
+            db_scope = SessionLocal()
+            try:
+                from backend.intercept_manager import async_check_scope
+                is_allowed, block_reason = await async_check_scope(target_project, source_url, db_scope)
+                if not is_allowed:
+                    return {
+                        "error": f"Target URL is out of authorized scope: {block_reason}",
+                        "source_url": source_url,
+                        "endpoints_found": [],
+                        "parameters_found": [],
+                        "secrets_leaked": [],
+                        "sourcemaps": [],
+                        "summary": {"endpoints_count": 0, "params_count": 0, "secrets_count": 0}
+                    }
+            finally:
+                db_scope.close()
+
         headers = {}
         apply_rotating_user_agent(headers)
 

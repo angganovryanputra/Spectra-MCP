@@ -8,6 +8,7 @@ import os
 import json
 import asyncio
 import time
+import secrets
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
@@ -149,7 +150,7 @@ async def host_and_auth_security_middleware(request: Request, call_next):
         if auth_hdr.startswith("Bearer "):
             provided_key = auth_hdr[7:].strip()
         
-        if provided_key != SPECTRA_API_KEY:
+        if not secrets.compare_digest(provided_key, SPECTRA_API_KEY):
             return JSONResponse(
                 {"detail": "Unauthorized: Invalid or missing Spectra API Key (X-Spectra-Key header)."},
                 status_code=401
@@ -502,7 +503,7 @@ async def websocket_endpoint(websocket: WebSocket):
             websocket.headers.get("x-spectra-key") or
             ""
         )
-        if api_key != SPECTRA_API_KEY:
+        if not secrets.compare_digest(api_key, SPECTRA_API_KEY):
             await websocket.close(code=1008)
             return
 
@@ -740,10 +741,10 @@ async def repeater_send_request(req: RepeaterSendRequest, db: Session = Depends(
     res_headers = {}
     res_body = ""
 
-    # Ensure valid headers dict
+    # Ensure valid headers dict and legitimate rotating browser User-Agent
+    from backend.user_agents import apply_rotating_user_agent
     req_headers = {str(k): str(v) for k, v in (req.headers or {}).items()}
-    if "User-Agent" not in req_headers and "user-agent" not in req_headers:
-        req_headers["User-Agent"] = "SpectraRepeater/1.3"
+    apply_rotating_user_agent(req_headers)
 
     try:
         client = await _get_repeater_client(proxy_cfg or "", verify_ssl=verify_ssl)
@@ -1614,13 +1615,12 @@ def create_target_endpoint_endpoint(req: CreateTargetEndpointRequest):
 
 
 @app.delete("/api/targets/assets/{asset_id}")
-def delete_target_asset_endpoint(asset_id: int, db: Session = Depends(get_db)):
+def delete_target_asset_endpoint(asset_id: int, project: Optional[str] = None):
     """Deletes an asset and all its cascading services/endpoints."""
-    asset = db.query(TargetAsset).filter(TargetAsset.id == asset_id).first()
-    if not asset:
+    from backend.target_manager import delete_target_asset
+    success = delete_target_asset(asset_id, project)
+    if not success:
         raise HTTPException(status_code=404, detail=f"Asset ID #{asset_id} not found.")
-    db.delete(asset)
-    db.commit()
     return {"status": "deleted", "id": asset_id}
 
 
@@ -1989,7 +1989,8 @@ async def run_race_endpoint(req: RaceRunRequest, db: Session = Depends(get_db)):
         headers=req.headers,
         body=req.body,
         concurrency=req.concurrency,
-        upstream_proxy=upstream_proxy
+        upstream_proxy=upstream_proxy,
+        project=proj
     )
 
 
@@ -2078,7 +2079,8 @@ async def audit_jwt_endpoint(req: JwtAuditRequest, db: Session = Depends(get_db)
         method=req.method,
         headers=req.headers,
         claims_override=req.claims_override,
-        upstream_proxy=upstream_proxy
+        upstream_proxy=upstream_proxy,
+        project=proj
     )
 
 

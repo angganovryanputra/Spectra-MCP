@@ -244,20 +244,20 @@ async def run_fuzz_attack(
                         try:
                             from backend.forward_proxy import _dispatch_log
                             import urllib.parse
-                            parsed_fz = urllib.parse.urlparse(mut_url)
+                            parsed_fz = urllib.parse.urlparse(req_url)
                             is_critical = any(a in ["SQL_ERROR_LEAK", "SSTI_EVALUATED_49"] for a in anomalies)
                             await _dispatch_log({
                                 "project": project,
                                 "agent_id": agent_id,
                                 "source": "FUZZER",
                                 "method": method,
-                                "url": mut_url,
+                                "url": req_url,
                                 "host": parsed_fz.netloc,
                                 "path": parsed_fz.path or "/",
-                                "status_code": sc,
-                                "duration_ms": dur_ms,
-                                "request_headers": mut_hdrs,
-                                "request_body": mut_body,
+                                "status_code": resp.status_code,
+                                "duration_ms": dur,
+                                "request_headers": req_headers,
+                                "request_body": req_body,
                                 "response_headers": dict(resp.headers),
                                 "response_body": text,
                                 "reasoning": f"[Parameter Fuzzer Anomaly: {', '.join(anomalies)}] Payload: {payload}",
@@ -281,6 +281,34 @@ async def run_fuzz_attack(
 
     # Count anomalies
     flagged_count = sum(1 for r in results if len(r["anomalies"]) > 0)
+
+    # Ensure clean fuzzing session is recorded in HttpLog if no anomalies triggered individual logs
+    if flagged_count == 0:
+        try:
+            from backend.forward_proxy import _dispatch_log
+            import urllib.parse
+            parsed_base = urllib.parse.urlparse(baseline_url)
+            await _dispatch_log({
+                "project": project,
+                "agent_id": agent_id,
+                "source": "FUZZER",
+                "method": method,
+                "url": baseline_url,
+                "host": parsed_base.netloc,
+                "path": parsed_base.path or "/",
+                "status_code": baseline_result.get("status_code", 200),
+                "duration_ms": baseline_result.get("duration_ms", 0),
+                "request_headers": baseline_headers,
+                "request_body": baseline_body,
+                "response_headers": {},
+                "response_body": json.dumps({"total_payloads": len(payloads), "anomalies_detected": 0, "status": "CLEAN"}),
+                "reasoning": f"[Parameter Fuzzer Complete: {len(payloads)} payloads tested, 0 anomalies]",
+                "flag_status": "CLEAN",
+                "finding_title": "",
+                "finding_severity": "INFO"
+            })
+        except Exception:
+            pass
 
     return {
         "baseline": baseline_result,

@@ -225,6 +225,7 @@ async def _persist_and_stream_log(
                 description=f.get("description", ""),
                 remediation=f.get("remediation", "")
             )
+            db.add(finding)
         db.commit()
 
         try:

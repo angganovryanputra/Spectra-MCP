@@ -147,6 +147,20 @@ async def run_workflow_sequence(
             # Ensure legitimate browser User-Agent
             apply_rotating_user_agent(step_headers)
 
+            # Validate against project scope guardrails
+            db_scope = SessionLocal()
+            try:
+                is_allowed, block_reason = await async_check_scope(project, step_url, db_scope)
+                if not is_allowed:
+                    results.append({
+                        "step": step_name,
+                        "status": "BLOCKED_BY_SCOPE",
+                        "details": f"Target URL is out of authorized scope: {block_reason}"
+                    })
+                    continue
+            finally:
+                db_scope.close()
+
             t0 = time.time()
             res_status = None
             res_headers = {}
