@@ -1,5 +1,5 @@
 """
-Spectra MCP - Security Testing Gateway & Observability Platform
+Proxynth MCP - Autonomous Security Testing Gateway & Interception Platform
 Model Context Protocol (MCP) Server Entrypoint (Stdio & SSE Transport)
 Features: Scope Guardrails, Interactive Intercept Proxy Trap, AI Reasoning Correlation, & Multi-Project Isolation.
 """
@@ -57,13 +57,13 @@ from backend.user_agents import apply_rotating_user_agent, get_random_user_agent
 from backend.fuzzer import run_fuzz_attack, BUILTIN_PAYLOADS, MARKER_REGEX
 
 # Initialize FastMCP Server
-mcp = FastMCP("spectra_mcp")
+mcp = FastMCP("proxynth")
 
 def get_backend_url() -> str:
-    return os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+    return os.getenv("PROXSYNTH_BACKEND_URL", os.getenv("SPECTRA_BACKEND_URL", "http://127.0.0.1:8000")).rstrip("/")
 
 BACKEND_URL = get_backend_url()
-DEFAULT_PROJECT = os.getenv("SPECTRA_PROJECT", "default").strip().lower()
+DEFAULT_PROJECT = os.getenv("PROXSYNTH_PROJECT", os.getenv("SPECTRA_PROJECT", "default")).strip().lower()
 
 # Ensure DB is created
 init_db()
@@ -85,8 +85,9 @@ async def _get_dashboard_client() -> httpx.AsyncClient:
             except Exception:
                 pass
         hdrs = {}
-        api_key = os.getenv("SPECTRA_API_KEY", "").strip()
+        api_key = os.getenv("PROXSYNTH_API_KEY", os.getenv("SPECTRA_API_KEY", "")).strip()
         if api_key:
+            hdrs["X-Proxynth-Key"] = api_key
             hdrs["X-Spectra-Key"] = api_key
         _dashboard_client = httpx.AsyncClient(
             headers=hdrs,
@@ -105,7 +106,7 @@ async def _get_outbound_client(proxy_cfg: str = "") -> httpx.AsyncClient:
         _outbound_clients.clear()
         _outbound_loop = current_loop
     key = proxy_cfg.strip() if proxy_cfg else "direct"
-    verify_ssl = os.getenv("SPECTRA_VERIFY_SSL", "false").lower() == "true"
+    verify_ssl = os.getenv("PROXSYNTH_VERIFY_SSL", os.getenv("SPECTRA_VERIFY_SSL", "false")).lower() == "true"
     if key not in _outbound_clients or _outbound_clients[key].is_closed:
         kwargs = {
             "verify": verify_ssl,
@@ -991,9 +992,9 @@ async def run_pentest_command(
     exit_code = 0
     status = "SUCCESS"
 
-    proxy_port = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
+    proxy_port = int(os.getenv("PROXSYNTH_PROXY_PORT", os.getenv("SPECTRA_PROXY_PORT", "8088")))
 
-    # 1. Guarantee that Spectra Forward Proxy is actively running before command execution
+    # 1. Guarantee that Proxynth Forward Proxy is actively running before command execution
     try:
         from backend.forward_proxy import ensure_forward_proxy_running
         await ensure_forward_proxy_running(port=proxy_port)
@@ -1012,8 +1013,11 @@ async def run_pentest_command(
     sub_env["all_proxy"] = proxy_url_auth
     sub_env["NO_PROXY"] = ""
     sub_env["no_proxy"] = ""
+    sub_env["PROXSYNTH_PROJECT"] = target_project
     sub_env["SPECTRA_PROJECT"] = target_project
+    sub_env["PROXSYNTH_AGENT_ID"] = target_agent
     sub_env["SPECTRA_AGENT_ID"] = target_agent
+    sub_env["PROXSYNTH_PROXY_PORT"] = str(proxy_port)
     sub_env["SPECTRA_PROXY_PORT"] = str(proxy_port)
     try:
         from backend.forward_proxy import get_ca_cert_path

@@ -21,7 +21,7 @@ client = TestClient(app)
 print("\n[TEST 1] Verifying Static Files & Index Serving...")
 res_index = client.get("/")
 assert res_index.status_code == 200, f"Index failed: {res_index.status_code}"
-assert "SPECTRA // Security Testing Gateway" in res_index.text
+assert ("PROXSYNTH // Autonomous Security Testing Gateway" in res_index.text or "SPECTRA // Security Testing Gateway" in res_index.text)
 assert "/static/css/style.css" in res_index.text
 assert "/static/js/attack_surface.js" in res_index.text
 assert "/static/js/oast.js" in res_index.text

@@ -2,7 +2,7 @@
 setlocal
 
 echo ========================================================================
-echo   SPECTRA MCP - Security Testing Gateway and Observability Platform
+echo   PROXSYNTH MCP - Autonomous Security Testing Gateway
 echo   Automated Environment Installer for Windows
 echo ========================================================================
 echo.
@@ -91,7 +91,7 @@ if exist ".spectra_ca\spectra_ca.crt" (
 
 echo.
 echo ========================================================================
-echo   [SUCCESS] Spectra Installation Complete!
+echo   [SUCCESS] Proxynth Installation Complete!
 echo ========================================================================
 echo.
 echo   To launch the Web Dashboard:

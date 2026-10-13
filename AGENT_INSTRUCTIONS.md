@@ -1,23 +1,23 @@
-# SPECTRA MCP — AGENT INTEGRATION GUIDE (Opencode / Hermes)
+# PROXSYNTH MCP — AGENT INTEGRATION GUIDE (Claude Code / OpenCode / Hermes / Cursor / Windsurf)
 
-Panduan konfigurasi dan integrasi untuk agen otonom seperti **Opencode**, **Hermes Agent**, **Claude Desktop**, atau **Cursor** agar seluruh lalu lintas pengujian penetrasi (pentest) diarahkan dan ditangkap melalui gateway Spectra MCP.
+Panduan konfigurasi dan integrasi untuk agen otonom seperti **Claude Code**, **OpenCode**, **Hermes Agent**, **Cursor**, atau **Windsurf** agar seluruh lalu lintas pengujian penetrasi (pentest) diarahkan dan ditangkap melalui gateway Proxynth MCP.
 
 ---
 
 ## 1. Konfigurasi MCP Client
 
-Tambahkan konfigurasi server Spectra MCP ke konfigurasi agent Anda:
+Tambahkan konfigurasi server Proxynth MCP ke konfigurasi agent Anda:
 
-### Untuk Opencode / Hermes (`mcp_config.json` atau runtime config)
+### Untuk Claude Code / Cursor / OpenCode (`mcp_config.json` atau runtime config)
 ```json
 {
   "mcpServers": {
-    "spectra": {
+    "proxynth": {
       "command": "python",
       "args": ["d:/PROJECT/01/mcp_server.py"],
       "env": {
-        "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-        "SPECTRA_PROJECT": "client-alpha"
+        "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+        "PROXSYNTH_PROJECT": "client-alpha"
       }
     }
   }

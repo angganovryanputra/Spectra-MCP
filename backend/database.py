@@ -25,7 +25,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
 from backend.security_utils import encrypt_secret, decrypt_secret
 
 
-DB_PATH = os.getenv("SPECTRA_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "spectra.db"))
+DB_PATH = os.getenv("PROXSYNTH_DB_PATH", os.getenv("SPECTRA_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "spectra.db")))
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SPECTRA // Security Testing Gateway & Observability Platform</title>
+  <title>PROXSYNTH // Autonomous Security Testing Gateway &amp; Observability Platform</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -101,7 +101,7 @@
 </head>
 
 <body class="bg-[#0B0F17] text-slate-200 font-sans antialiased h-screen overflow-hidden flex flex-row select-none"
-  x-data="spectraApp()" x-init="initApp()">
+  x-data="proxynthApp()" x-init="initApp()">
 
   <!-- ========================================================================= -->
   <!-- LEFT SIDEBAR (COLLAPSIBLE NAVIGATION RAIL)                                -->
@@ -122,7 +122,7 @@
         </div>
         <div class="truncate">
           <div class="font-mono font-bold text-xs tracking-wider text-slate-100 flex items-center space-x-1">
-            <span>SPECTRA</span>
+            <span>PROXSYNTH</span>
             <span class="text-sky-400">//</span>
             <span class="text-slate-400 text-[10px]">GATEWAY</span>
           </div>
@@ -3937,7 +3937,7 @@
 
   <!-- ALPINE.JS CONTROLLER -->
   <script>
-    function spectraApp() {
+    function proxynthApp() {
       const attackModuleData = (window.AttackSurfaceModule && window.AttackSurfaceModule.data) ? window.AttackSurfaceModule.data() : {};
       const attackModuleMethods = (window.AttackSurfaceModule && window.AttackSurfaceModule.methods) ? window.AttackSurfaceModule.methods : {};
       const oastModuleData = (window.OastModule && window.OastModule.data) ? window.OastModule.data() : {};
@@ -6124,9 +6124,12 @@
     }
 
     // Register with window and Alpine
-    window.spectraApp = spectraApp;
+    const spectraApp = proxynthApp;
+    window.proxynthApp = proxynthApp;
+    window.spectraApp = proxynthApp;
     document.addEventListener('alpine:init', () => {
-      Alpine.data('spectraApp', spectraApp);
+      Alpine.data('proxynthApp', proxynthApp);
+      Alpine.data('spectraApp', proxynthApp);
     });
   </script>
 </body>

@@ -52,9 +52,9 @@ from backend.security_utils import sanitize_attachment_filename
 init_db()
 
 app = FastAPI(
-    title="Spectra MCP Platform",
-    description="Security Testing Gateway & Real-Time Observability Engine for AI Agents",
-    version="1.3.0"
+    title="Proxynth Platform",
+    description="Autonomous Agentic Interception Proxy & Security Telemetry Platform for AI Agents",
+    version="2.0.0"
 )
 
 @app.on_event("startup")
@@ -64,19 +64,19 @@ async def startup_event():
         from backend.forward_proxy import start_forward_proxy
         await start_forward_proxy()
     except Exception as ex:
-        print(f"[!] Notice: Spectra Forward Proxy startup error: {ex}")
+        print(f"[!] Notice: Proxynth Forward Proxy startup error: {ex}")
 
     try:
         from backend.dns_server import start_dns_server
         await start_dns_server()
     except Exception as ex:
-        print(f"[!] Notice: Spectra DNS OAST listener startup error: {ex}")
+        print(f"[!] Notice: Proxynth DNS OAST listener startup error: {ex}")
 
     try:
         from backend.ldap_server import start_ldap_server
         await start_ldap_server()
     except Exception as ex:
-        print(f"[!] Notice: Spectra LDAP OAST listener startup error: {ex}")
+        print(f"[!] Notice: Proxynth LDAP OAST listener startup error: {ex}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -99,17 +99,21 @@ async def shutdown_event():
 
 # Security Configuration from Environment
 ALLOWED_ORIGINS_ENV = os.getenv(
-    "SPECTRA_ALLOWED_ORIGINS",
-    "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:3000,http://localhost:3000"
+    "PROXSYNTH_ALLOWED_ORIGINS",
+    os.getenv("SPECTRA_ALLOWED_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:3000,http://localhost:3000")
 )
-SPECTRA_ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
-SPECTRA_API_KEY = os.getenv("SPECTRA_API_KEY", "").strip()
-SPECTRA_ALLOW_REMOTE = os.getenv("SPECTRA_ALLOW_REMOTE", "false").lower() == "true"
-SPECTRA_MAX_BODY = int(os.getenv("SPECTRA_MAX_BODY_SIZE", "524288"))  # 512 KB default limit per body
+PROXSYNTH_ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
+PROXSYNTH_API_KEY = os.getenv("PROXSYNTH_API_KEY", os.getenv("SPECTRA_API_KEY", "")).strip()
+PROXSYNTH_ALLOW_REMOTE = os.getenv("PROXSYNTH_ALLOW_REMOTE", os.getenv("SPECTRA_ALLOW_REMOTE", "false")).lower() == "true"
+PROXSYNTH_MAX_BODY = int(os.getenv("PROXSYNTH_MAX_BODY_SIZE", os.getenv("SPECTRA_MAX_BODY_SIZE", "524288")))  # 512 KB default limit per body
+
+SPECTRA_API_KEY = PROXSYNTH_API_KEY
+SPECTRA_ALLOW_REMOTE = PROXSYNTH_ALLOW_REMOTE
+SPECTRA_MAX_BODY = PROXSYNTH_MAX_BODY
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=SPECTRA_ALLOWED_ORIGINS,
+    allow_origins=PROXSYNTH_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -139,9 +143,11 @@ async def host_and_auth_security_middleware(request: Request, call_next):
                 status_code=403
             )
 
-    # 2. API Key enforcement (if SPECTRA_API_KEY is configured in env)
-    if SPECTRA_API_KEY and request.url.path.startswith("/api/") and request.url.path != "/api/health":
+    # 2. API Key enforcement (if PROXSYNTH_API_KEY is configured in env)
+    effective_api_key = PROXSYNTH_API_KEY or SPECTRA_API_KEY
+    if effective_api_key and request.url.path.startswith("/api/") and request.url.path != "/api/health":
         provided_key = (
+            request.headers.get("X-Proxynth-Key") or
             request.headers.get("X-Spectra-Key") or
             request.query_params.get("api_key") or
             ""
@@ -150,9 +156,9 @@ async def host_and_auth_security_middleware(request: Request, call_next):
         if auth_hdr.startswith("Bearer "):
             provided_key = auth_hdr[7:].strip()
         
-        if not secrets.compare_digest(provided_key, SPECTRA_API_KEY):
+        if not secrets.compare_digest(provided_key, effective_api_key):
             return JSONResponse(
-                {"detail": "Unauthorized: Invalid or missing Spectra API Key (X-Spectra-Key header)."},
+                {"detail": "Unauthorized: Invalid or missing API Key (X-Proxynth-Key / X-Spectra-Key header)."},
                 status_code=401
             )
 
@@ -497,19 +503,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close(code=1008)  # Policy violation
             return
 
-    if SPECTRA_API_KEY:
+    effective_api_key = PROXSYNTH_API_KEY or SPECTRA_API_KEY
+    if effective_api_key:
         api_key = (
             websocket.query_params.get("api_key") or
+            websocket.headers.get("x-proxynth-key") or
             websocket.headers.get("x-spectra-key") or
             ""
         )
-        if not secrets.compare_digest(api_key, SPECTRA_API_KEY):
+        if not secrets.compare_digest(api_key, effective_api_key):
             await websocket.close(code=1008)
             return
 
     await ws_manager.connect(websocket)
     try:
-        await websocket.send_json({"type": "CONNECTED", "server": "SPECTRA_MCP_V1"})
+        await websocket.send_json({"type": "CONNECTED", "server": "PROXSYNTH_MCP_V2", "alias": "SPECTRA_MCP_V1"})
         while True:
             data = await websocket.receive_text()
             if data == "ping":

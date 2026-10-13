@@ -9,10 +9,13 @@ with zero manual configuration required in the agent's code.
 import os
 import sys
 
-# Do not intercept if explicitly disabled or inside Spectra Proxy server process itself
-if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("SPECTRA_IS_PROXY", "0") != "1":
-    proxy_port = int(os.environ.get("SPECTRA_PROXY_PORT", "8088"))
-    proxy_url = os.environ.get("SPECTRA_PROXY_URL", f"http://127.0.0.1:{proxy_port}")
+# Do not intercept if explicitly disabled or inside Proxynth Proxy server process itself
+disable_proxy = os.environ.get("PROXSYNTH_DISABLE_AUTO_PROXY", os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0")) == "1"
+is_proxy = os.environ.get("PROXSYNTH_IS_PROXY", os.environ.get("SPECTRA_IS_PROXY", "0")) == "1"
+
+if not disable_proxy and not is_proxy:
+    proxy_port = int(os.environ.get("PROXSYNTH_PROXY_PORT", os.environ.get("SPECTRA_PROXY_PORT", "8088")))
+    proxy_url = os.environ.get("PROXSYNTH_PROXY_URL", os.environ.get("SPECTRA_PROXY_URL", f"http://127.0.0.1:{proxy_port}"))
 
     # 1. Inject Standard Proxy Environment Variables
     os.environ["HTTP_PROXY"] = proxy_url
@@ -22,13 +25,16 @@ if os.environ.get("SPECTRA_DISABLE_AUTO_PROXY", "0") != "1" and os.environ.get("
     os.environ["ALL_PROXY"] = proxy_url
     os.environ["all_proxy"] = proxy_url
 
-    # 2. Configure Spectra Root CA Certificate & Disable Verification Warnings
+    # 2. Configure Proxynth Root CA Certificate & Disable Verification Warnings
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     ca_path = ""
     for _ in range(5):
-        candidate = os.path.join(curr_dir, ".spectra_ca", "spectra_ca.crt")
-        if os.path.exists(candidate):
-            ca_path = os.path.abspath(candidate)
+        for ca_dir_name, crt_name in [(".proxynth_ca", "proxynth_ca.crt"), (".spectra_ca", "spectra_ca.crt")]:
+            candidate = os.path.join(curr_dir, ca_dir_name, crt_name)
+            if os.path.exists(candidate):
+                ca_path = os.path.abspath(candidate)
+                break
+        if ca_path:
             break
         parent = os.path.dirname(curr_dir)
         if parent == curr_dir:

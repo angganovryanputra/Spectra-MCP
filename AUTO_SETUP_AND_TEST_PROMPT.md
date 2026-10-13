@@ -1,46 +1,45 @@
-# 🚀 SPECTRA MCP — AUTOMATED SETUP & VALIDATION PROMPT
+# 🚀 PROXSYNTH MCP — AUTOMATED SETUP & VALIDATION PROMPT
 
-Dokumen ini berisi instruksi master prompt yang dapat langsung diberikan kepada AI Coding/Pentesting Agent (**OpenCode**, **Claude Code**, **Cursor**, **Hermes**, dll.) sesaat setelah pengguna melakukan `git clone` repositori Spectra.
+Dokumen ini berisi instruksi master prompt yang dapat langsung diberikan kepada AI Coding/Pentesting Agent (**Claude Code**, **OpenCode**, **Cursor**, **Windsurf**, **Hermes**, dll.) sesaat setelah pengguna melakukan `git clone` repositori Proxynth.
 
 ---
 
-## 📋 Master Prompt (Copy & Paste ke OpenCode / Agent)
+## 📋 Master Prompt (Copy & Paste ke Claude Code / OpenCode / Agent)
 
-Salin seluruh teks di bawah ini ke dalam sesi prompt OpenCode:
+Salin seluruh teks di bawah ini ke dalam sesi prompt agent Anda:
 
 ```markdown
-Anda adalah Autonomous Security & DevOps Agent. Saya baru saja melakukan `git clone` repositori Spectra ini. 
+Anda adalah Autonomous Security & DevOps Agent. Saya baru saja melakukan `git clone` repositori Proxynth ini. 
 Tugas Anda adalah:
-1. Menjalankan auto-instalasi environment Spectra MCP di sistem ini.
+1. Menjalankan auto-instalasi environment Proxynth MCP di sistem ini.
 2. Memastikan konfigurasi MCP Client terpasang dan terhubung dengan benar.
-3. Menjalankan backend Spectra Dashboard.
-4. Melakukan validasi pengujian fungsional tools Spectra secara end-to-end terhadap target:
+3. Menjalankan backend Proxynth Dashboard.
+4. Melakukan validasi pengujian fungsional tools Proxynth secara end-to-end terhadap target:
    👉 https://juice-shop.herokuapp.com/#/
 
 Lakukan seluruh tahapan berikut secara berurutan dan mandiri:
 
 ### TAHAP 1: DETEKSI SISTEM & AUTO-INSTALLATION
 1. Periksa OS saat ini (Windows vs Linux/WSL2).
-2. Jalankan script auto-installer resmi Spectra:
+2. Jalankan script auto-installer resmi Proxynth:
    - Jika di Windows: Jalankan `install.bat` (atau `powershell.exe -ExecutionPolicy Bypass -File .\install.ps1`).
    - Jika di Linux/WSL2: Jalankan `chmod +x install.sh run.sh && ./install.sh`.
 3. Pastikan virtual environment (`venv`) telah terbuat dan seluruh dependensi di `requirements.txt` (termasuk FastAPI, Uvicorn, Playwright Chromium, dan Cryptography) terpasang tanpa error.
 
-### TAHAP 2: KONFIGURASI MCP CLIENT (OPENCODE)
-1. Periksa file konfigurasi MCP OpenCode Anda (`opencode.json` atau `~/.config/opencode/opencode.json`).
-2. Daftarkan server `spectra` dengan format berikut:
+### TAHAP 2: KONFIGURASI MCP CLIENT
+1. Periksa file konfigurasi MCP client Anda (`mcp_config.json`, `claude_desktop_config.json`, atau `~/.config/opencode/opencode.json`).
+2. Daftarkan server `proxynth` dengan format berikut:
    ```json
    {
-     "mcp": {
-       "spectra": {
-         "type": "local",
-         "command": [
-           "<PATH_KE_PYTHON_VENV>",
+     "mcpServers": {
+       "proxynth": {
+         "command": "<PATH_KE_PYTHON_VENV>",
+         "args": [
            "<PATH_KE_MCP_SERVER_PY>"
          ],
-         "environment": {
-           "SPECTRA_BACKEND_URL": "http://127.0.0.1:8000",
-           "SPECTRA_PROJECT": "default",
+         "env": {
+           "PROXSYNTH_BACKEND_URL": "http://127.0.0.1:8000",
+           "PROXSYNTH_PROJECT": "default",
            "PYTHONIOENCODING": "utf-8"
          }
        }

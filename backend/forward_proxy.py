@@ -31,8 +31,8 @@ from backend.user_agents import apply_rotating_user_agent
 
 _proxy_server: Optional[asyncio.Server] = None
 _is_proxy_running: bool = False
-_proxy_port: int = int(os.getenv("SPECTRA_PROXY_PORT", "8088"))
-_proxy_host: str = os.getenv("SPECTRA_PROXY_HOST", "127.0.0.1")
+_proxy_port: int = int(os.getenv("PROXSYNTH_PROXY_PORT", os.getenv("SPECTRA_PROXY_PORT", "8088")))
+_proxy_host: str = os.getenv("PROXSYNTH_PROXY_HOST", os.getenv("SPECTRA_PROXY_HOST", "127.0.0.1"))
 
 _ca_cert = None
 _ca_key = None
@@ -49,20 +49,31 @@ def is_proxy_running() -> bool:
 
 def get_ca_dir() -> str:
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ca_dir = os.path.join(base_dir, ".spectra_ca")
+    ca_dir = os.path.join(base_dir, ".proxynth_ca")
+    if not os.path.exists(ca_dir):
+        old_ca = os.path.join(base_dir, ".spectra_ca")
+        if os.path.exists(old_ca):
+            return old_ca
     os.makedirs(ca_dir, exist_ok=True)
     return ca_dir
 
 def get_ca_cert_path() -> str:
-    return os.path.join(get_ca_dir(), "spectra_ca.crt")
+    ca_dir = get_ca_dir()
+    for fname in ["proxynth_ca.crt", "spectra_ca.crt"]:
+        cand = os.path.join(ca_dir, fname)
+        if os.path.exists(cand):
+            return cand
+    return os.path.join(ca_dir, "proxynth_ca.crt" if ca_dir.endswith(".proxynth_ca") else "spectra_ca.crt")
 
 def _get_upstream_proxy(project_name: str) -> Optional[str]:
-    """Retrieves project-specific upstream proxy or falls back to global SPECTRA_UPSTREAM_PROXY."""
+    """Retrieves project-specific upstream proxy or falls back to global PROXSYNTH_UPSTREAM_PROXY/SPECTRA_UPSTREAM_PROXY."""
     db = SessionLocal()
     try:
         p = db.query(Project).filter(Project.name == (project_name or "default").strip().lower()).first()
         if p and p.upstream_proxy and p.upstream_proxy.strip():
             return p.upstream_proxy.strip()
+        fallback = os.getenv("PROXSYNTH_UPSTREAM_PROXY", os.getenv("SPECTRA_UPSTREAM_PROXY", "")).strip()
+        return fallback if fallback else None
     except Exception:
         pass
     finally:
