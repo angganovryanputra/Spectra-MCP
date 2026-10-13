@@ -2268,6 +2268,25 @@ async def verify_dom_endpoint(req: VerifyDomRequest, db: Session = Depends(get_d
 # Static Dashboard Hosting
 # ==============================================================================
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "platform": "Proxynth", "version": "2.0.0"}
+
+@app.get("/api/info")
+def platform_info():
+    return {
+        "status": "online",
+        "platform": "Proxynth",
+        "version": "2.0.0",
+        "mode": "autonomous",
+        "intercept_active": is_intercept_enabled()
+    }
+
+@app.get("/favicon.ico")
+def serve_favicon():
+    svg_icon = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>"""
+    return Response(content=svg_icon, media_type="image/svg+xml")
+
 @app.get("/")
 def serve_index():
     index_file = os.path.join(FRONTEND_DIR, "index.html")

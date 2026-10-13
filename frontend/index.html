@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PROXSYNTH // Autonomous Security Testing Gateway &amp; Observability Platform</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306b6d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4323,21 +4324,30 @@
         },
 
         connectWebSocket() {
+          if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+            return;
+          }
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           const wsUrl = `${protocol}//${window.location.host}/ws`;
-          this.socket = new WebSocket(wsUrl);
-
-          this.socket.onopen = () => { this.wsConnected = true; };
-          this.socket.onmessage = (event) => {
-            try {
-              const msg = JSON.parse(event.data);
-              this.handleWsMessage(msg);
-            } catch (e) { }
-          };
-          this.socket.onclose = () => {
+          try {
+            this.socket = new WebSocket(wsUrl);
+            this.socket.onopen = () => { this.wsConnected = true; };
+            this.socket.onmessage = (event) => {
+              try {
+                const msg = JSON.parse(event.data);
+                this.handleWsMessage(msg);
+              } catch (e) { }
+            };
+            this.socket.onerror = () => {
+              this.wsConnected = false;
+            };
+            this.socket.onclose = () => {
+              this.wsConnected = false;
+              setTimeout(() => this.connectWebSocket(), 2500);
+            };
+          } catch (e) {
             this.wsConnected = false;
-            setTimeout(() => this.connectWebSocket(), 2000);
-          };
+          }
         },
 
         handleWsMessage(msg) {
@@ -6124,11 +6134,8 @@
     }
 
     // Register with window and Alpine
-    const proxynthApp = proxynthApp;
-    window.proxynthApp = proxynthApp;
     window.proxynthApp = proxynthApp;
     document.addEventListener('alpine:init', () => {
-      Alpine.data('proxynthApp', proxynthApp);
       Alpine.data('proxynthApp', proxynthApp);
     });
   </script>
